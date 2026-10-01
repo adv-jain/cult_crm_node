@@ -1,9 +1,10 @@
+
 import { useEffect, useState, useMemo, useRef } from "react";
 import api from "../api";
 
-import DealTable from "../components/DealTable";
-import DealForm from "../components/DealForm";
-import ViewDeal from "../components/ViewDeal";
+import TripTable from "../components/TripTable";
+import TripForm from "../components/TripForm";
+import ViewTrip from "../components/ViewTrip";
 
 import { useAuth } from "../context/AuthContext";
 
@@ -18,34 +19,48 @@ import {
   FiList,
 } from "react-icons/fi";
 
-const PIPELINE_STAGES = [
-  "New",
-  "Qualified",
-  "Proposal",
-  "Negotiation",
-  "Won",
-  "Lost",
+const TRIP_STATUSES = [
+  "Planning",
+  "Quotation",
+  "Confirmed",
+  "Upcoming",
+  "Ongoing",
+  "Completed",
+  "Cancelled",
 ];
 
-const LOST_REASONS = [
-  "Price",
-  "Competitor",
-  "No Budget",
-  "Not Interested",
-  "Timing",
-  "No Response",
+const TRAVEL_TYPES = [
+  "Domestic",
+  "International",
+  "Honeymoon",
+  "Family",
+  "Solo",
+  "Corporate",
+  "Group",
+  "Adventure",
+  "Pilgrimage",
   "Other",
 ];
 
-function Deals() {
+const CANCELLATION_REASONS = [
+  "Customer Cancelled",
+  "Payment Issue",
+  "Schedule Change",
+  "Destination Issue",
+  "Supplier Issue",
+  "Personal Reason",
+  "Other",
+];
+
+function Trips() {
   const { user } = useAuth();
 
   // ==========================================
   // DATA
   // ==========================================
-  const [deals, setDeals] = useState([]);
+  const [trips, setTrips] = useState([]);
   const [companies, setCompanies] = useState([]);
-  const [contacts, setContacts] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [leads, setLeads] = useState([]);
   const [users, setUsers] = useState([]);
 
@@ -54,7 +69,7 @@ function Deals() {
   // ==========================================
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [totalDeals, setTotalDeals] = useState(0);
+  const [totalTrips, setTotalTrips] = useState(0);
 
   const RECORDS_PER_PAGE = 50;
 
@@ -62,7 +77,8 @@ function Deals() {
   // FILTERS
   // ==========================================
   const [search, setSearch] = useState("");
-  const [stage, setStage] = useState("");
+  const [status, setStatus] = useState("");
+  const [travelType, setTravelType] = useState("");
   const [company, setCompany] = useState("");
   const [owner, setOwner] = useState("");
 
@@ -75,8 +91,8 @@ function Deals() {
   // FORM
   // ==========================================
   const [showForm, setShowForm] = useState(false);
-  const [editingDeal, setEditingDeal] = useState(null);
-  const [viewDeal, setViewDeal] = useState(null);
+  const [editingTrip, setEditingTrip] = useState(null);
+  const [viewTrip, setViewTrip] = useState(null);
 
   // ==========================================
   // LOADING
@@ -84,14 +100,14 @@ function Deals() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
-  const [changingStageId, setChangingStageId] = useState(null);
+  const [changingStatusId, setChangingStatusId] = useState(null);
 
   // ==========================================
-  // LOST REASON MODAL
+  // CANCEL REASON MODAL
   // ==========================================
-  const [showLostReasonModal, setShowLostReasonModal] = useState(false);
-  const [lostReason, setLostReason] = useState("");
-  const [lostDeal, setLostDeal] = useState(null);
+  const [showCancelReasonModal, setShowCancelReasonModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelTrip, setCancelTrip] = useState(null);
 
   // ==========================================
   // MESSAGES
@@ -106,75 +122,126 @@ function Deals() {
   const filterRef = useRef(null);
 
   // ==========================================
-  // FETCH DEALS
+  // FETCH TRIPS
   // ==========================================
-  const fetchDeals = async (page = 1) => {
+  const fetchTrips = async (page = 1) => {
     try {
       setLoading(true);
       setErrorMessage("");
 
-      const response = await api.get("/deals", {
-        params: { search, stage, company, owner, page, limit: RECORDS_PER_PAGE },
+      const response = await api.get("/trips", {
+        params: {
+          search,
+          status,
+          travelType,
+          company,
+          owner,
+          page,
+          limit: RECORDS_PER_PAGE,
+        },
       });
 
       const data = response.data;
 
-      setDeals(data.deals || []);
+      setTrips(data.trips || []);
       setCurrentPage(Number(data.page) || page);
       setTotalPages(Math.max(Number(data.totalPages) || 1, 1));
-      setTotalDeals(Number(data.total) || 0);
+      setTotalTrips(Number(data.total) || 0);
     } catch (error) {
-      console.error("Fetch deals error:", error.response?.data || error.message);
-      setErrorMessage(error.response?.data?.message || "Failed to fetch deals");
-      setDeals([]);
-      setTotalDeals(0);
+      console.error(
+        "Fetch trips error:",
+        error.response?.data || error.message
+      );
+
+      setErrorMessage(
+        error.response?.data?.message || "Failed to fetch trips"
+      );
+
+      setTrips([]);
+      setTotalTrips(0);
       setTotalPages(1);
     } finally {
       setLoading(false);
     }
   };
 
+  // ==========================================
+  // FETCH COMPANIES
+  // ==========================================
   const fetchCompanies = async () => {
     try {
       const response = await api.get("/companies");
+
       setCompanies(response.data.companies || []);
     } catch (error) {
-      console.error("Fetch companies error:", error.response?.data || error.message);
+      console.error(
+        "Fetch companies error:",
+        error.response?.data || error.message
+      );
     }
   };
 
-  const fetchContacts = async () => {
+  // ==========================================
+  // FETCH CUSTOMERS
+  // ==========================================
+  const fetchCustomers = async () => {
     try {
-      const response = await api.get("/contacts", {
-        params: { page: 1, limit: RECORDS_PER_PAGE },
+      const response = await api.get("/customers", {
+        params: {
+          page: 1,
+          limit: RECORDS_PER_PAGE,
+        },
       });
-      setContacts(response.data.contacts || []);
+
+      setCustomers(response.data.customers || []);
     } catch (error) {
-      console.error("Fetch contacts error:", error.response?.data || error.message);
+      console.error(
+        "Fetch customers error:",
+        error.response?.data || error.message
+      );
     }
   };
 
+  // ==========================================
+  // FETCH LEADS
+  // ==========================================
   const fetchLeads = async () => {
     try {
       const response = await api.get("/leads", {
-        params: { page: 1, limit: RECORDS_PER_PAGE },
+        params: {
+          page: 1,
+          limit: RECORDS_PER_PAGE,
+        },
       });
+
       setLeads(response.data.leads || []);
     } catch (error) {
-      console.error("Fetch leads error:", error.response?.data || error.message);
+      console.error(
+        "Fetch leads error:",
+        error.response?.data || error.message
+      );
     }
   };
 
+  // ==========================================
+  // FETCH ASSIGNABLE USERS
+  // ==========================================
   const fetchUsers = async () => {
     if (user?.role !== "admin" && user?.role !== "manager") {
       setUsers([]);
       return;
     }
+
     try {
-      const response = await api.get("/deals/assignable-users");
+      const response = await api.get("/trips/assignable-users");
+
       setUsers(response.data.users || []);
     } catch (error) {
-      console.error("Fetch assignable users error:", error.response?.data || error.message);
+      console.error(
+        "Fetch assignable users error:",
+        error.response?.data || error.message
+      );
+
       setUsers([]);
     }
   };
@@ -184,266 +251,391 @@ function Deals() {
   // ==========================================
   useEffect(() => {
     if (!user) return;
+
     fetchCompanies();
-    fetchContacts();
+    fetchCustomers();
     fetchLeads();
     fetchUsers();
   }, [user]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, stage, company, owner]);
+  }, [search, status, travelType, company, owner]);
 
   useEffect(() => {
     if (!user) return;
-    fetchDeals(currentPage);
-  }, [user, currentPage, search, stage, company, owner]);
+
+    fetchTrips(currentPage);
+  }, [user, currentPage, search, status, travelType, company, owner]);
 
   useEffect(() => {
     if (!successMessage && !errorMessage) return;
-    const t = setTimeout(() => {
+
+    const timer = setTimeout(() => {
       setSuccessMessage("");
       setErrorMessage("");
     }, 4000);
-    return () => clearTimeout(t);
+
+    return () => clearTimeout(timer);
   }, [successMessage, errorMessage]);
 
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (filterRef.current && !filterRef.current.contains(e.target)) {
+    const handleClickOutside = (event) => {
+      if (
+        filterRef.current &&
+        !filterRef.current.contains(event.target)
+      ) {
         setShowFilters(false);
       }
     };
-    if (showFilters) document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+
+    if (showFilters) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, [showFilters]);
 
   // ==========================================
   // PAGINATION
   // ==========================================
   const handleNextPage = () => {
-    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
   };
 
   const handlePreviousPage = () => {
-    if (currentPage > 1) setCurrentPage(currentPage - 1);
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
   };
 
   // ==========================================
-  // CRUD HANDLERS
+  // ADD TRIP
   // ==========================================
-  const handleAddDeal = () => {
-    setEditingDeal(null);
+  const handleAddTrip = () => {
+    setEditingTrip(null);
     setShowForm(true);
     setSuccessMessage("");
     setErrorMessage("");
   };
 
-  const handleEditDeal = (deal) => {
-    setEditingDeal(deal);
+  // ==========================================
+  // EDIT TRIP
+  // ==========================================
+  const handleEditTrip = (trip) => {
+    setEditingTrip(trip);
     setShowForm(true);
     setSuccessMessage("");
     setErrorMessage("");
   };
 
-  const handleSubmitDeal = async (formData) => {
+  // ==========================================
+  // SUBMIT TRIP
+  // ==========================================
+  const handleSubmitTrip = async (formData) => {
     try {
       setSaving(true);
       setErrorMessage("");
 
-      if (editingDeal) {
-        await api.put(`/deals/${editingDeal._id}`, formData);
-        setSuccessMessage("Deal updated successfully");
+      if (editingTrip) {
+        await api.put(`/trips/${editingTrip._id}`, formData);
+
+        setSuccessMessage("Trip updated successfully");
       } else {
-        await api.post("/deals", formData);
-        setSuccessMessage("Deal created successfully");
+        await api.post("/trips", formData);
+
+        setSuccessMessage("Trip created successfully");
       }
 
       setShowForm(false);
-      setEditingDeal(null);
-      await fetchDeals(currentPage);
+      setEditingTrip(null);
+
+      await fetchTrips(currentPage);
     } catch (error) {
-      console.error("Save deal error:", error.response?.data || error.message);
-      setErrorMessage(error.response?.data?.message || "Failed to save deal");
+      console.error(
+        "Save trip error:",
+        error.response?.data || error.message
+      );
+
+      setErrorMessage(
+        error.response?.data?.message || "Failed to save trip"
+      );
     } finally {
       setSaving(false);
     }
   };
 
-  const openLostReasonModal = (deal) => {
-    setLostDeal(deal);
-    setLostReason("");
-    setShowLostReasonModal(true);
+  // ==========================================
+  // CANCEL REASON MODAL
+  // ==========================================
+  const openCancelReasonModal = (trip) => {
+    setCancelTrip(trip);
+    setCancelReason("");
+    setShowCancelReasonModal(true);
     setErrorMessage("");
   };
 
-  const closeLostReasonModal = () => {
-    if (changingStageId) return;
-    setShowLostReasonModal(false);
-    setLostDeal(null);
-    setLostReason("");
+  const closeCancelReasonModal = () => {
+    if (changingStatusId) return;
+
+    setShowCancelReasonModal(false);
+    setCancelTrip(null);
+    setCancelReason("");
   };
 
-  const confirmLostDeal = async () => {
-    if (!lostDeal) return;
-    if (!lostReason) {
-      setErrorMessage("Please select a lost reason");
+  // ==========================================
+  // CONFIRM CANCELLED TRIP
+  // ==========================================
+  const confirmCancelledTrip = async () => {
+    if (!cancelTrip) return;
+
+    if (!cancelReason) {
+      setErrorMessage("Please select a cancellation reason");
       return;
     }
 
     try {
-      setChangingStageId(lostDeal._id);
+      setChangingStatusId(cancelTrip._id);
       setErrorMessage("");
       setSuccessMessage("");
 
-      await api.put(`/deals/${lostDeal._id}`, {
-        stage: "Lost",
-        lostReason,
+      await api.put(`/trips/${cancelTrip._id}`, {
+        status: "Cancelled",
+        cancellationReason: cancelReason,
       });
 
-      setShowLostReasonModal(false);
-      setLostDeal(null);
-      setLostReason("");
-      setSuccessMessage(`Deal "${lostDeal.title}" marked as Lost`);
-      await fetchDeals(currentPage);
+      setShowCancelReasonModal(false);
+
+      setSuccessMessage(
+        `Trip "${cancelTrip.title}" marked as Cancelled`
+      );
+
+      setCancelTrip(null);
+      setCancelReason("");
+
+      await fetchTrips(currentPage);
     } catch (error) {
-      console.error("Mark deal lost error:", error.response?.data || error.message);
+      console.error(
+        "Cancel trip error:",
+        error.response?.data || error.message
+      );
+
       setErrorMessage(
-        error.response?.data?.message || "Failed to mark deal as Lost"
+        error.response?.data?.message ||
+          "Failed to cancel trip"
       );
     } finally {
-      setChangingStageId(null);
+      setChangingStatusId(null);
     }
   };
 
-  const handleStageChange = async (deal, newStage) => {
-    if (!newStage || newStage === deal.stage) return;
+  // ==========================================
+  // STATUS CHANGE
+  // ==========================================
+  const handleStatusChange = async (trip, newStatus) => {
+    if (!newStatus || newStatus === trip.status) return;
 
-    if (newStage === "Lost") {
-      openLostReasonModal(deal);
+    if (newStatus === "Cancelled") {
+      openCancelReasonModal(trip);
       return;
     }
 
-    if (newStage === "Won") {
+    if (newStatus === "Completed") {
       const confirmed = window.confirm(
-        `Are you sure you want to mark "${deal.title}" as Won?`
+        `Are you sure you want to mark "${trip.title}" as Completed?`
       );
+
       if (!confirmed) return;
     }
 
     try {
-      setChangingStageId(deal._id);
+      setChangingStatusId(trip._id);
       setErrorMessage("");
       setSuccessMessage("");
 
-      await api.put(`/deals/${deal._id}`, { stage: newStage });
+      await api.put(`/trips/${trip._id}`, {
+        status: newStatus,
+      });
 
-      setSuccessMessage(`Deal moved to ${newStage} successfully`);
-      await fetchDeals(currentPage);
+      setSuccessMessage(
+        `Trip moved to ${newStatus} successfully`
+      );
+
+      await fetchTrips(currentPage);
     } catch (error) {
-      console.error("Change deal stage error:", error.response?.data || error.message);
+      console.error(
+        "Change trip status error:",
+        error.response?.data || error.message
+      );
+
       setErrorMessage(
-        error.response?.data?.message || "Failed to change deal stage"
+        error.response?.data?.message ||
+          "Failed to change trip status"
       );
     } finally {
-      setChangingStageId(null);
+      setChangingStatusId(null);
     }
   };
 
-  const handleDeleteDeal = async (id) => {
+  // ==========================================
+  // DELETE TRIP
+  // ==========================================
+  const handleDeleteTrip = async (id) => {
     if (user?.role !== "admin") {
-      setErrorMessage("Only admin can delete deals");
+      setErrorMessage("Only admin can delete trips");
       return;
     }
 
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this deal?"
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this trip?"
     );
-    if (!confirmDelete) return;
+
+    if (!confirmed) return;
 
     try {
       setDeletingId(id);
       setErrorMessage("");
       setSuccessMessage("");
 
-      await api.delete(`/deals/${id}`);
-      setSuccessMessage("Deal deleted successfully");
+      await api.delete(`/trips/${id}`);
 
-      if (deals.length === 1 && currentPage > 1) {
+      setSuccessMessage("Trip deleted successfully");
+
+      if (trips.length === 1 && currentPage > 1) {
         setCurrentPage(currentPage - 1);
       } else {
-        await fetchDeals(currentPage);
+        await fetchTrips(currentPage);
       }
     } catch (error) {
-      console.error("Delete deal error:", error.response?.data || error.message);
-      setErrorMessage(error.response?.data?.message || "Failed to delete deal");
+      console.error(
+        "Delete trip error:",
+        error.response?.data || error.message
+      );
+
+      setErrorMessage(
+        error.response?.data?.message ||
+          "Failed to delete trip"
+      );
     } finally {
       setDeletingId(null);
     }
   };
 
-  const handleViewDeal = async (deal) => {
+  // ==========================================
+  // VIEW TRIP
+  // ==========================================
+  const handleViewTrip = async (trip) => {
     try {
-      const response = await api.get(`/deals/${deal._id}`);
-      setViewDeal(response.data.deal);
+      const response = await api.get(`/trips/${trip._id}`);
+
+      setViewTrip(response.data.trip);
     } catch (error) {
-      console.error("View deal error:", error.response?.data || error.message);
-      setErrorMessage(error.response?.data?.message || "Failed to fetch deal");
+      console.error(
+        "View trip error:",
+        error.response?.data || error.message
+      );
+
+      setErrorMessage(
+        error.response?.data?.message ||
+          "Failed to fetch trip"
+      );
     }
   };
 
+  // ==========================================
+  // CLOSE FORM
+  // ==========================================
   const handleCloseForm = () => {
     setShowForm(false);
-    setEditingDeal(null);
+    setEditingTrip(null);
   };
 
+  // ==========================================
+  // CLEAR FILTERS
+  // ==========================================
   const handleClearFilters = () => {
     setSearch("");
-    setStage("");
+    setStatus("");
+    setTravelType("");
     setCompany("");
     setOwner("");
   };
 
   // ==========================================
-  // HELPERS
+  // PIPELINE HELPERS
   // ==========================================
-  const getDealsByStage = (stageName) =>
-    deals.filter((deal) => deal.stage === stageName);
+  const getTripsByStatus = (statusName) =>
+    trips.filter((trip) => trip.status === statusName);
 
-  const getStageAccent = (stageName) => {
+  const getStatusAccent = (statusName) => {
     const map = {
-      New: "border-t-gray-500",
-      Qualified: "border-t-blue-600",
-      Proposal: "border-t-purple-600",
-      Negotiation: "border-t-amber-500",
-      Won: "border-t-green-600",
-      Lost: "border-t-red-600",
+      Planning: "border-t-gray-500",
+      Quotation: "border-t-purple-500",
+      Confirmed: "border-t-blue-600",
+      Upcoming: "border-t-cyan-600",
+      Ongoing: "border-t-amber-500",
+      Completed: "border-t-green-600",
+      Cancelled: "border-t-red-600",
     };
-    return map[stageName] || "border-t-gray-400";
+
+    return map[statusName] || "border-t-gray-400";
   };
 
-  const getStageHeaderColor = (stageName) => {
+  const getStatusHeaderColor = (statusName) => {
     const map = {
-      New: "text-gray-700",
-      Qualified: "text-blue-600",
-      Proposal: "text-purple-600",
-      Negotiation: "text-amber-600",
-      Won: "text-green-600",
-      Lost: "text-red-600",
+      Planning: "text-gray-700",
+      Quotation: "text-purple-600",
+      Confirmed: "text-blue-600",
+      Upcoming: "text-cyan-600",
+      Ongoing: "text-amber-600",
+      Completed: "text-green-600",
+      Cancelled: "text-red-600",
     };
-    return map[stageName] || "text-gray-700";
+
+    return map[statusName] || "text-gray-700";
   };
 
   // ==========================================
   // FILTER COUNTS
   // ==========================================
   const activeFilterCount = useMemo(() => {
-    return [search, stage, company, owner].filter(Boolean).length;
-  }, [search, stage, company, owner]);
+    return [search, status, travelType, company, owner].filter(Boolean)
+      .length;
+  }, [search, status, travelType, company, owner]);
 
   const dropdownFilterCount = useMemo(() => {
-    return [stage, company, owner].filter(Boolean).length;
-  }, [stage, company, owner]);
+    return [status, travelType, company, owner].filter(Boolean).length;
+  }, [status, travelType, company, owner]);
+
+  // ==========================================
+  // FORMAT CURRENCY
+  // ==========================================
+  const formatCurrency = (value) => {
+    return `₹${Number(value || 0).toLocaleString("en-IN")}`;
+  };
+
+  // ==========================================
+  // FORMAT DATE
+  // ==========================================
+  const formatDate = (date) => {
+    if (!date) return "—";
+
+    const parsedDate = new Date(date);
+
+    if (Number.isNaN(parsedDate.getTime())) {
+      return "—";
+    }
+
+    return parsedDate.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  };
 
   // ==========================================
   // RENDER
@@ -451,12 +643,10 @@ function Deals() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-5 max-w-[1600px] mx-auto">
 
-      {/* ============================================
-          HEADER: SEARCH + FILTER (left) | VIEW + ADD (right)
-          ============================================ */}
+      {/* HEADER */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
 
-        {/* LEFT: SEARCH + FILTER */}
+        {/* SEARCH + FILTER */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
 
           {/* SEARCH */}
@@ -465,13 +655,15 @@ function Deals() {
               className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
               size={15}
             />
+
             <input
               type="text"
-              placeholder="Search deals..."
+              placeholder="Search trips..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-8 h-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition"
             />
+
             {search && (
               <button
                 type="button"
@@ -483,9 +675,10 @@ function Deals() {
             )}
           </div>
 
-          {/* FILTER BUTTON + POPOVER */}
+          {/* FILTER */}
           <div className="relative" ref={filterRef}>
             <button
+              type="button"
               onClick={() => setShowFilters((prev) => !prev)}
               className={`inline-flex items-center justify-center gap-1.5 px-3 h-9 text-sm font-medium rounded-lg border transition whitespace-nowrap ${
                 dropdownFilterCount > 0
@@ -494,7 +687,11 @@ function Deals() {
               }`}
             >
               <FiFilter size={14} />
-              <span className="hidden sm:inline">Filters</span>
+
+              <span className="hidden sm:inline">
+                Filters
+              </span>
+
               {dropdownFilterCount > 0 && (
                 <span className="inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[10px] font-semibold bg-blue-600 text-white rounded-full">
                   {dropdownFilterCount}
@@ -502,7 +699,7 @@ function Deals() {
               )}
             </button>
 
-            {/* MODERN FILTER POPOVER (left aligned) */}
+            {/* FILTER POPOVER */}
             {showFilters && (
               <div className="absolute left-0 top-full mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-lg shadow-gray-200/60 z-30 overflow-hidden">
 
@@ -510,8 +707,10 @@ function Deals() {
                   <h3 className="text-sm font-semibold text-gray-900">
                     Filters
                   </h3>
+
                   {dropdownFilterCount > 0 && (
                     <button
+                      type="button"
                       onClick={handleClearFilters}
                       className="text-xs font-medium text-gray-500 hover:text-red-600 transition"
                     >
@@ -522,26 +721,53 @@ function Deals() {
 
                 <div className="p-4 space-y-4">
 
-                  {/* STAGE CHIPS */}
+                  {/* STATUS */}
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-2">
-                      Stage
+                      Status
                     </label>
+
                     <div className="flex flex-wrap gap-1.5">
-                      {PIPELINE_STAGES.map((s) => (
+                      {TRIP_STATUSES.map((item) => (
                         <button
-                          key={s}
-                          onClick={() => setStage(stage === s ? "" : s)}
+                          type="button"
+                          key={item}
+                          onClick={() =>
+                            setStatus(status === item ? "" : item)
+                          }
                           className={`px-2.5 py-1 text-xs font-medium rounded-md border transition ${
-                            stage === s
+                            status === item
                               ? "bg-blue-600 text-white border-blue-600"
                               : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                           }`}
                         >
-                          {s}
+                          {item}
                         </button>
                       ))}
                     </div>
+                  </div>
+
+                  {/* TRAVEL TYPE */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-2">
+                      Travel Type
+                    </label>
+
+                    <select
+                      value={travelType}
+                      onChange={(e) => setTravelType(e.target.value)}
+                      className="w-full h-9 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 cursor-pointer"
+                    >
+                      <option value="">
+                        All Travel Types
+                      </option>
+
+                      {TRAVEL_TYPES.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* COMPANY */}
@@ -549,12 +775,16 @@ function Deals() {
                     <label className="block text-xs font-medium text-gray-500 mb-2">
                       Company
                     </label>
+
                     <select
                       value={company}
                       onChange={(e) => setCompany(e.target.value)}
                       className="w-full h-9 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 cursor-pointer"
                     >
-                      <option value="">All Companies</option>
+                      <option value="">
+                        All Companies
+                      </option>
+
                       {companies.map((item) => (
                         <option key={item._id} value={item._id}>
                           {item.name}
@@ -564,17 +794,22 @@ function Deals() {
                   </div>
 
                   {/* OWNER */}
-                  {(user?.role === "admin" || user?.role === "manager") && (
+                  {(user?.role === "admin" ||
+                    user?.role === "manager") && (
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-2">
                         Owner
                       </label>
+
                       <select
                         value={owner}
                         onChange={(e) => setOwner(e.target.value)}
                         className="w-full h-9 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 cursor-pointer"
                       >
-                        <option value="">All Owners</option>
+                        <option value="">
+                          All Owners
+                        </option>
+
                         {users.map((item) => (
                           <option key={item._id} value={item._id}>
                             {item.name} ({item.role})
@@ -586,66 +821,89 @@ function Deals() {
                 </div>
 
                 <div className="flex items-center justify-between gap-2 px-4 py-3 bg-gray-50 border-t border-gray-100">
+
                   <button
+                    type="button"
                     onClick={handleClearFilters}
                     disabled={dropdownFilterCount === 0}
                     className="text-xs font-medium text-gray-600 hover:text-gray-900 transition disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Clear all
                   </button>
+
                   <button
+                    type="button"
                     onClick={() => setShowFilters(false)}
                     className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md transition"
                   >
                     Apply
                   </button>
+
                 </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* RIGHT: VIEW TOGGLE + ADD */}
+        {/* RIGHT */}
         <div className="flex items-center gap-2 self-start lg:self-auto">
 
           {/* VIEW TOGGLE */}
           <button
             type="button"
             onClick={() =>
-              setViewMode(viewMode === "table" ? "pipeline" : "table")
+              setViewMode(
+                viewMode === "table"
+                  ? "pipeline"
+                  : "table"
+              )
             }
-            title={viewMode === "table" ? "Switch to Pipeline" : "Switch to Table"}
+            title={
+              viewMode === "table"
+                ? "Switch to Pipeline"
+                : "Switch to Table"
+            }
             className="inline-flex items-center justify-center gap-1.5 px-3 h-9 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg transition whitespace-nowrap"
           >
             {viewMode === "table" ? (
               <>
                 <FiGrid size={14} />
-                <span className="hidden sm:inline">Pipeline</span>
+                <span className="hidden sm:inline">
+                  Pipeline
+                </span>
               </>
             ) : (
               <>
                 <FiList size={14} />
-                <span className="hidden sm:inline">Table</span>
+                <span className="hidden sm:inline">
+                  Table
+                </span>
               </>
             )}
           </button>
 
-          {/* ADD BUTTON */}
+          {/* ADD TRIP */}
           <button
-            onClick={handleAddDeal}
+            type="button"
+            onClick={handleAddTrip}
             className="inline-flex items-center justify-center gap-1.5 px-4 h-9 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition shadow-sm whitespace-nowrap"
           >
             <FiPlus size={15} />
-            Add Deal
+            Add Trip
           </button>
+
         </div>
       </div>
 
-      {/* ALERTS */}
+      {/* SUCCESS */}
       {successMessage && (
         <div className="flex items-start gap-3 bg-green-50 border border-green-200 text-green-800 text-sm px-4 py-3 rounded-lg">
-          <p className="flex-1">{successMessage}</p>
+          <p className="flex-1">
+            {successMessage}
+          </p>
+
           <button
+            type="button"
             onClick={() => setSuccessMessage("")}
             className="text-green-600 hover:text-green-800 flex-shrink-0"
           >
@@ -654,10 +912,15 @@ function Deals() {
         </div>
       )}
 
+      {/* ERROR */}
       {errorMessage && (
         <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 text-sm px-4 py-3 rounded-lg">
-          <p className="flex-1">{errorMessage}</p>
+          <p className="flex-1">
+            {errorMessage}
+          </p>
+
           <button
+            type="button"
             onClick={() => setErrorMessage("")}
             className="text-red-600 hover:text-red-800 flex-shrink-0"
           >
@@ -666,187 +929,286 @@ function Deals() {
         </div>
       )}
 
-      {/* LOADING / CONTENT */}
+      {/* CONTENT */}
       {loading ? (
         <div className="bg-white border border-gray-200 rounded-xl flex items-center justify-center py-16">
           <div className="flex flex-col items-center gap-3">
+
             <div className="w-7 h-7 border-[3px] border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-            <p className="text-sm text-gray-500">Loading deals...</p>
+
+            <p className="text-sm text-gray-500">
+              Loading trips...
+            </p>
+
           </div>
         </div>
       ) : viewMode === "table" ? (
-        /* TABLE VIEW */
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <DealTable
-            deals={deals}
-            onView={handleViewDeal}
-            onEdit={handleEditDeal}
-            onDelete={handleDeleteDeal}
+
+          <TripTable
+            trips={trips}
+            onView={handleViewTrip}
+            onEdit={handleEditTrip}
+            onDelete={handleDeleteTrip}
             deletingId={deletingId}
             user={user}
           />
+
         </div>
       ) : (
         /* PIPELINE VIEW */
         <div className="flex gap-4 overflow-x-auto pb-4">
-          {PIPELINE_STAGES.map((stageName) => {
-            const stageDeals = getDealsByStage(stageName);
-            const totalValue = stageDeals.reduce(
-              (sum, deal) => sum + Number(deal.value || 0),
+
+          {TRIP_STATUSES.map((statusName) => {
+            const statusTrips = getTripsByStatus(statusName);
+
+            const totalValue = statusTrips.reduce(
+              (sum, trip) =>
+                sum + Number(trip.totalAmount || trip.estimatedValue || 0),
               0
             );
 
             return (
               <div
-                key={stageName}
-                className={`w-[320px] flex-shrink-0 bg-gray-50 border border-gray-200 rounded-xl overflow-hidden border-t-4 ${getStageAccent(
-                  stageName
+                key={statusName}
+                className={`w-[320px] flex-shrink-0 bg-gray-50 border border-gray-200 rounded-xl overflow-hidden border-t-4 ${getStatusAccent(
+                  statusName
                 )} flex flex-col`}
               >
+
                 {/* COLUMN HEADER */}
                 <div className="px-4 py-4 bg-white border-b border-gray-200">
+
                   <div className="flex items-center justify-between gap-2">
+
                     <h3
-                      className={`text-sm font-bold ${getStageHeaderColor(
-                        stageName
+                      className={`text-sm font-bold ${getStatusHeaderColor(
+                        statusName
                       )}`}
                     >
-                      {stageName}
+                      {statusName}
                     </h3>
+
                     <span className="inline-flex items-center justify-center min-w-[24px] h-6 px-2 bg-gray-100 text-gray-700 text-[11px] font-bold rounded-full">
-                      {stageDeals.length}
+                      {statusTrips.length}
                     </span>
+
                   </div>
+
                   <strong className="block mt-2 text-base font-bold text-gray-800">
-                    ₹{totalValue.toLocaleString("en-IN")}
+                    {formatCurrency(totalValue)}
                   </strong>
+
                 </div>
 
                 {/* COLUMN BODY */}
                 <div className="p-3 min-h-[180px] space-y-3 flex-1">
-                  {stageDeals.length === 0 ? (
+
+                  {statusTrips.length === 0 ? (
                     <div className="py-8 text-center text-xs text-gray-400 italic">
-                      No deals
+                      No trips
                     </div>
                   ) : (
-                    stageDeals.map((deal) => (
+                    statusTrips.map((trip) => (
                       <div
-                        key={deal._id}
+                        key={trip._id}
                         className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
                       >
-                        <h4 className="text-sm font-semibold text-gray-900 leading-snug mb-2">
-                          {deal.title}
-                        </h4>
+
+                        <div className="flex items-start justify-between gap-2 mb-2">
+
+                          <h4 className="text-sm font-semibold text-gray-900 leading-snug">
+                            {trip.title}
+                          </h4>
+
+                          {trip.tripCode && (
+                            <span className="text-[10px] font-semibold text-gray-400 whitespace-nowrap">
+                              {trip.tripCode}
+                            </span>
+                          )}
+
+                        </div>
 
                         <div className="text-lg font-bold text-gray-900 mb-3">
-                          ₹{Number(deal.value || 0).toLocaleString("en-IN")}
+                          {formatCurrency(
+                            trip.totalAmount ||
+                              trip.estimatedValue
+                          )}
                         </div>
 
                         <div className="flex flex-col gap-1.5 mb-3">
+
+                          <span className="text-xs text-gray-500 truncate">
+                            📍 {trip.destination || "No destination"}
+                          </span>
+
                           <span className="text-xs text-gray-500 truncate">
                             👤{" "}
-                            {deal.contact
-                              ? `${deal.contact.firstName || ""} ${
-                                  deal.contact.lastName || ""
-                                }`.trim()
-                              : "No contact"}
+                            {trip.customer?.name ||
+                              "No customer"}
                           </span>
+
                           <span className="text-xs text-gray-500 truncate">
-                            🏢 {deal.company?.name || "No company"}
+                            🧳{" "}
+                            {trip.travelType ||
+                              "Other"}
                           </span>
+
                           <span className="text-xs text-gray-500 truncate">
-                            👨‍💼 {deal.owner?.name || "No owner"}
+                            👨‍💼{" "}
+                            {trip.owner?.name ||
+                              "No owner"}
                           </span>
+
                         </div>
 
-                        <div className="flex items-center gap-2 mb-3">
-                          <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-blue-600 rounded-full transition-all duration-300"
-                              style={{ width: `${deal.probability || 0}%` }}
-                            />
+                        <div className="flex items-center justify-between gap-2 mb-3">
+
+                          <div>
+                            <p className="text-[10px] text-gray-400 uppercase tracking-wide">
+                              Start
+                            </p>
+
+                            <p className="text-xs font-semibold text-gray-700">
+                              {formatDate(trip.startDate)}
+                            </p>
                           </div>
-                          <span className="text-xs font-semibold text-gray-700">
-                            {deal.probability || 0}%
-                          </span>
+
+                          <div className="text-right">
+                            <p className="text-[10px] text-gray-400 uppercase tracking-wide">
+                              End
+                            </p>
+
+                            <p className="text-xs font-semibold text-gray-700">
+                              {formatDate(trip.endDate)}
+                            </p>
+                          </div>
+
                         </div>
 
+                        {/* STATUS */}
                         <div className="pt-3 border-t border-gray-100 mb-3">
+
                           <label className="block mb-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                            Change Stage
+                            Change Status
                           </label>
+
                           <select
-                            value={deal.stage}
-                            disabled={changingStageId === deal._id}
-                            onChange={(e) =>
-                              handleStageChange(deal, e.target.value)
+                            value={trip.status}
+                            disabled={
+                              changingStatusId ===
+                              trip._id
+                            }
+                            onChange={(event) =>
+                              handleStatusChange(
+                                trip,
+                                event.target.value
+                              )
                             }
                             className="w-full px-2.5 py-2 bg-white border border-gray-300 rounded-md text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 cursor-pointer disabled:bg-gray-100 disabled:cursor-not-allowed"
                           >
-                            {PIPELINE_STAGES.map((stageOption) => (
-                              <option key={stageOption} value={stageOption}>
-                                {stageOption}
-                              </option>
-                            ))}
+
+                            {TRIP_STATUSES.map(
+                              (statusOption) => (
+                                <option
+                                  key={statusOption}
+                                  value={statusOption}
+                                >
+                                  {statusOption}
+                                </option>
+                              )
+                            )}
+
                           </select>
-                          {changingStageId === deal._id && (
+
+                          {changingStatusId ===
+                            trip._id && (
                             <small className="block mt-1.5 text-[11px] text-gray-500">
                               Updating...
                             </small>
                           )}
+
                         </div>
 
+                        {/* ACTIONS */}
                         <div className="flex gap-2">
+
                           <button
                             type="button"
-                            onClick={() => handleViewDeal(deal)}
+                            onClick={() =>
+                              handleViewTrip(trip)
+                            }
                             className="flex-1 py-2 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold rounded-md transition"
                           >
                             View
                           </button>
+
                           <button
                             type="button"
-                            onClick={() => handleEditDeal(deal)}
+                            onClick={() =>
+                              handleEditTrip(trip)
+                            }
                             className="flex-1 py-2 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold rounded-md transition"
                           >
                             Edit
                           </button>
+
                         </div>
+
                       </div>
                     ))
                   )}
+
                 </div>
               </div>
             );
           })}
+
         </div>
       )}
 
-      {/* FOOTER: SHOWING (left) | PAGE INFO + PAGINATION (right) */}
-      {!loading && totalDeals > 0 && (
+      {/* FOOTER */}
+      {!loading && totalTrips > 0 && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-          {/* SHOWING */}
+
           <p className="text-xs text-gray-500">
-            Showing <span className="font-medium text-gray-700">{deals.length}</span> of{" "}
-            <span className="font-medium text-gray-700">{totalDeals}</span>{" "}
-            {totalDeals === 1 ? "deal" : "deals"}
+            Showing{" "}
+            <span className="font-medium text-gray-700">
+              {trips.length}
+            </span>{" "}
+            of{" "}
+            <span className="font-medium text-gray-700">
+              {totalTrips}
+            </span>{" "}
+            {totalTrips === 1 ? "trip" : "trips"}
+
             {activeFilterCount > 0 && (
               <span className="ml-1">
                 · {activeFilterCount}{" "}
-                {activeFilterCount === 1 ? "filter" : "filters"} applied
+                {activeFilterCount === 1
+                  ? "filter"
+                  : "filters"}{" "}
+                applied
               </span>
             )}
           </p>
 
-          {/* PAGE INFO + PAGINATION */}
           <div className="flex items-center gap-3">
+
             <p className="text-xs text-gray-500">
-              Page <span className="font-medium text-gray-700">{currentPage}</span> of{" "}
-              <span className="font-medium text-gray-700">{totalPages}</span>
+              Page{" "}
+              <span className="font-medium text-gray-700">
+                {currentPage}
+              </span>{" "}
+              of{" "}
+              <span className="font-medium text-gray-700">
+                {totalPages}
+              </span>
             </p>
 
             {totalPages > 1 && (
               <div className="flex items-center gap-1.5">
+
                 <button
                   type="button"
                   disabled={currentPage <= 1}
@@ -858,101 +1220,143 @@ function Deals() {
 
                 <button
                   type="button"
-                  disabled={currentPage >= totalPages}
+                  disabled={
+                    currentPage >= totalPages
+                  }
                   onClick={handleNextPage}
                   className="w-8 h-8 inline-flex items-center justify-center text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <FiChevronRight size={16} />
                 </button>
+
               </div>
             )}
+
           </div>
         </div>
       )}
 
-      {/* DEAL FORM */}
-      <DealForm
+      {/* TRIP FORM */}
+      <TripForm
         isOpen={showForm}
         onClose={handleCloseForm}
-        onSubmit={handleSubmitDeal}
-        editingDeal={editingDeal}
+        onSubmit={handleSubmitTrip}
+        editingTrip={editingTrip}
         loading={saving}
         companies={companies}
-        contacts={contacts}
+        customers={customers}
         leads={leads}
         users={users}
         user={user}
       />
 
-      {/* VIEW DEAL */}
-      {viewDeal && (
-        <ViewDeal deal={viewDeal} onClose={() => setViewDeal(null)} />
+      {/* VIEW TRIP */}
+      {viewTrip && (
+        <ViewTrip
+          trip={viewTrip}
+          onClose={() => setViewTrip(null)}
+        />
       )}
 
-      {/* LOST REASON MODAL */}
-      {showLostReasonModal && lostDeal && (
+      {/* CANCEL REASON MODAL */}
+      {showCancelReasonModal && cancelTrip && (
         <div className="fixed inset-0 z-[9999] bg-black/55 flex items-center justify-center p-4">
+
           <div className="w-full max-w-[480px] bg-white rounded-2xl shadow-2xl overflow-hidden">
 
             <div className="flex items-start justify-between px-5 sm:px-6 py-5 border-b border-gray-200">
+
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">
-                  Mark Deal as Lost
+                  Cancel Trip
                 </h2>
+
                 <p className="mt-1 text-sm text-gray-500 truncate">
-                  {lostDeal.title}
+                  {cancelTrip.title}
                 </p>
               </div>
+
               <button
                 type="button"
-                onClick={closeLostReasonModal}
-                disabled={changingStageId === lostDeal._id}
+                onClick={closeCancelReasonModal}
+                disabled={
+                  changingStatusId ===
+                  cancelTrip._id
+                }
                 className="text-3xl leading-none text-gray-500 hover:text-gray-900 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 ×
               </button>
+
             </div>
 
             <div className="px-5 sm:px-6 py-5">
+
               <label className="block mb-2 text-sm font-semibold text-gray-700">
-                Lost Reason <span className="text-red-600">*</span>
+                Cancellation Reason{" "}
+                <span className="text-red-600">
+                  *
+                </span>
               </label>
 
               <select
-                value={lostReason}
-                onChange={(e) => setLostReason(e.target.value)}
+                value={cancelReason}
+                onChange={(e) =>
+                  setCancelReason(e.target.value)
+                }
                 className="w-full h-11 px-3 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 cursor-pointer"
               >
-                <option value="">Select Lost Reason</option>
-                {LOST_REASONS.map((reason) => (
-                  <option key={reason} value={reason}>
-                    {reason}
-                  </option>
-                ))}
+                <option value="">
+                  Select Cancellation Reason
+                </option>
+
+                {CANCELLATION_REASONS.map(
+                  (reason) => (
+                    <option
+                      key={reason}
+                      value={reason}
+                    >
+                      {reason}
+                    </option>
+                  )
+                )}
               </select>
 
               <p className="mt-2 text-xs text-gray-500">
-                Please select the reason why this deal was lost.
+                Please select why this trip was cancelled.
               </p>
+
             </div>
 
             <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 px-5 sm:px-6 py-4 border-t border-gray-200 bg-gray-50">
+
               <button
                 type="button"
-                onClick={closeLostReasonModal}
-                disabled={changingStageId === lostDeal._id}
+                onClick={closeCancelReasonModal}
+                disabled={
+                  changingStatusId ===
+                  cancelTrip._id
+                }
                 className="w-full sm:w-auto px-4 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
+
               <button
                 type="button"
-                onClick={confirmLostDeal}
-                disabled={changingStageId === lostDeal._id}
+                onClick={confirmCancelledTrip}
+                disabled={
+                  changingStatusId ===
+                  cancelTrip._id
+                }
                 className="w-full sm:w-auto px-4 py-2.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {changingStageId === lostDeal._id ? "Saving..." : "Mark as Lost"}
+                {changingStatusId ===
+                cancelTrip._id
+                  ? "Saving..."
+                  : "Cancel Trip"}
               </button>
+
             </div>
 
           </div>
@@ -963,4 +1367,5 @@ function Deals() {
   );
 }
 
-export default Deals;
+export default Trips;
+

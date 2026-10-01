@@ -1,18 +1,87 @@
 const mongoose = require("mongoose");
 
 const Lead = require("../models/Lead");
-const Company = require("../models/Company");
 const User = require("../models/User");
-const Contact = require("../models/Contact");
-
-// =====================================================
-// NOTIFICATION SERVICE
-// =====================================================
+const Enquiry = require("../models/Enquiry");
 
 const {
   createLeadAssignedNotification,
-  createNotification
+  createNotification,
 } = require("../services/notificationService");
+
+// =====================================================
+// HELPER - ASSIGNMENT VALIDATION
+// =====================================================
+
+const validateAssignedUser = async ({
+  assignedTo,
+  currentUser,
+}) => {
+  if (!assignedTo) {
+    return {
+      error: null,
+      assignedUserId: currentUser.id,
+    };
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(assignedTo)) {
+    return {
+      error: {
+        status: 400,
+        message: "Invalid assigned user ID",
+      },
+    };
+  }
+
+  const assignedUser = await User.findOne({
+    _id: assignedTo,
+    isActive: true,
+  });
+
+  if (!assignedUser) {
+    return {
+      error: {
+        status: 400,
+        message: "Assigned user not found or inactive",
+      },
+    };
+  }
+
+  // Manager → only Sales
+  if (
+    currentUser.role === "manager" &&
+    assignedUser.role !== "sales"
+  ) {
+    return {
+      error: {
+        status: 403,
+        message:
+          "Manager can assign leads only to Sales users",
+      },
+    };
+  }
+
+  // Admin → Admin / Manager / Sales
+  if (
+    currentUser.role === "admin" &&
+    !["admin", "manager", "sales"].includes(
+      assignedUser.role
+    )
+  ) {
+    return {
+      error: {
+        status: 400,
+        message:
+          "Leads can only be assigned to Admin, Manager or Sales users",
+      },
+    };
+  }
+
+  return {
+    error: null,
+    assignedUserId: assignedUser._id,
+  };
+};
 
 // =====================================================
 // CREATE LEAD
@@ -25,94 +94,65 @@ const createLead = async (req, res) => {
       lastName,
       email,
       phone,
+      destination,
       source,
-      status,
-      value,
       priority,
-      company,
       assignedTo,
-      notes
+      notes,
     } = req.body;
 
     // =================================================
-    // VALIDATION
+    // BASIC VALIDATION
     // =================================================
 
-    if (!firstName || !email) {
+    if (!firstName || !String(firstName).trim()) {
       return res.status(400).json({
-        message: "First name and email are required"
+        message: "Name is required",
       });
     }
 
-    let finalAssignedTo = req.user.id;
+    if (!phone && !email) {
+      return res.status(400).json({
+        message: "Phone or email is required",
+      });
+    }
+
+    if (email && !String(email).trim()) {
+      return res.status(400).json({
+        message: "Email cannot be empty",
+      });
+    }
+
+    if (!destination || !String(destination).trim()) {
+      return res.status(400).json({
+        message: "Destination is required",
+      });
+    }
 
     // =================================================
-    // ADMIN / MANAGER ASSIGNMENT
+    // ASSIGNMENT
     // =================================================
+
+    let finalAssignedTo = req.user.id;
 
     if (
       req.user.role === "admin" ||
       req.user.role === "manager"
     ) {
-      if (assignedTo) {
-        if (!mongoose.Types.ObjectId.isValid(assignedTo)) {
-          return res.status(400).json({
-            message: "Invalid assigned user ID"
-          });
-        }
+      const assignment = await validateAssignedUser({
+        assignedTo,
+        currentUser: req.user,
+      });
 
-        const assignedUser = await User.findOne({
-          _id: assignedTo,
-          isActive: true
-        });
-
-        if (!assignedUser) {
-          return res.status(400).json({
-            message: "Assigned user not found or inactive"
-          });
-        }
-
-        // Manager can assign only Sales
-        if (
-          req.user.role === "manager" &&
-          assignedUser.role !== "sales"
-        ) {
-          return res.status(403).json({
-            message:
-              "Manager can assign leads only to Sales users"
-          });
-        }
-
-        finalAssignedTo = assignedUser._id;
-      }
-    }
-
-    // =================================================
-    // SALES
-    // =================================================
-
-    if (req.user.role === "sales") {
-      finalAssignedTo = req.user.id;
-    }
-
-    // =================================================
-    // COMPANY VALIDATION
-    // =================================================
-
-    if (company) {
-      if (!mongoose.Types.ObjectId.isValid(company)) {
-        return res.status(400).json({
-          message: "Invalid company ID"
+      if (assignment.error) {
+        return res.status(
+          assignment.error.status
+        ).json({
+          message: assignment.error.message,
         });
       }
 
-      const companyExists = await Company.findById(company);
-
-      if (!companyExists) {
-        return res.status(404).json({
-          message: "Company not found"
-        });
-      }
+      finalAssignedTo = assignment.assignedUserId;
     }
 
     // =================================================
@@ -120,22 +160,41 @@ const createLead = async (req, res) => {
     // =================================================
 
     const lead = await Lead.create({
-      firstName,
-      lastName,
-      email,
-      phone,
-      source,
-      status,
-      value,
-      priority,
-      company,
+      firstName: String(firstName).trim(),
+
+      lastName: lastName
+        ? String(lastName).trim()
+        : "",
+
+      email: email
+        ? String(email).toLowerCase().trim()
+        : "",
+
+      phone: phone
+        ? String(phone).trim()
+        : "",
+
+      destination: String(destination).trim(),
+
+      source:
+        source || "Website",
+
+      status: "New",
+
+      priority:
+        priority || "Medium",
+
       assignedTo: finalAssignedTo,
-      notes,
-      isConverted: false
+
+      notes: notes
+        ? String(notes).trim()
+        : "",
+
+      isConverted: false,
     });
 
     // =================================================
-    // NOTIFICATION
+    // ASSIGNMENT NOTIFICATION
     // =================================================
 
     if (lead.assignedTo) {
@@ -143,17 +202,22 @@ const createLead = async (req, res) => {
         recipient: lead.assignedTo,
         lead: lead._id,
         leadName:
-          `${lead.firstName} ${lead.lastName || ""}`.trim()
+          `${lead.firstName} ${
+            lead.lastName || ""
+          }`.trim(),
       });
     }
 
     // =================================================
-    // POPULATE RESPONSE
+    // POPULATE
     // =================================================
 
-    const populatedLead = await Lead.findById(lead._id)
-      .populate("company", "name industry")
-      .populate("assignedTo", "name email role");
+    const populatedLead =
+      await Lead.findById(lead._id)
+        .populate(
+          "assignedTo",
+          "name email role"
+        );
 
     // =================================================
     // RESPONSE
@@ -161,20 +225,23 @@ const createLead = async (req, res) => {
 
     return res.status(201).json({
       message: "Lead created successfully",
-      lead: populatedLead
+      lead: populatedLead,
     });
   } catch (error) {
-    console.error("Create Lead Error:", error);
+    console.error(
+      "Create Lead Error:",
+      error
+    );
 
     return res.status(500).json({
       message: "Server error",
-      error: error.message
+      error: error.message,
     });
   }
 };
 
 // =====================================================
-// GET LEADS - PAGINATION
+// GET LEADS
 // =====================================================
 
 const getLeads = async (req, res) => {
@@ -183,9 +250,10 @@ const getLeads = async (req, res) => {
       status,
       source,
       priority,
+      destination,
       search,
       page = 1,
-      limit = 50
+      limit = 50,
     } = req.query;
 
     // =================================================
@@ -197,86 +265,74 @@ const getLeads = async (req, res) => {
       1
     );
 
-    // Maximum 50 records per request
     const recordsPerPage = Math.min(
-      Math.max(parseInt(limit) || 50, 1),
+      Math.max(
+        parseInt(limit) || 50,
+        1
+      ),
       50
     );
 
     const skip =
-      (currentPage - 1) * recordsPerPage;
+      (currentPage - 1) *
+      recordsPerPage;
 
     // =================================================
     // BASE FILTER
     // =================================================
 
-    let filter = {
+    const filter = {
       isConverted: {
-        $ne: true
-      }
+        $ne: true,
+      },
     };
 
     // =================================================
-    // ADMIN
+    // ROLE ACCESS
     // =================================================
 
-    if (req.user.role === "admin") {
-      // Admin can see all non-converted leads
-    }
-
-    // =================================================
-    // MANAGER
-    // =================================================
-
-    else if (req.user.role === "manager") {
+    if (req.user.role === "manager") {
       const salesUsers = await User.find({
         role: "sales",
-        isActive: true
+        isActive: true,
       }).select("_id");
 
-      const salesUserIds = salesUsers.map(
-        (user) => user._id
-      );
-
       filter.assignedTo = {
-        $in: salesUserIds
+        $in: salesUsers.map(
+          (user) => user._id
+        ),
       };
     }
 
-    // =================================================
-    // SALES
-    // =================================================
-
-    else if (req.user.role === "sales") {
+    if (req.user.role === "sales") {
       filter.assignedTo = req.user.id;
     }
 
     // =================================================
-    // STATUS FILTER
+    // FILTERS
     // =================================================
 
     if (status) {
       filter.status = status;
     }
 
-    // =================================================
-    // SOURCE FILTER
-    // =================================================
-
     if (source) {
       filter.source = source;
     }
-
-    // =================================================
-    // PRIORITY FILTER
-    // =================================================
 
     if (priority) {
       filter.priority = priority;
     }
 
+    if (destination) {
+      filter.destination = {
+        $regex: destination,
+        $options: "i",
+      };
+    }
+
     // =================================================
-    // SEARCH FILTER
+    // SEARCH
     // =================================================
 
     if (search) {
@@ -284,66 +340,68 @@ const getLeads = async (req, res) => {
         {
           firstName: {
             $regex: search,
-            $options: "i"
-          }
+            $options: "i",
+          },
         },
         {
           lastName: {
             $regex: search,
-            $options: "i"
-          }
+            $options: "i",
+          },
         },
         {
           email: {
             $regex: search,
-            $options: "i"
-          }
+            $options: "i",
+          },
         },
         {
           phone: {
             $regex: search,
-            $options: "i"
-          }
-        }
+            $options: "i",
+          },
+        },
+        {
+          destination: {
+            $regex: search,
+            $options: "i",
+          },
+        },
       ];
     }
 
     // =================================================
-    // TOTAL COUNT
+    // COUNT
     // =================================================
 
-    const total = await Lead.countDocuments(filter);
+    const total =
+      await Lead.countDocuments(filter);
 
     // =================================================
-    // FETCH PAGINATED LEADS
+    // FETCH
     // =================================================
 
-    const leads = await Lead.find(filter)
-      .populate(
-        "company",
-        "name industry"
-      )
-      .populate(
-        "assignedTo",
-        "name email role"
-      )
-      .populate(
-        "convertedContact",
-        "firstName lastName email phone"
-      )
-      .sort({
-        createdAt: -1
-      })
-      .skip(skip)
-      .limit(recordsPerPage);
+    const leads =
+      await Lead.find(filter)
+        .populate(
+          "assignedTo",
+          "name email role"
+        )
+        .sort({
+          createdAt: -1,
+        })
+        .skip(skip)
+        .limit(recordsPerPage);
 
     // =================================================
-    // TOTAL PAGES
+    // PAGINATION
     // =================================================
 
-    const totalPages = Math.ceil(
-      total / recordsPerPage
-    );
+    const totalPages =
+      Math.ceil(
+        total /
+          recordsPerPage
+      );
 
     // =================================================
     // RESPONSE
@@ -351,24 +409,16 @@ const getLeads = async (req, res) => {
 
     return res.status(200).json({
       message: "Leads fetched successfully",
-
       count: leads.length,
-
       total,
-
       page: currentPage,
-
       limit: recordsPerPage,
-
       totalPages,
-
       hasNextPage:
         currentPage < totalPages,
-
       hasPreviousPage:
         currentPage > 1,
-
-      leads
+      leads,
     });
   } catch (error) {
     console.error(
@@ -378,7 +428,7 @@ const getLeads = async (req, res) => {
 
     return res.status(500).json({
       message: "Server error",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -389,13 +439,28 @@ const getLeads = async (req, res) => {
 
 const updateLead = async (req, res) => {
   try {
-    const lead = await Lead.findById(
-      req.params.id
-    );
+    // =================================================
+    // VALIDATE ID
+    // =================================================
+
+    if (
+      !mongoose.Types.ObjectId.isValid(
+        req.params.id
+      )
+    ) {
+      return res.status(400).json({
+        message: "Invalid lead ID",
+      });
+    }
+
+    const lead =
+      await Lead.findById(
+        req.params.id
+      );
 
     if (!lead) {
       return res.status(404).json({
-        message: "Lead not found"
+        message: "Lead not found",
       });
     }
 
@@ -406,18 +471,9 @@ const updateLead = async (req, res) => {
     if (lead.isConverted) {
       return res.status(400).json({
         message:
-          "Converted leads cannot be updated from Leads"
+          "Converted leads cannot be updated from Leads",
       });
     }
-
-    // =================================================
-    // STORE PREVIOUS ASSIGNED USER
-    // =================================================
-
-    const previousAssignedTo =
-      lead.assignedTo?._id ||
-      lead.assignedTo ||
-      null;
 
     // =================================================
     // SALES ACCESS
@@ -425,11 +481,12 @@ const updateLead = async (req, res) => {
 
     if (
       req.user.role === "sales" &&
-      String(lead.assignedTo) !== String(req.user.id)
+      String(lead.assignedTo) !==
+        String(req.user.id)
     ) {
       return res.status(403).json({
         message:
-          "You can update only your assigned leads"
+          "You can update only your assigned leads",
       });
     }
 
@@ -438,9 +495,10 @@ const updateLead = async (req, res) => {
     // =================================================
 
     if (req.user.role === "manager") {
-      const assignedUser = await User.findById(
-        lead.assignedTo
-      );
+      const assignedUser =
+        await User.findById(
+          lead.assignedTo
+        );
 
       if (
         !assignedUser ||
@@ -448,115 +506,189 @@ const updateLead = async (req, res) => {
       ) {
         return res.status(403).json({
           message:
-            "Manager can update only Sales leads"
+            "Manager can update only Sales leads",
         });
       }
     }
+
+    // =================================================
+    // COPY BODY
+    // =================================================
+
+    const updateData = {
+      ...req.body,
+    };
 
     // =================================================
     // SALES CANNOT CHANGE ASSIGNMENT
     // =================================================
 
     if (req.user.role === "sales") {
-      delete req.body.assignedTo;
+      delete updateData.assignedTo;
     }
 
     // =================================================
-    // MANAGER ASSIGNMENT
+    // PROTECT SYSTEM FIELDS
+    // =================================================
+
+    delete updateData.isConverted;
+    delete updateData.convertedAt;
+    delete updateData.convertedCustomer;
+    delete updateData.convertedContact;
+
+    // =================================================
+    // NORMALIZE NAME
     // =================================================
 
     if (
-      req.user.role === "manager" &&
-      req.body.assignedTo
+      updateData.firstName !== undefined
     ) {
       if (
-        !mongoose.Types.ObjectId.isValid(
-          req.body.assignedTo
-        )
+        !String(
+          updateData.firstName
+        ).trim()
       ) {
         return res.status(400).json({
-          message: "Invalid assigned user ID"
+          message: "Name cannot be empty",
         });
       }
 
-      const assignedUser = await User.findOne({
-        _id: req.body.assignedTo,
-        role: "sales",
-        isActive: true
-      });
+      updateData.firstName =
+        String(
+          updateData.firstName
+        ).trim();
+    }
 
-      if (!assignedUser) {
-        return res.status(400).json({
-          message:
-            "Lead can only be assigned to an active Sales user"
-        });
-      }
+    if (
+      updateData.lastName !== undefined
+    ) {
+      updateData.lastName =
+        String(
+          updateData.lastName || ""
+        ).trim();
     }
 
     // =================================================
-    // ADMIN ASSIGNMENT
+    // NORMALIZE EMAIL
     // =================================================
 
     if (
-      req.user.role === "admin" &&
-      req.body.assignedTo
+      updateData.email !== undefined
+    ) {
+      updateData.email =
+        String(
+          updateData.email || ""
+        )
+          .toLowerCase()
+          .trim();
+    }
+
+    // =================================================
+    // NORMALIZE PHONE
+    // =================================================
+
+    if (
+      updateData.phone !== undefined
+    ) {
+      updateData.phone =
+        String(
+          updateData.phone || ""
+        ).trim();
+    }
+
+    // =================================================
+    // PHONE / EMAIL VALIDATION
+    // =================================================
+
+    const finalPhone =
+      updateData.phone !== undefined
+        ? updateData.phone
+        : lead.phone;
+
+    const finalEmail =
+      updateData.email !== undefined
+        ? updateData.email
+        : lead.email;
+
+    if (!finalPhone && !finalEmail) {
+      return res.status(400).json({
+        message:
+          "Phone or email is required",
+      });
+    }
+
+    // =================================================
+    // DESTINATION
+    // =================================================
+
+    if (
+      updateData.destination !== undefined
     ) {
       if (
-        !mongoose.Types.ObjectId.isValid(
-          req.body.assignedTo
-        )
+        !String(
+          updateData.destination
+        ).trim()
       ) {
-        return res.status(400).json({
-          message: "Invalid assigned user ID"
-        });
-      }
-
-      const assignedUser = await User.findOne({
-        _id: req.body.assignedTo,
-        isActive: true
-      });
-
-      if (!assignedUser) {
         return res.status(400).json({
           message:
-            "Assigned user not found or inactive"
+            "Destination cannot be empty",
         });
       }
+
+      updateData.destination =
+        String(
+          updateData.destination
+        ).trim();
     }
 
     // =================================================
-    // COMPANY VALIDATION DURING UPDATE
+    // NOTES
     // =================================================
 
-    if (req.body.company) {
-      if (
-        !mongoose.Types.ObjectId.isValid(
-          req.body.company
-        )
-      ) {
-        return res.status(400).json({
-          message: "Invalid company ID"
-        });
-      }
-
-      const companyExists = await Company.findById(
-        req.body.company
-      );
-
-      if (!companyExists) {
-        return res.status(404).json({
-          message: "Company not found"
-        });
-      }
+    if (
+      updateData.notes !== undefined
+    ) {
+      updateData.notes =
+        String(
+          updateData.notes || ""
+        ).trim();
     }
 
     // =================================================
-    // PROTECT CONVERSION FIELDS
+    // ASSIGNMENT
     // =================================================
 
-    delete req.body.isConverted;
-    delete req.body.convertedAt;
-    delete req.body.convertedContact;
+    if (
+      updateData.assignedTo !== undefined
+    ) {
+      const assignment =
+        await validateAssignedUser({
+          assignedTo:
+            updateData.assignedTo,
+          currentUser: req.user,
+        });
+
+      if (assignment.error) {
+        return res.status(
+          assignment.error.status
+        ).json({
+          message:
+            assignment.error.message,
+        });
+      }
+
+      updateData.assignedTo =
+        assignment.assignedUserId;
+    }
+
+    // =================================================
+    // STORE PREVIOUS ASSIGNEE
+    // =================================================
+
+    const previousAssignedTo =
+      lead.assignedTo
+        ? String(lead.assignedTo)
+        : null;
 
     // =================================================
     // UPDATE
@@ -564,59 +696,55 @@ const updateLead = async (req, res) => {
 
     Object.assign(
       lead,
-      req.body
+      updateData
     );
 
-    const updatedLead = await lead.save();
+    const updatedLead =
+      await lead.save();
 
     // =================================================
-    // CHECK REASSIGNMENT
+    // NEW ASSIGNEE
     // =================================================
 
     const newAssignedTo =
-      updatedLead.assignedTo?._id ||
-      updatedLead.assignedTo ||
-      null;
+      updatedLead.assignedTo
+        ? String(
+            updatedLead.assignedTo
+          )
+        : null;
 
-    const assignmentChanged =
+    // =================================================
+    // NOTIFICATION
+    // =================================================
+
+    if (
       previousAssignedTo &&
       newAssignedTo &&
-      String(previousAssignedTo) !==
-        String(newAssignedTo);
-
-    // =================================================
-    // REASSIGNMENT NOTIFICATION
-    // =================================================
-
-    if (assignmentChanged) {
+      previousAssignedTo !==
+        newAssignedTo
+    ) {
       await createLeadAssignedNotification({
-        recipient: newAssignedTo,
-        lead: updatedLead._id,
+        recipient:
+          updatedLead.assignedTo,
+        lead:
+          updatedLead._id,
         leadName:
           `${updatedLead.firstName} ${
             updatedLead.lastName || ""
-          }`.trim()
+          }`.trim(),
       });
     }
 
     // =================================================
-    // POPULATE RESPONSE
+    // POPULATE
     // =================================================
 
-    const populatedLead = await Lead.findById(
-      updatedLead._id
-    )
-      .populate(
-        "company",
-        "name industry"
-      )
-      .populate(
+    const populatedLead =
+      await Lead.findById(
+        updatedLead._id
+      ).populate(
         "assignedTo",
         "name email role"
-      )
-      .populate(
-        "convertedContact",
-        "firstName lastName email phone"
       );
 
     // =================================================
@@ -624,8 +752,9 @@ const updateLead = async (req, res) => {
     // =================================================
 
     return res.status(200).json({
-      message: "Lead updated successfully",
-      lead: populatedLead
+      message:
+        "Lead updated successfully",
+      lead: populatedLead,
     });
   } catch (error) {
     console.error(
@@ -635,7 +764,7 @@ const updateLead = async (req, res) => {
 
     return res.status(500).json({
       message: "Server error",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -647,7 +776,7 @@ const updateLead = async (req, res) => {
 const deleteLead = async (req, res) => {
   try {
     // =================================================
-    // VALIDATE LEAD ID
+    // VALIDATE ID
     // =================================================
 
     if (
@@ -656,17 +785,29 @@ const deleteLead = async (req, res) => {
       )
     ) {
       return res.status(400).json({
-        message: "Invalid lead ID"
+        message: "Invalid lead ID",
       });
     }
 
-    const lead = await Lead.findById(
-      req.params.id
-    );
+    const lead =
+      await Lead.findById(
+        req.params.id
+      );
 
     if (!lead) {
       return res.status(404).json({
-        message: "Lead not found"
+        message: "Lead not found",
+      });
+    }
+
+    // =================================================
+    // CONVERTED LEAD
+    // =================================================
+
+    if (lead.isConverted) {
+      return res.status(400).json({
+        message:
+          "Converted leads cannot be deleted",
       });
     }
 
@@ -677,18 +818,19 @@ const deleteLead = async (req, res) => {
     if (req.user.role === "sales") {
       return res.status(403).json({
         message:
-          "Sales users cannot delete leads"
+          "Sales users cannot delete leads",
       });
     }
 
     // =================================================
-    // MANAGER
+    // MANAGER ACCESS
     // =================================================
 
     if (req.user.role === "manager") {
-      const assignedUser = await User.findById(
-        lead.assignedTo
-      );
+      const assignedUser =
+        await User.findById(
+          lead.assignedTo
+        );
 
       if (
         !assignedUser ||
@@ -696,7 +838,7 @@ const deleteLead = async (req, res) => {
       ) {
         return res.status(403).json({
           message:
-            "Manager can delete only Sales leads"
+            "Manager can delete only Sales leads",
         });
       }
     }
@@ -710,7 +852,8 @@ const deleteLead = async (req, res) => {
     );
 
     return res.status(200).json({
-      message: "Lead deleted successfully"
+      message:
+        "Lead deleted successfully",
     });
   } catch (error) {
     console.error(
@@ -720,7 +863,7 @@ const deleteLead = async (req, res) => {
 
     return res.status(500).json({
       message: "Server error",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -732,7 +875,7 @@ const deleteLead = async (req, res) => {
 const getLeadById = async (req, res) => {
   try {
     // =================================================
-    // VALIDATE LEAD ID
+    // VALIDATE ID
     // =================================================
 
     if (
@@ -741,29 +884,21 @@ const getLeadById = async (req, res) => {
       )
     ) {
       return res.status(400).json({
-        message: "Invalid lead ID"
+        message: "Invalid lead ID",
       });
     }
 
-    const lead = await Lead.findById(
-      req.params.id
-    )
-      .populate(
-        "company",
-        "name industry"
-      )
-      .populate(
+    const lead =
+      await Lead.findById(
+        req.params.id
+      ).populate(
         "assignedTo",
         "name email role"
-      )
-      .populate(
-        "convertedContact",
-        "firstName lastName email phone company owner"
       );
 
     if (!lead) {
       return res.status(404).json({
-        message: "Lead not found"
+        message: "Lead not found",
       });
     }
 
@@ -775,13 +910,15 @@ const getLeadById = async (req, res) => {
       req.user.role === "sales" &&
       (
         !lead.assignedTo ||
-        String(lead.assignedTo._id) !==
+        String(
+          lead.assignedTo._id
+        ) !==
           String(req.user.id)
       )
     ) {
       return res.status(403).json({
         message:
-          "You can view only your assigned leads"
+          "You can view only your assigned leads",
       });
     }
 
@@ -796,14 +933,15 @@ const getLeadById = async (req, res) => {
       ) {
         return res.status(403).json({
           message:
-            "Manager can view only Sales leads"
+            "Manager can view only Sales leads",
         });
       }
     }
 
     return res.status(200).json({
-      message: "Lead fetched successfully",
-      lead
+      message:
+        "Lead fetched successfully",
+      lead,
     });
   } catch (error) {
     console.error(
@@ -813,7 +951,7 @@ const getLeadById = async (req, res) => {
 
     return res.status(500).json({
       message: "Server error",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -822,57 +960,52 @@ const getLeadById = async (req, res) => {
 // GET ASSIGNABLE USERS
 // =====================================================
 
-const getAssignableUsers = async (req, res) => {
+const getAssignableUsers = async (
+  req,
+  res
+) => {
   try {
     let filter = {
-      isActive: true
+      isActive: true,
     };
 
-    // =================================================
-    // MANAGER
-    // =================================================
-
+    // Manager → Sales only
     if (req.user.role === "manager") {
       filter.role = "sales";
     }
 
-    // =================================================
-    // ADMIN
-    // =================================================
-
+    // Admin → Admin / Manager / Sales
     else if (req.user.role === "admin") {
       filter.role = {
         $in: [
           "admin",
           "manager",
-          "sales"
-        ]
+          "sales",
+        ],
       };
     }
 
-    // =================================================
-    // SALES
-    // =================================================
-
+    // Sales → no assignment permission
     else {
       return res.status(403).json({
         message:
-          "Sales users cannot assign leads"
+          "Sales users cannot assign leads",
       });
     }
 
-    const users = await User.find(filter)
-      .select(
-        "_id name email role"
-      )
-      .sort({
-        name: 1
-      });
+    const users =
+      await User.find(filter)
+        .select(
+          "_id name email role"
+        )
+        .sort({
+          name: 1,
+        });
 
     return res.status(200).json({
       message:
         "Assignable users fetched successfully",
-      users
+      users,
     });
   } catch (error) {
     console.error(
@@ -882,17 +1015,24 @@ const getAssignableUsers = async (req, res) => {
 
     return res.status(500).json({
       message: "Server error",
-      error: error.message
+      error: error.message,
     });
   }
 };
 
 // =====================================================
-// CONVERT LEAD → CONTACT
+// CREATE ENQUIRY FROM LEAD
+//
+// Lead
+//   ↓
+// Enquiry
+//
+// Customer / Contact are NOT created here.
 // =====================================================
 
 const convertLead = async (req, res) => {
-  const session = await mongoose.startSession();
+  const session =
+    await mongoose.startSession();
 
   try {
     session.startTransaction();
@@ -909,7 +1049,7 @@ const convertLead = async (req, res) => {
       await session.abortTransaction();
 
       return res.status(400).json({
-        message: "Invalid lead ID"
+        message: "Invalid lead ID",
       });
     }
 
@@ -917,20 +1057,21 @@ const convertLead = async (req, res) => {
     // FIND LEAD
     // =================================================
 
-    const lead = await Lead.findById(
-      req.params.id
-    ).session(session);
+    const lead =
+      await Lead.findById(
+        req.params.id
+      ).session(session);
 
     if (!lead) {
       await session.abortTransaction();
 
       return res.status(404).json({
-        message: "Lead not found"
+        message: "Lead not found",
       });
     }
 
     // =================================================
-    // SALES ACCESS
+    // ACCESS
     // =================================================
 
     if (
@@ -942,13 +1083,9 @@ const convertLead = async (req, res) => {
 
       return res.status(403).json({
         message:
-          "You can convert only your assigned leads"
+          "You can create enquiry only for your assigned leads",
       });
     }
-
-    // =================================================
-    // MANAGER ACCESS
-    // =================================================
 
     if (req.user.role === "manager") {
       const assignedUser =
@@ -965,7 +1102,7 @@ const convertLead = async (req, res) => {
 
         return res.status(403).json({
           message:
-            "Manager can convert only active Sales leads"
+            "Manager can create enquiry only for active Sales leads",
         });
       }
     }
@@ -979,27 +1116,14 @@ const convertLead = async (req, res) => {
 
       return res.status(400).json({
         message:
-          "Lead has already been converted",
-        convertedContact:
-          lead.convertedContact
+          "Enquiry has already been created for this lead",
+        enquiryId:
+          lead.convertedEnquiry || null,
       });
     }
 
     // =================================================
-    // ONLY QUALIFIED LEAD
-    // =================================================
-
-    if (lead.status !== "Qualified") {
-      await session.abortTransaction();
-
-      return res.status(400).json({
-        message:
-          "Only Qualified leads can be converted"
-      });
-    }
-
-    // =================================================
-    // ASSIGNED USER REQUIRED
+    // ASSIGNED USER
     // =================================================
 
     if (!lead.assignedTo) {
@@ -1007,143 +1131,135 @@ const convertLead = async (req, res) => {
 
       return res.status(400).json({
         message:
-          "Lead must be assigned to a user before conversion"
+          "Lead must be assigned to a user before creating enquiry",
       });
     }
 
     // =================================================
-    // VALIDATE ASSIGNED USER
+    // CREATE ENQUIRY
     // =================================================
 
-    const assignedUser =
-      await User.findOne({
-        _id: lead.assignedTo,
-        isActive: true
-      }).session(session);
+    const enquiryData = {
+  title:
+    `${lead.firstName} ${
+      lead.lastName || ""
+    }`.trim(),
 
-    if (!assignedUser) {
-      await session.abortTransaction();
+  lead:
+    lead._id,
 
-      return res.status(400).json({
-        message:
-          "Lead owner not found or inactive"
-      });
-    }
+  assignedTo:
+    lead.assignedTo,
 
-    // =================================================
-    // VALIDATE COMPANY
-    // =================================================
+  destination:
+    lead.destination,
 
-    if (lead.company) {
-      if (
-        !mongoose.Types.ObjectId.isValid(
-          lead.company
-        )
-      ) {
-        await session.abortTransaction();
+      source:
+        lead.source || "Website",
 
-        return res.status(400).json({
-          message: "Invalid company ID"
-        });
-      }
+      status:
+        "New",
 
-      const companyExists =
-        await Company.findById(
-          lead.company
-        ).session(session);
+      priority:
+        lead.priority || "Medium",
 
-      if (!companyExists) {
-        await session.abortTransaction();
+      quotationRequired:
+        true,
 
-        return res.status(400).json({
-          message:
-            "Lead company not found"
-        });
-      }
-    }
+      createdBy:
+        req.user.id,
 
-    // =================================================
-    // CHECK EXISTING CONTACT
-    // =================================================
+      notes:
+        lead.notes || "",
+    };
 
-    let contact = await Contact.findOne({
-      lead: lead._id
-    }).session(session);
-
-    // =================================================
-    // CREATE CONTACT
-    // =================================================
-
-    if (!contact) {
-      contact = await Contact.create(
-        [
-          {
-            firstName: lead.firstName,
-            lastName: lead.lastName,
-            email: lead.email,
-            phone: lead.phone,
-            company: lead.company,
-            lead: lead._id,
-            owner: lead.assignedTo,
-            notes: lead.notes
-          }
-        ],
+    const createdEnquiries =
+      await Enquiry.create(
+        [enquiryData],
         {
-          session
+          session,
         }
       );
 
-      contact = contact[0];
-    }
+    const enquiry =
+      createdEnquiries[0];
 
     // =================================================
     // MARK LEAD AS CONVERTED
     // =================================================
 
     lead.isConverted = true;
-    lead.convertedAt = new Date();
-    lead.convertedContact = contact._id;
+
+    lead.convertedAt =
+      new Date();
+
+    // Lead model may not have this field yet.
+    // It will be added in the next Lead model update.
+    lead.convertedEnquiry =
+      enquiry._id;
+
+    // Keep these fields for backward compatibility.
+    lead.convertedCustomer =
+      null;
+
+    lead.convertedContact =
+      null;
+
+    // Lead is no longer an active sales lead.
+    lead.status = "Won";
 
     await lead.save({
-      session
+      session,
     });
 
     // =================================================
-    // COMMIT TRANSACTION
+    // COMMIT
     // =================================================
 
     await session.commitTransaction();
 
     // =================================================
-    // LEAD CONVERTED NOTIFICATION
+    // NOTIFICATION
     // =================================================
 
     await createNotification({
-      recipient: lead.assignedTo,
-      type: "LEAD_CONVERTED",
-      title: "Lead Converted",
+      recipient:
+        lead.assignedTo,
+
+      type:
+        "LEAD_CONVERTED",
+
+      title:
+        "Lead Converted to Enquiry",
+
       message:
         `${lead.firstName} ${
           lead.lastName || ""
-        } has been converted to a Contact.`,
-      relatedLead: lead._id,
-      relatedContact: contact._id
+        } has been converted into an Enquiry.`,
+
+      relatedLead:
+        lead._id,
+
+      metadata: {
+        enquiryId:
+          enquiry._id,
+      },
     });
 
     // =================================================
-    // GET CONTACT
+    // POPULATE ENQUIRY
     // =================================================
 
-    const populatedContact =
-      await Contact.findById(
-        contact._id
+    const populatedEnquiry =
+      await Enquiry.findById(
+        enquiry._id
       )
         .populate(
-          "company",
-          "name industry"
+          "lead",
+          "firstName lastName email phone destination"
         )
         .populate(
-          "owner",
+          "assignedTo",
           "name email role"
         );
 
@@ -1151,17 +1267,13 @@ const convertLead = async (req, res) => {
     // RESPONSE
     // =================================================
 
-    return res.status(200).json({
+    return res.status(201).json({
       message:
-        "Lead converted to Contact successfully",
-
-      contact: populatedContact
+        "Enquiry created successfully",
+      enquiry:
+        populatedEnquiry,
     });
   } catch (error) {
-    // =================================================
-    // ABORT TRANSACTION
-    // =================================================
-
     try {
       await session.abortTransaction();
     } catch (abortError) {
@@ -1172,14 +1284,14 @@ const convertLead = async (req, res) => {
     }
 
     console.error(
-      "Convert Lead Error:",
+      "Create Enquiry From Lead Error:",
       error
     );
 
     return res.status(500).json({
       message:
-        "Lead conversion failed",
-      error: error.message
+        "Failed to create enquiry",
+      error: error.message,
     });
   } finally {
     await session.endSession();
@@ -1197,5 +1309,5 @@ module.exports = {
   deleteLead,
   getLeadById,
   getAssignableUsers,
-  convertLead
+  convertLead,
 };

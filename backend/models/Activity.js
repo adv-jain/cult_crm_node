@@ -2,6 +2,10 @@ const mongoose = require("mongoose");
 
 const activitySchema = new mongoose.Schema(
   {
+    // =========================
+    // ACTIVITY TYPE
+    // =========================
+
     type: {
       type: String,
       enum: [
@@ -10,32 +14,48 @@ const activitySchema = new mongoose.Schema(
         "Meeting",
         "Note",
         "Follow-up",
-        "Demo",
         "WhatsApp",
-        "Other"
+        "SMS",
+        "Quotation",
+        "Booking",
+        "Payment",
+        "Hotel",
+        "Transport",
+        "Itinerary",
+        "Document",
+        "Customer Support",
+        "Other",
       ],
-      required: [true, "Activity type is required"]
+      required: [true, "Activity type is required"],
     },
+
+    // =========================
+    // BASIC INFORMATION
+    // =========================
 
     title: {
       type: String,
       required: [true, "Activity title is required"],
       trim: true,
       minlength: 2,
-      maxlength: 150
+      maxlength: 150,
     },
 
     description: {
       type: String,
       trim: true,
       maxlength: 3000,
-      default: ""
+      default: "",
     },
 
     activityDate: {
       type: Date,
-      default: Date.now
+      default: Date.now,
     },
+
+    // =========================
+    // OUTCOME
+    // =========================
 
     outcome: {
       type: String,
@@ -45,84 +65,132 @@ const activitySchema = new mongoose.Schema(
         "Negative",
         "No Response",
         "Completed",
-        "Pending"
+        "Pending",
       ],
-      default: "Completed"
+      default: "Completed",
     },
+
+    // =========================
+    // CREATED BY
+    // =========================
 
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true
+      required: true,
     },
+
+    // =========================
+    // TRAVEL CRM RELATIONSHIPS
+    // =========================
 
     lead: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Lead",
-      default: null
+      default: null,
+    },
+
+    customer: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Customer",
+      default: null,
     },
 
     contact: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Contact",
-      default: null
+      default: null,
     },
 
     company: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Company",
-      default: null
+      default: null,
     },
 
-    deal: {
+    // =========================
+    // TRIP
+    // =========================
+
+    trip: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Deal",
-      default: null
+      ref: "Trip",
+      default: null,
     },
+
+    // =========================
+    // BOOKING
+    // =========================
+
+    booking: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Booking",
+      default: null,
+    },
+
+    // =========================
+    // ADDITIONAL INFORMATION
+    // =========================
 
     notes: {
       type: String,
       trim: true,
       maxlength: 3000,
-      default: ""
-    }
+      default: "",
+    },
   },
   {
-    timestamps: true
+    timestamps: true,
   }
 );
 
+// ========================================
+// INDEXES
+// ========================================
+
 activitySchema.index({
   createdBy: 1,
-  activityDate: -1
+  activityDate: -1,
 });
 
 activitySchema.index({
   lead: 1,
-  activityDate: -1
+  activityDate: -1,
+});
+
+activitySchema.index({
+  customer: 1,
+  activityDate: -1,
 });
 
 activitySchema.index({
   contact: 1,
-  activityDate: -1
+  activityDate: -1,
 });
 
 activitySchema.index({
   company: 1,
-  activityDate: -1
+  activityDate: -1,
+});
+
+// Trip index
+activitySchema.index({
+  trip: 1,
+  activityDate: -1,
 });
 
 activitySchema.index({
-  deal: 1,
-  activityDate: -1
+  booking: 1,
+  activityDate: -1,
 });
 
 activitySchema.index({
   type: 1,
-  activityDate: -1
+  activityDate: -1,
 });
 
-module.exports = mongoose.model(
-  "Activity",
-  activitySchema
-);
+// ========================================
+// MODEL
+// ========================================
+
+module.exports = mongoose.model("Activity", activitySchema);

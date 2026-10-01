@@ -2,7 +2,7 @@ const Customer = require("../models/Customer");
 const User = require("../models/User");
 const Contact = require("../models/Contact");
 const Company = require("../models/Company");
-const Deal = require("../models/Deal");
+const Deal = require("../models/Trip");
 
 // =====================================================
 // GET ALL CUSTOMERS
@@ -97,7 +97,7 @@ const getCustomers = async (req, res) => {
     const customers = await Customer.find(filter)
       .populate("contact")
       .populate("company")
-      .populate("convertedFromDeal")
+      // .populate("convertedFromDeal")
       .populate("owner", "name email role")
       .sort({ createdAt: -1 })
       .skip(skip)

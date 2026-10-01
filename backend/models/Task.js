@@ -11,14 +11,14 @@ const taskSchema = new mongoose.Schema(
       required: [true, "Task title is required"],
       trim: true,
       minlength: 2,
-      maxlength: 150
+      maxlength: 150,
     },
 
     description: {
       type: String,
       trim: true,
       maxlength: 2000,
-      default: ""
+      default: "",
     },
 
     type: {
@@ -28,12 +28,18 @@ const taskSchema = new mongoose.Schema(
         "Email",
         "Meeting",
         "Follow-up",
-        "Demo",
-        "Proposal",
+        "Quotation",
+        "Booking",
+        "Hotel",
+        "Transport",
+        "Visa",
         "Documentation",
-        "Other"
+        "Payment",
+        "Itinerary",
+        "Customer Support",
+        "Other",
       ],
-      default: "Follow-up"
+      default: "Follow-up",
     },
 
     // =========================
@@ -43,13 +49,13 @@ const taskSchema = new mongoose.Schema(
     assignedTo: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: [true, "Task must be assigned to a user"]
+      required: [true, "Task must be assigned to a user"],
     },
 
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true
+      required: true,
     },
 
     // =========================
@@ -62,9 +68,9 @@ const taskSchema = new mongoose.Schema(
         "Pending",
         "In Progress",
         "Completed",
-        "Cancelled"
+        "Cancelled",
       ],
-      default: "Pending"
+      default: "Pending",
     },
 
     priority: {
@@ -73,9 +79,9 @@ const taskSchema = new mongoose.Schema(
         "Low",
         "Medium",
         "High",
-        "Urgent"
+        "Urgent",
       ],
-      default: "Medium"
+      default: "Medium",
     },
 
     // =========================
@@ -84,17 +90,17 @@ const taskSchema = new mongoose.Schema(
 
     startDate: {
       type: Date,
-      default: null
+      default: null,
     },
 
     dueDate: {
       type: Date,
-      required: [true, "Due date is required"]
+      required: [true, "Due date is required"],
     },
 
     completedAt: {
       type: Date,
-      default: null
+      default: null,
     },
 
     // =========================
@@ -104,41 +110,61 @@ const taskSchema = new mongoose.Schema(
     reminder: {
       enabled: {
         type: Boolean,
-        default: false
+        default: false,
       },
 
       reminderAt: {
         type: Date,
-        default: null
-      }
+        default: null,
+      },
     },
 
     // =========================
-    // CRM RELATIONSHIPS
+    // TRAVEL CRM RELATIONSHIPS
     // =========================
 
     relatedLead: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Lead",
-      default: null
+      default: null,
+    },
+
+    relatedCustomer: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Customer",
+      default: null,
     },
 
     relatedContact: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Contact",
-      default: null
+      default: null,
     },
 
     relatedCompany: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Company",
-      default: null
+      default: null,
     },
 
-    relatedDeal: {
+    // =========================
+    // RELATED TRIP
+    // =========================
+
+    relatedTrip: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Deal",
-      default: null
+      ref: "Trip",
+      default: null,
+    },
+
+    // =========================
+    // RELATED BOOKING
+    // =========================
+
+    relatedBooking: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Booking",
+      default: null,
     },
 
     // =========================
@@ -148,28 +174,25 @@ const taskSchema = new mongoose.Schema(
     notes: {
       type: String,
       trim: true,
-      maxlength: 3000,
-      default: ""
+      maxlength: 2000,
+      default: "",
     },
 
     tags: {
       type: [String],
-      default: []
-    }
+      default: [],
+    },
   },
-
   {
-    timestamps: true
+    timestamps: true,
   }
 );
-
 
 // ========================================
 // AUTOMATIC COMPLETION DATE
 // ========================================
 
 taskSchema.pre("save", function () {
-
   if (
     this.isModified("status") &&
     this.status === "Completed" &&
@@ -186,35 +209,46 @@ taskSchema.pre("save", function () {
   }
 });
 
-
 // ========================================
 // INDEXES
 // ========================================
 
 taskSchema.index({
   assignedTo: 1,
-  status: 1
+  status: 1,
 });
 
 taskSchema.index({
-  dueDate: 1
+  dueDate: 1,
 });
 
 taskSchema.index({
-  relatedLead: 1
+  relatedLead: 1,
 });
 
 taskSchema.index({
-  relatedDeal: 1
+  relatedCustomer: 1,
 });
 
 taskSchema.index({
-  relatedContact: 1
+  relatedContact: 1,
 });
 
 taskSchema.index({
-  relatedCompany: 1
+  relatedCompany: 1,
 });
 
+// Trip index
+taskSchema.index({
+  relatedTrip: 1,
+});
+
+taskSchema.index({
+  relatedBooking: 1,
+});
+
+// ========================================
+// MODEL
+// ========================================
 
 module.exports = mongoose.model("Task", taskSchema);

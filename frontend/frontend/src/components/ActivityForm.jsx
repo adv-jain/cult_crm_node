@@ -11,7 +11,7 @@ function ActivityForm({
   leads = [],
   contacts = [],
   companies = [],
-  deals = [],
+  trips = [],
   onClose,
   onSaved,
 }) {
@@ -24,7 +24,7 @@ function ActivityForm({
     lead: "",
     contact: "",
     company: "",
-    deal: "",
+    trip: "",
     notes: "",
   });
 
@@ -59,18 +59,23 @@ function ActivityForm({
         lead: "",
         contact: "",
         company: "",
-        deal: "",
+        trip: "",
         notes: "",
       });
+
       setFormError("");
       return;
     }
 
     const formatDateTime = (date) => {
       if (!date) return "";
+
       const d = new Date(date);
       const offset = d.getTimezoneOffset() * 60000;
-      return new Date(d.getTime() - offset).toISOString().slice(0, 16);
+
+      return new Date(d.getTime() - offset)
+        .toISOString()
+        .slice(0, 16);
     };
 
     setForm({
@@ -82,26 +87,38 @@ function ActivityForm({
       lead: editingActivity.lead?._id || "",
       contact: editingActivity.contact?._id || "",
       company: editingActivity.company?._id || "",
-      deal: editingActivity.deal?._id || "",
+      trip: editingActivity.trip?._id || "",
       notes: editingActivity.notes || "",
     });
 
     setFormError("");
   }, [editingActivity]);
 
-  // ESC close
+  // ==========================================
+  // ESC CLOSE
+  // ==========================================
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === "Escape" && !saving) onClose();
+      if (e.key === "Escape" && !saving) {
+        onClose();
+      }
     };
+
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+
+    return () => {
+      window.removeEventListener("keydown", onKey);
+    };
   }, [saving, onClose]);
 
-  // Body scroll lock
+  // ==========================================
+  // BODY SCROLL LOCK
+  // ==========================================
   useEffect(() => {
     const prev = document.body.style.overflow;
+
     document.body.style.overflow = "hidden";
+
     return () => {
       document.body.style.overflow = prev;
     };
@@ -111,10 +128,10 @@ function ActivityForm({
   // CHANGE
   // ==========================================
   const handleChange = (e) => {
-    setForm({
-      ...form,
+    setForm((prev) => ({
+      ...prev,
       [e.target.name]: e.target.value,
-    });
+    }));
   };
 
   // ==========================================
@@ -138,10 +155,12 @@ function ActivityForm({
         description: form.description,
         activityDate: form.activityDate || new Date(),
         outcome: form.outcome,
+
         lead: form.lead || null,
         contact: form.contact || null,
         company: form.company || null,
-        deal: form.deal || null,
+        trip: form.trip || null,
+
         notes: form.notes,
       };
 
@@ -152,13 +171,23 @@ function ActivityForm({
           config
         );
       } else {
-        await axios.post(`${API}/activities`, payload, config);
+        await axios.post(
+          `${API}/activities`,
+          payload,
+          config
+        );
       }
 
       await onSaved();
     } catch (error) {
+      console.error(
+        "Save activity error:",
+        error.response?.data || error.message
+      );
+
       setFormError(
-        error.response?.data?.message || "Failed to save activity"
+        error.response?.data?.message ||
+          "Failed to save activity"
       );
     } finally {
       setSaving(false);
@@ -174,19 +203,22 @@ function ActivityForm({
   const selectClass =
     "w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 focus:bg-white transition cursor-pointer";
 
-  const labelClass = "block text-xs font-medium text-gray-600 mb-1";
+  const labelClass =
+    "block text-xs font-medium text-gray-600 mb-1";
 
   const sectionTitleClass =
     "text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3";
 
   // ==========================================
-  // RENDER — with Portal
+  // RENDER — WITH PORTAL
   // ==========================================
   return createPortal(
     <div
       className="fixed inset-0 z-[100] bg-gray-900/40 backdrop-blur-[2px] flex items-center justify-center p-4 overflow-y-auto animate-[fadeIn_.15s_ease-out]"
       onClick={(e) => {
-        if (e.target === e.currentTarget && !saving) onClose();
+        if (e.target === e.currentTarget && !saving) {
+          onClose();
+        }
       }}
     >
       <div className="w-full max-w-[560px] max-h-[88vh] bg-white rounded-2xl shadow-2xl shadow-gray-900/20 flex flex-col overflow-hidden animate-[popIn_.18s_ease-out] my-auto">
@@ -197,8 +229,11 @@ function ActivityForm({
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <div>
             <h2 className="text-base font-semibold text-gray-900">
-              {editingActivity ? "Edit Activity" : "New Activity"}
+              {editingActivity
+                ? "Edit Activity"
+                : "New Activity"}
             </h2>
+
             <p className="text-xs text-gray-500 mt-0.5">
               {editingActivity
                 ? "Update activity details"
@@ -227,24 +262,34 @@ function ActivityForm({
         >
           {formError && (
             <div className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 text-xs px-3 py-2 rounded-lg">
-              <FiAlertCircle className="flex-shrink-0 mt-0.5" size={14} />
+              <FiAlertCircle
+                className="flex-shrink-0 mt-0.5"
+                size={14}
+              />
+
               <span>{formError}</span>
             </div>
           )}
 
           {/* =========================================
-              SECTION: Activity Information
+              SECTION: ACTIVITY INFORMATION
           ========================================= */}
           <section>
-            <h3 className={sectionTitleClass}>Activity Information</h3>
+            <h3 className={sectionTitleClass}>
+              Activity Information
+            </h3>
 
             <div className="space-y-3.5">
+
               {/* TYPE + OUTCOME */}
               <div className="grid grid-cols-2 gap-3">
+
                 <div>
                   <label className={labelClass}>
-                    Activity Type <span className="text-red-500">*</span>
+                    Activity Type{" "}
+                    <span className="text-red-500">*</span>
                   </label>
+
                   <select
                     name="type"
                     value={form.type}
@@ -255,26 +300,68 @@ function ActivityForm({
                     <option value="Email">Email</option>
                     <option value="Meeting">Meeting</option>
                     <option value="Note">Note</option>
-                    <option value="Follow-up">Follow-up</option>
-                    <option value="Demo">Demo</option>
-                    <option value="WhatsApp">WhatsApp</option>
+                    <option value="Follow-up">
+                      Follow-up
+                    </option>
+                    <option value="WhatsApp">
+                      WhatsApp
+                    </option>
+                    <option value="SMS">SMS</option>
+                    <option value="Quotation">
+                      Quotation
+                    </option>
+                    <option value="Booking">
+                      Booking
+                    </option>
+                    <option value="Payment">
+                      Payment
+                    </option>
+                    <option value="Hotel">Hotel</option>
+                    <option value="Transport">
+                      Transport
+                    </option>
+                    <option value="Itinerary">
+                      Itinerary
+                    </option>
+                    <option value="Document">
+                      Document
+                    </option>
+                    <option value="Customer Support">
+                      Customer Support
+                    </option>
                     <option value="Other">Other</option>
                   </select>
                 </div>
+
                 <div>
-                  <label className={labelClass}>Outcome</label>
+                  <label className={labelClass}>
+                    Outcome
+                  </label>
+
                   <select
                     name="outcome"
                     value={form.outcome}
                     onChange={handleChange}
                     className={selectClass}
                   >
-                    <option value="Positive">Positive</option>
-                    <option value="Neutral">Neutral</option>
-                    <option value="Negative">Negative</option>
-                    <option value="No Response">No Response</option>
-                    <option value="Completed">Completed</option>
-                    <option value="Pending">Pending</option>
+                    <option value="Positive">
+                      Positive
+                    </option>
+                    <option value="Neutral">
+                      Neutral
+                    </option>
+                    <option value="Negative">
+                      Negative
+                    </option>
+                    <option value="No Response">
+                      No Response
+                    </option>
+                    <option value="Completed">
+                      Completed
+                    </option>
+                    <option value="Pending">
+                      Pending
+                    </option>
                   </select>
                 </div>
               </div>
@@ -282,8 +369,10 @@ function ActivityForm({
               {/* TITLE */}
               <div>
                 <label className={labelClass}>
-                  Activity Title <span className="text-red-500">*</span>
+                  Activity Title{" "}
+                  <span className="text-red-500">*</span>
                 </label>
+
                 <input
                   type="text"
                   name="title"
@@ -298,8 +387,12 @@ function ActivityForm({
 
               {/* DATE + DESCRIPTION */}
               <div className="grid grid-cols-2 gap-3">
+
                 <div>
-                  <label className={labelClass}>Activity Date</label>
+                  <label className={labelClass}>
+                    Activity Date
+                  </label>
+
                   <input
                     type="datetime-local"
                     name="activityDate"
@@ -308,8 +401,12 @@ function ActivityForm({
                     className={inputClass}
                   />
                 </div>
+
                 <div>
-                  <label className={labelClass}>Description</label>
+                  <label className={labelClass}>
+                    Description
+                  </label>
+
                   <input
                     type="text"
                     name="description"
@@ -324,14 +421,21 @@ function ActivityForm({
           </section>
 
           {/* =========================================
-              SECTION: CRM Relationships
+              SECTION: CRM RELATIONSHIPS
           ========================================= */}
           <section>
-            <h3 className={sectionTitleClass}>CRM Relationships</h3>
+            <h3 className={sectionTitleClass}>
+              CRM Relationships
+            </h3>
 
             <div className="grid grid-cols-2 gap-3">
+
+              {/* LEAD */}
               <div>
-                <label className={labelClass}>Lead</label>
+                <label className={labelClass}>
+                  Lead
+                </label>
+
                 <select
                   name="lead"
                   value={form.lead}
@@ -339,16 +443,24 @@ function ActivityForm({
                   className={selectClass}
                 >
                   <option value="">None</option>
+
                   {leads.map((lead) => (
-                    <option key={lead._id} value={lead._id}>
+                    <option
+                      key={lead._id}
+                      value={lead._id}
+                    >
                       {lead.firstName} {lead.lastName}
                     </option>
                   ))}
                 </select>
               </div>
 
+              {/* CONTACT */}
               <div>
-                <label className={labelClass}>Contact</label>
+                <label className={labelClass}>
+                  Contact
+                </label>
+
                 <select
                   name="contact"
                   value={form.contact}
@@ -356,16 +468,25 @@ function ActivityForm({
                   className={selectClass}
                 >
                   <option value="">None</option>
+
                   {contacts.map((contact) => (
-                    <option key={contact._id} value={contact._id}>
-                      {contact.firstName} {contact.lastName}
+                    <option
+                      key={contact._id}
+                      value={contact._id}
+                    >
+                      {contact.firstName}{" "}
+                      {contact.lastName}
                     </option>
                   ))}
                 </select>
               </div>
 
+              {/* COMPANY */}
               <div>
-                <label className={labelClass}>Company</label>
+                <label className={labelClass}>
+                  Company
+                </label>
+
                 <select
                   name="company"
                   value={form.company}
@@ -373,26 +494,41 @@ function ActivityForm({
                   className={selectClass}
                 >
                   <option value="">None</option>
+
                   {companies.map((company) => (
-                    <option key={company._id} value={company._id}>
+                    <option
+                      key={company._id}
+                      value={company._id}
+                    >
                       {company.name}
                     </option>
                   ))}
                 </select>
               </div>
 
+              {/* TRIP */}
               <div>
-                <label className={labelClass}>Deal</label>
+                <label className={labelClass}>
+                  Trip
+                </label>
+
                 <select
-                  name="deal"
-                  value={form.deal}
+                  name="trip"
+                  value={form.trip}
                   onChange={handleChange}
                   className={selectClass}
                 >
                   <option value="">None</option>
-                  {deals.map((deal) => (
-                    <option key={deal._id} value={deal._id}>
-                      {deal.title}
+
+                  {trips.map((trip) => (
+                    <option
+                      key={trip._id}
+                      value={trip._id}
+                    >
+                      {trip.title}
+                      {trip.destination
+                        ? ` — ${trip.destination}`
+                        : ""}
                     </option>
                   ))}
                 </select>
@@ -401,10 +537,13 @@ function ActivityForm({
           </section>
 
           {/* =========================================
-              SECTION: Notes
+              SECTION: NOTES
           ========================================= */}
           <section>
-            <h3 className={sectionTitleClass}>Notes</h3>
+            <h3 className={sectionTitleClass}>
+              Notes
+            </h3>
+
             <textarea
               name="notes"
               value={form.notes}
@@ -420,6 +559,7 @@ function ActivityForm({
             FOOTER
         ============================================ */}
         <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-gray-100 bg-gray-50/60 flex-shrink-0">
+
           <button
             type="button"
             onClick={onClose}
@@ -428,6 +568,7 @@ function ActivityForm({
           >
             Cancel
           </button>
+
           <button
             type="submit"
             form="activity-form"
@@ -449,13 +590,15 @@ function ActivityForm({
                     r="10"
                     stroke="currentColor"
                     strokeWidth="4"
-                  ></circle>
+                  />
+
                   <path
                     className="opacity-75"
                     fill="currentColor"
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                  ></path>
+                  />
                 </svg>
+
                 Saving
               </>
             ) : editingActivity ? (
@@ -468,8 +611,27 @@ function ActivityForm({
       </div>
 
       <style>{`
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes popIn { from { opacity: 0; transform: scale(0.96) translateY(6px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+          }
+
+          to {
+            opacity: 1;
+          }
+        }
+
+        @keyframes popIn {
+          from {
+            opacity: 0;
+            transform: scale(0.96) translateY(6px);
+          }
+
+          to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
       `}</style>
     </div>,
     document.body

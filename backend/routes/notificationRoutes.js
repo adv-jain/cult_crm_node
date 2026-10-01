@@ -1,6 +1,8 @@
+
 const express = require("express");
 
 const {
+  createNotification,
   getNotifications,
   getNotificationById,
   getUnreadCount,
@@ -14,12 +16,32 @@ const authorize = require("../middleware/roleMiddleware");
 
 const router = express.Router();
 
+// ==========================================
+// CREATE NOTIFICATION
+// ==========================================
+
+router.post(
+  "/",
+  protect,
+  authorize("admin", "manager"),
+  createNotification
+);
+
+// ==========================================
+// UNREAD COUNT
+// IMPORTANT: Keep this before /:id
+// ==========================================
+
 router.get(
   "/unread-count",
   protect,
   authorize("admin", "manager", "sales"),
   getUnreadCount
 );
+
+// ==========================================
+// GET ALL NOTIFICATIONS
+// ==========================================
 
 router.get(
   "/",
@@ -28,12 +50,32 @@ router.get(
   getNotifications
 );
 
+// ==========================================
+// MARK ALL AS READ
+// IMPORTANT: Keep this before /:id
+// ==========================================
+
+router.put(
+  "/read-all",
+  protect,
+  authorize("admin", "manager", "sales"),
+  markAllAsRead
+);
+
+// ==========================================
+// GET SINGLE NOTIFICATION
+// ==========================================
+
 router.get(
   "/:id",
   protect,
   authorize("admin", "manager", "sales"),
   getNotificationById
 );
+
+// ==========================================
+// MARK SINGLE AS READ
+// ==========================================
 
 router.put(
   "/:id/read",
@@ -42,12 +84,9 @@ router.put(
   markAsRead
 );
 
-router.put(
-  "/read-all",
-  protect,
-  authorize("admin", "manager", "sales"),
-  markAllAsRead
-);
+// ==========================================
+// DELETE NOTIFICATION
+// ==========================================
 
 router.delete(
   "/:id",
@@ -57,3 +96,4 @@ router.delete(
 );
 
 module.exports = router;
+

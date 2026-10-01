@@ -1,16 +1,28 @@
 const Notification = require("../models/Notification");
 
+// ======================================================
+// CORE: CREATE NOTIFICATION
+// ======================================================
+
 const createNotification = async ({
   recipient,
   type,
   title,
   message,
+
   relatedLead = null,
-  relatedContact = null,
-  relatedTask = null,
-  relatedDeal = null,
   relatedCustomer = null,
-  metadata = null
+  relatedContact = null,
+  relatedCompany = null,
+  relatedEnquiry = null,
+  relatedTask = null,
+  relatedTrip = null,
+  relatedQuotation = null,
+  relatedBooking = null,
+  relatedPayment = null,
+  relatedDocument = null,
+
+  metadata = null,
 }) => {
   try {
     if (!recipient) {
@@ -22,115 +34,114 @@ const createNotification = async ({
       type,
       title,
       message,
+
       relatedLead,
-      relatedContact,
-      relatedTask,
-      relatedDeal,
       relatedCustomer,
-      metadata
+      relatedContact,
+      relatedCompany,
+      relatedEnquiry,
+      relatedTask,
+      relatedTrip,
+      relatedQuotation,
+      relatedBooking,
+      relatedPayment,
+      relatedDocument,
+
+      metadata,
     });
 
     return notification;
   } catch (error) {
-    console.error("Notification creation error:", error.message);
+    console.error(
+      "Notification creation error:",
+      error.message
+    );
 
-    // Notification fail hone ki wajah se
-    // main CRM operation fail nahi hona chahiye.
+    // Notification failure should NOT break the main CRM flow.
     return null;
   }
 };
 
+// ======================================================
+// LEAD ASSIGNED
+// ======================================================
+
 const createLeadAssignedNotification = async ({
   recipient,
   lead,
-  leadName
+  leadName,
 }) => {
   return createNotification({
     recipient,
     type: "LEAD_ASSIGNED",
     title: "New Lead Assigned",
     message: `${leadName} has been assigned to you.`,
-    relatedLead: lead
+    relatedLead: lead,
   });
 };
+
+// ======================================================
+// TASK ASSIGNED
+// ======================================================
 
 const createTaskAssignedNotification = async ({
   recipient,
   task,
-  taskTitle
+  taskTitle,
 }) => {
   return createNotification({
     recipient,
     type: "TASK_ASSIGNED",
     title: "New Task Assigned",
     message: `${taskTitle} has been assigned to you.`,
-    relatedTask: task
+    relatedTask: task,
   });
 };
 
-const createDealAssignedNotification = async ({
+// ======================================================
+// TRIP ASSIGNED (renamed from createDealAssignedNotification)
+// ======================================================
+
+const createTripAssignedNotification = async ({
   recipient,
-  deal,
-  dealTitle
+  trip,
+  tripTitle,
 }) => {
   return createNotification({
     recipient,
-    type: "DEAL_ASSIGNED",
-    title: "New Deal Assigned",
-    message: `${dealTitle} has been assigned to you.`,
-    relatedDeal: deal
+    type: "TRIP_ASSIGNED",
+    title: "New Trip Assigned",
+    message: `${tripTitle} has been assigned to you.`,
+    relatedTrip: trip,
   });
 };
 
-const createDealWonNotification = async ({
-  recipient,
-  deal,
-  dealTitle
-}) => {
-  return createNotification({
-    recipient,
-    type: "DEAL_WON",
-    title: "Deal Won 🎉",
-    message: `${dealTitle} has been marked as Won.`,
-    relatedDeal: deal
-  });
-};
-
-const createDealLostNotification = async ({
-  recipient,
-  deal,
-  dealTitle,
-  lostReason
-}) => {
-  return createNotification({
-    recipient,
-    type: "DEAL_LOST",
-    title: "Deal Lost",
-    message: `${dealTitle} was marked as Lost. Reason: ${lostReason}`,
-    relatedDeal: deal
-  });
-};
+// ======================================================
+// CUSTOMER CREATED
+// ======================================================
 
 const createCustomerCreatedNotification = async ({
   recipient,
   customer,
-  customerName
+  customerName,
 }) => {
   return createNotification({
     recipient,
     type: "CUSTOMER_CREATED",
     title: "New Customer Created",
     message: `${customerName} has been added as a customer.`,
-    relatedCustomer: customer
+    relatedCustomer: customer,
   });
 };
+
+// ======================================================
+// EXPORTS
+// ======================================================
 
 module.exports = {
   createNotification,
   createLeadAssignedNotification,
   createTaskAssignedNotification,
-  createDealAssignedNotification,
-  createDealWonNotification,
-  createDealLostNotification,
-  createCustomerCreatedNotification
+  createTripAssignedNotification,
+  createCustomerCreatedNotification,
 };

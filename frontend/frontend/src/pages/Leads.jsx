@@ -1,548 +1,931 @@
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState } from "react";
 import api from "../api";
-
 import LeadTable from "../components/LeadTable";
 import LeadForm from "../components/LeadForm";
 import ViewLead from "../components/ViewLead";
 import { useAuth } from "../context/AuthContext";
 
+
 import {
   FiPlus,
   FiSearch,
-  FiX,
   FiFilter,
-  FiCheckCircle,
-  FiAlertCircle,
+  FiX,
   FiChevronLeft,
   FiChevronRight,
+  FiRefreshCw,
 } from "react-icons/fi";
+
+
 
 function Leads() {
   const { user } = useAuth();
 
-  // =========================
-  // STATES
-  // =========================
+  // =====================================================
+  // DATA
+  // =====================================================
+
   const [leads, setLeads] = useState([]);
   const [assignableUsers, setAssignableUsers] = useState([]);
+
+  // =====================================================
+  // FILTERS
+  // =====================================================
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [source, setSource] = useState("");
   const [priority, setPriority] = useState("");
 
-  const [showFilters, setShowFilters] = useState(false);
-  const filterRef = useRef(null);
+  // =====================================================
+  // PAGINATION
+  // =====================================================
 
-  // =========================
-  // PAGINATION STATES
-  // =========================
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalLeads, setTotalLeads] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 50,
+    total: 0,
+    totalPages: 1,
+  });
 
-  const RECORDS_PER_PAGE = 50;
+  // =====================================================
+  // UI
+  // =====================================================
 
-  const [showForm, setShowForm] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [formOpen, setFormOpen] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
+
   const [editingLead, setEditingLead] = useState(null);
-  const [viewLead, setViewLead] = useState(null);
+  const [selectedLead, setSelectedLead] = useState(null);
 
-  const [loading, setLoading] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+
+  // =====================================================
+  // ACTION LOADING
+  // =====================================================
+
   const [deletingId, setDeletingId] = useState(null);
   const [convertingId, setConvertingId] = useState(null);
 
-  const [successMessage, setSuccessMessage] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
+  // =====================================================
+  // MESSAGES
+  // =====================================================
 
-  // =========================
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  // =====================================================
   // FETCH LEADS
-  // =========================
-  const fetchLeads = async (page = currentPage) => {
+  // =====================================================
+
+  const fetchLeads = async () => {
     try {
       setLoading(true);
-      setErrorMessage("");
+      setError("");
 
       const response = await api.get("/leads", {
         params: {
-          search,
-          status,
-          source,
-          priority,
+          search: search || undefined,
+          status: status || undefined,
+          source: source || undefined,
+          priority: priority || undefined,
           page,
-          limit: RECORDS_PER_PAGE,
+          limit: 50,
         },
       });
 
       const data = response.data;
 
-      setLeads(data.leads || []);
-      setCurrentPage(data.page || page);
-      setTotalPages(data.totalPages || 1);
-      setTotalLeads(data.total || 0);
-    } catch (error) {
-      console.error("Fetch leads error:", error.response?.data || error.message);
-      setErrorMessage(error.response?.data?.message || "Failed to fetch leads");
+      setLeads(
+        data?.leads ||
+          data?.data ||
+          []
+      );
+
+      setPagination({
+        page: data?.pagination?.page || page,
+        limit: data?.pagination?.limit || 50,
+        total: data?.pagination?.total || 0,
+        totalPages:
+          data?.pagination?.totalPages || 1,
+      });
+    } catch (err) {
+      console.error("Fetch leads error:", err);
+
+      setError(
+        err?.response?.data?.message ||
+          "Unable to load leads."
+      );
+
+      setLeads([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // =========================
+  // =====================================================
   // FETCH ASSIGNABLE USERS
-  // =========================
+  // =====================================================
+
   const fetchAssignableUsers = async () => {
-    if (user?.role !== "admin" && user?.role !== "manager") {
-      setAssignableUsers([]);
+    if (
+      user?.role !== "admin" &&
+      user?.role !== "manager"
+    ) {
       return;
     }
 
     try {
-      const response = await api.get("/leads/assignable-users");
-      setAssignableUsers(response.data.users || []);
-    } catch (error) {
-      console.error("Fetch assignable users error:", error.response?.data || error.message);
+      const response = await api.get(
+        "/leads/assignable-users"
+      );
+
+      setAssignableUsers(
+        response.data?.users ||
+          response.data?.data ||
+          []
+      );
+    } catch (err) {
+      console.error(
+        "Fetch assignable users error:",
+        err
+      );
+
+      setAssignableUsers([]);
     }
   };
 
-  // =========================
-  // EFFECTS
-  // =========================
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [search, status, source, priority]);
+  // =====================================================
+  // INITIAL LOAD
+  // =====================================================
 
   useEffect(() => {
-    fetchLeads(currentPage);
-  }, [currentPage, search, status, source, priority]);
+    fetchAssignableUsers();
+  }, [user?.role]);
+
+  // =====================================================
+  // FETCH WHEN FILTER / PAGE CHANGES
+  // =====================================================
 
   useEffect(() => {
-    if (user) fetchAssignableUsers();
-  }, [user]);
+    fetchLeads();
+  }, [
+    page,
+    status,
+    source,
+    priority,
+  ]);
+
+  // =====================================================
+  // SEARCH DEBOUNCE
+  // =====================================================
 
   useEffect(() => {
-    if (!successMessage && !errorMessage) return;
     const timer = setTimeout(() => {
-      setSuccessMessage("");
-      setErrorMessage("");
-    }, 4000);
-    return () => clearTimeout(timer);
-  }, [successMessage, errorMessage]);
-
-  // Close filter popover on outside click
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (filterRef.current && !filterRef.current.contains(e.target)) {
-        setShowFilters(false);
+      if (page !== 1) {
+        setPage(1);
+      } else {
+        fetchLeads();
       }
-    };
-    if (showFilters) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showFilters]);
+    }, 350);
 
-  // =========================
-  // HANDLERS
-  // =========================
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // =====================================================
+  // SUCCESS AUTO DISMISS
+  // =====================================================
+
+  useEffect(() => {
+    if (!success) return;
+
+    const timer = setTimeout(() => {
+      setSuccess("");
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [success]);
+
+  // =====================================================
+  // ERROR AUTO DISMISS
+  // =====================================================
+
+  useEffect(() => {
+    if (!error) return;
+
+    const timer = setTimeout(() => {
+      setError("");
+    }, 4000);
+
+    return () => clearTimeout(timer);
+  }, [error]);
+
+  // =====================================================
+  // FILTER COUNT
+  // =====================================================
+
+  const activeFilterCount = [
+    status,
+    source,
+    priority,
+  ].filter(Boolean).length;
+
+  // =====================================================
+  // CREATE LEAD
+  // =====================================================
+
   const handleAddLead = () => {
     setEditingLead(null);
-    setShowForm(true);
-    setSuccessMessage("");
-    setErrorMessage("");
+    setFormOpen(true);
   };
+
+  // =====================================================
+  // EDIT LEAD
+  // =====================================================
 
   const handleEditLead = (lead) => {
     setEditingLead(lead);
-    setShowForm(true);
-    setSuccessMessage("");
-    setErrorMessage("");
+    setFormOpen(true);
   };
 
-  const handleSubmitLead = async (formData) => {
+  // =====================================================
+  // VIEW LEAD
+  // =====================================================
+
+  const handleViewLead = async (lead) => {
     try {
-      setLoading(true);
-      setErrorMessage("");
-      if (editingLead) {
-        await api.put(`/leads/${editingLead._id}`, formData);
-        setSuccessMessage("Lead updated successfully");
-      } else {
-        await api.post("/leads", formData);
-        setSuccessMessage("Lead created successfully");
-      }
-      setShowForm(false);
-      setEditingLead(null);
-      await fetchLeads(currentPage);
-    } catch (error) {
-      console.error("Save lead error:", error.response?.data || error.message);
-      setErrorMessage(error.response?.data?.message || "Failed to save lead");
-      throw error;
-    } finally {
-      setLoading(false);
+      const response = await api.get(
+        `/leads/${lead._id}`
+      );
+
+      setSelectedLead(
+        response.data?.lead ||
+          response.data?.data ||
+          response.data
+      );
+
+      setViewOpen(true);
+    } catch (err) {
+      console.error(
+        "View lead error:",
+        err
+      );
+
+      setError(
+        err?.response?.data?.message ||
+          "Unable to load lead details."
+      );
     }
   };
 
-  const handleDeleteLead = async (id) => {
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this lead?"
+  // =====================================================
+  // SUBMIT LEAD
+  // =====================================================
+
+  const handleSubmitLead = async (formData) => {
+    try {
+      setError("");
+
+      if (editingLead?._id) {
+        await api.put(
+          `/leads/${editingLead._id}`,
+          formData
+        );
+
+        setSuccess(
+          "Lead updated successfully."
+        );
+      } else {
+        await api.post(
+          "/leads",
+          formData
+        );
+
+        setSuccess(
+          "Lead created successfully."
+        );
+      }
+
+      setFormOpen(false);
+      setEditingLead(null);
+
+      await fetchLeads();
+    } catch (err) {
+      console.error(
+        "Submit lead error:",
+        err
+      );
+
+      setError(
+        err?.response?.data?.message ||
+          "Unable to save lead."
+      );
+    }
+  };
+
+  // =====================================================
+  // DELETE LEAD
+  // =====================================================
+
+  const handleDeleteLead = async (lead) => {
+    const fullName =
+      [lead.firstName, lead.lastName]
+        .filter(Boolean)
+        .join(" ") ||
+      "this lead";
+
+    const confirmed = window.confirm(
+      `Delete "${fullName}"?`
     );
-    if (!confirmDelete) return;
+
+    if (!confirmed) return;
 
     try {
-      setDeletingId(id);
-      setErrorMessage("");
-      setSuccessMessage("");
+      setDeletingId(lead._id);
+      setError("");
 
-      await api.delete(`/leads/${id}`);
-      setSuccessMessage("Lead deleted successfully");
+      await api.delete(
+        `/leads/${lead._id}`
+      );
 
-      if (leads.length === 1 && currentPage > 1) {
-        setCurrentPage((prev) => prev - 1);
+      setSuccess(
+        "Lead deleted successfully."
+      );
+
+      // If last item of current page
+      // and not first page, go previous page
+      if (
+        leads.length === 1 &&
+        page > 1
+      ) {
+        setPage((current) => current - 1);
       } else {
-        await fetchLeads(currentPage);
+        await fetchLeads();
       }
-    } catch (error) {
-      console.error("Delete lead error:", error.response?.data || error.message);
-      setErrorMessage(error.response?.data?.message || "Failed to delete lead");
+    } catch (err) {
+      console.error(
+        "Delete lead error:",
+        err
+      );
+
+      setError(
+        err?.response?.data?.message ||
+          "Unable to delete lead."
+      );
     } finally {
       setDeletingId(null);
     }
   };
 
+  // =====================================================
+  // CREATE ENQUIRY
+  // =====================================================
+
   const handleConvertLead = async (lead) => {
-    const confirmConvert = window.confirm(
-      `Convert ${lead.firstName} ${lead.lastName} into a Contact?`
+    const fullName =
+      [lead.firstName, lead.lastName]
+        .filter(Boolean)
+        .join(" ") ||
+      "this lead";
+
+    const confirmed = window.confirm(
+      `Create an enquiry from "${fullName}"?`
     );
-    if (!confirmConvert) return;
+
+    if (!confirmed) return;
 
     try {
       setConvertingId(lead._id);
-      setErrorMessage("");
-      setSuccessMessage("");
+      setError("");
 
-      const response = await api.post(`/leads/${lead._id}/convert`, {});
-      setSuccessMessage(response.data.message || "Lead converted successfully");
+      const response = await api.post(
+        `/leads/${lead._id}/convert`
+      );
 
-      if (leads.length === 1 && currentPage > 1) {
-        setCurrentPage((prev) => prev - 1);
-      } else {
-        await fetchLeads(currentPage);
-      }
-    } catch (error) {
-      console.error("Convert lead error:", error.response?.data || error.message);
-      setErrorMessage(error.response?.data?.message || "Failed to convert lead");
+      setSuccess(
+        response.data?.message ||
+          "Enquiry created successfully."
+      );
+
+      await fetchLeads();
+    } catch (err) {
+      console.error(
+        "Create enquiry error:",
+        err
+      );
+
+      setError(
+        err?.response?.data?.message ||
+          "Unable to create enquiry."
+      );
     } finally {
       setConvertingId(null);
     }
   };
 
-  const handleViewLead = async (lead) => {
-    try {
-      const response = await api.get(`/leads/${lead._id}`);
-      setViewLead(response.data.lead);
-    } catch (error) {
-      console.error("View lead error:", error.response?.data || error.message);
-      setErrorMessage(error.response?.data?.message || "Failed to fetch lead");
-    }
-  };
-
-  const handleCloseForm = () => {
-    setShowForm(false);
-    setEditingLead(null);
-  };
+  // =====================================================
+  // CLEAR FILTERS
+  // =====================================================
 
   const handleClearFilters = () => {
-    setSearch("");
     setStatus("");
     setSource("");
     setPriority("");
-    setCurrentPage(1);
+    setPage(1);
+    setShowFilters(false);
   };
 
+  // =====================================================
+  // FORM CLOSE
+  // =====================================================
+
+  const handleCloseForm = () => {
+    setFormOpen(false);
+    setEditingLead(null);
+  };
+
+  // =====================================================
+  // VIEW CLOSE
+  // =====================================================
+
+  const handleCloseView = () => {
+    setViewOpen(false);
+    setSelectedLead(null);
+  };
+
+  // =====================================================
+  // PAGINATION
+  // =====================================================
+
+  const canGoPrevious = page > 1;
+
+  const canGoNext =
+    page < (pagination.totalPages || 1);
+
   const handlePreviousPage = () => {
-    if (currentPage > 1) setCurrentPage((prev) => prev - 1);
+    if (!canGoPrevious) return;
+
+    setPage((current) => current - 1);
   };
 
   const handleNextPage = () => {
-    if (currentPage < totalPages) setCurrentPage((prev) => prev + 1);
+    if (!canGoNext) return;
+
+    setPage((current) => current + 1);
   };
 
-  const activeFilterCount = useMemo(() => {
-    return [search, status, source, priority].filter(Boolean).length;
-  }, [search, status, source, priority]);
-
-  const dropdownFilterCount = useMemo(() => {
-    return [status, source, priority].filter(Boolean).length;
-  }, [status, source, priority]);
-
-  // =========================
+  // =====================================================
   // RENDER
-  // =========================
+  // =====================================================
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-5 max-w-[1600px] mx-auto">
 
-      {/* ============================================
-          HEADER: SEARCH + FILTER (left) | ADD (right)
-          ============================================ */}
+      {/* =================================================
+          HEADER
+      ================================================= */}
+
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
 
-        {/* LEFT: SEARCH + FILTER */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900">
+            Leads
+          </h1>
 
-          {/* SEARCH */}
-          <div className="relative w-full sm:w-64">
-            <FiSearch
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-              size={15}
-            />
-            <input
-              type="text"
-              placeholder="Search leads..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-8 h-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition"
-            />
-            {search && (
-              <button
-                type="button"
-                onClick={() => setSearch("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-600"
-              >
-                <FiX size={13} />
-              </button>
-            )}
-          </div>
+          <p className="text-sm text-gray-500 mt-1">
+            Manage your travel enquiries and potential customers.
+          </p>
+        </div>
 
-          {/* FILTER BUTTON + POPOVER */}
-          <div className="relative" ref={filterRef}>
+        <button
+          type="button"
+          onClick={handleAddLead}
+          className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition"
+        >
+          <FiPlus size={16} />
+
+          Add Lead
+        </button>
+
+      </div>
+
+      {/* =================================================
+          SUCCESS
+      ================================================= */}
+
+      {success && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-lg">
+
+          <p className="text-sm text-green-700">
+            {success}
+          </p>
+
+          <button
+            type="button"
+            onClick={() => setSuccess("")}
+            className="text-green-500 hover:text-green-700"
+          >
+            <FiX size={16} />
+          </button>
+
+        </div>
+      )}
+
+      {/* =================================================
+          ERROR
+      ================================================= */}
+
+      {error && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-lg">
+
+          <p className="text-sm text-red-700">
+            {error}
+          </p>
+
+          <button
+            type="button"
+            onClick={() => setError("")}
+            className="text-red-500 hover:text-red-700"
+          >
+            <FiX size={16} />
+          </button>
+
+        </div>
+      )}
+
+      {/* =================================================
+          SEARCH + FILTER
+      ================================================= */}
+
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+
+        {/* SEARCH */}
+
+        <div className="relative flex-1 max-w-xl">
+
+          <FiSearch
+            size={16}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+          />
+
+          <input
+            type="text"
+            value={search}
+            onChange={(e) =>
+              setSearch(e.target.value)
+            }
+            placeholder="Search by name, email, phone or destination..."
+            className="w-full h-10 pl-9 pr-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition"
+          />
+
+          {search && (
             <button
-              onClick={() => setShowFilters((prev) => !prev)}
-              className={`inline-flex items-center justify-center gap-1.5 px-3 h-9 text-sm font-medium rounded-lg border transition whitespace-nowrap ${
-                dropdownFilterCount > 0
-                  ? "bg-blue-50 text-blue-700 border-blue-200"
-                  : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-              }`}
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
             >
-              <FiFilter size={14} />
-              <span className="hidden sm:inline">Filters</span>
-              {dropdownFilterCount > 0 && (
-                <span className="inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[10px] font-semibold bg-blue-600 text-white rounded-full">
-                  {dropdownFilterCount}
-                </span>
-              )}
+              <FiX size={15} />
             </button>
+          )}
 
-            {/* MODERN FILTER POPOVER */}
-            {showFilters && (
-              <div className="absolute left-0 top-full mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-lg shadow-gray-200/60 z-30 overflow-hidden">
+        </div>
 
-                {/* HEADER */}
-                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                  <h3 className="text-sm font-semibold text-gray-900">
-                    Filters
-                  </h3>
-                  {dropdownFilterCount > 0 && (
-                    <button
-                      onClick={handleClearFilters}
-                      className="text-xs font-medium text-gray-500 hover:text-red-600 transition"
-                    >
-                      Reset
-                    </button>
-                  )}
-                </div>
+        {/* FILTER BUTTON */}
 
-                {/* BODY */}
-                <div className="p-4 space-y-4">
+        <div className="relative">
 
-                  {/* STATUS */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-2">
-                      Status
-                    </label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {["New", "Contacted", "Qualified", "Proposal", "Negotiation", "Won", "Lost"].map((s) => (
-                        <button
-                          key={s}
-                          onClick={() => setStatus(status === s ? "" : s)}
-                          className={`px-2.5 py-1 text-xs font-medium rounded-md border transition ${
-                            status === s
-                              ? "bg-blue-600 text-white border-blue-600"
-                              : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                          }`}
-                        >
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+          <button
+            type="button"
+            onClick={() =>
+              setShowFilters((value) => !value)
+            }
+            className={`inline-flex items-center justify-center gap-2 h-10 px-3 rounded-lg border text-sm font-medium transition ${
+              showFilters || activeFilterCount > 0
+                ? "border-blue-300 bg-blue-50 text-blue-700"
+                : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            <FiFilter size={15} />
 
-                  {/* SOURCE */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-2">
-                      Source
-                    </label>
-                    <select
-                      value={source}
-                      onChange={(e) => setSource(e.target.value)}
-                      className="w-full h-9 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 cursor-pointer"
-                    >
-                      <option value="">All Sources</option>
-                      <option value="Website">Website</option>
-                      <option value="Facebook">Facebook</option>
-                      <option value="Instagram">Instagram</option>
-                      <option value="Google Ads">Google Ads</option>
-                      <option value="LinkedIn">LinkedIn</option>
-                      <option value="Referral">Referral</option>
-                      <option value="Cold Call">Cold Call</option>
-                      <option value="Email Campaign">Email Campaign</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
+            Filters
 
-                  {/* PRIORITY */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-2">
-                      Priority
-                    </label>
-                    <div className="flex gap-1.5">
-                      {["Low", "Medium", "High"].map((p) => (
-                        <button
-                          key={p}
-                          onClick={() => setPriority(priority === p ? "" : p)}
-                          className={`flex-1 px-2.5 py-1.5 text-xs font-medium rounded-md border transition ${
-                            priority === p
-                              ? "bg-blue-600 text-white border-blue-600"
-                              : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                          }`}
-                        >
-                          {p}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+            {activeFilterCount > 0 && (
+              <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
 
-                {/* FOOTER */}
-                <div className="flex items-center justify-between gap-2 px-4 py-3 bg-gray-50 border-t border-gray-100">
+          {/* FILTER DROPDOWN */}
+
+          {showFilters && (
+            <div className="absolute right-0 top-12 z-30 w-72 bg-white border border-gray-200 rounded-xl shadow-xl shadow-gray-900/10 p-4">
+
+              <div className="flex items-center justify-between mb-4">
+
+                <h3 className="text-sm font-semibold text-gray-800">
+                  Filters
+                </h3>
+
+                {activeFilterCount > 0 && (
                   <button
+                    type="button"
                     onClick={handleClearFilters}
-                    disabled={dropdownFilterCount === 0}
-                    className="text-xs font-medium text-gray-600 hover:text-gray-900 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="text-xs text-blue-600 hover:text-blue-700 font-medium"
                   >
                     Clear all
                   </button>
-                  <button
-                    onClick={() => setShowFilters(false)}
-                    className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md transition"
-                  >
-                    Apply
-                  </button>
-                </div>
+                )}
+
               </div>
-            )}
-          </div>
-        </div>
 
-        {/* RIGHT: ADD BUTTON */}
-        <button
-          onClick={handleAddLead}
-          className="inline-flex items-center justify-center gap-1.5 px-4 h-9 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition shadow-sm whitespace-nowrap self-start lg:self-auto"
-        >
-          <FiPlus size={15} />
-          Add Lead
-        </button>
-      </div>
+              {/* STATUS */}
 
-      {/* ALERTS */}
-      {successMessage && (
-        <div className="flex items-start gap-3 bg-green-50 border border-green-200 text-green-800 text-sm px-4 py-3 rounded-lg">
-          <FiCheckCircle className="flex-shrink-0 mt-0.5" size={18} />
-          <p className="flex-1">{successMessage}</p>
-          <button
-            onClick={() => setSuccessMessage("")}
-            className="text-green-600 hover:text-green-800 flex-shrink-0"
-          >
-            <FiX size={16} />
-          </button>
-        </div>
-      )}
+              <div className="mb-3">
 
-      {errorMessage && (
-        <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 text-sm px-4 py-3 rounded-lg">
-          <FiAlertCircle className="flex-shrink-0 mt-0.5" size={18} />
-          <p className="flex-1">{errorMessage}</p>
-          <button
-            onClick={() => setErrorMessage("")}
-            className="text-red-600 hover:text-red-800 flex-shrink-0"
-          >
-            <FiX size={16} />
-          </button>
-        </div>
-      )}
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  Status
+                </label>
 
-      {/* LEAD TABLE */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-7 h-7 border-[3px] border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-              <p className="text-sm text-gray-500">Loading leads...</p>
-            </div>
-          </div>
-        ) : (
-          <LeadTable
-            leads={leads}
-            onView={handleViewLead}
-            onEdit={handleEditLead}
-            onDelete={handleDeleteLead}
-            onConvert={handleConvertLead}
-            deletingId={deletingId}
-            convertingId={convertingId}
-            user={user}
-          />
-        )}
-      </div>
+                <select
+                  value={status}
+                  onChange={(e) => {
+                    setStatus(e.target.value);
+                    setPage(1);
+                  }}
+                  className="w-full h-9 px-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                >
+                  <option value="">
+                    All Statuses
+                  </option>
 
-      {/* FOOTER: SHOWING INFO (left) | PAGINATION (right) */}
-      {!loading && totalLeads > 0 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-          {/* SHOWING */}
-          <p className="text-xs text-gray-500">
-            Showing{" "}
-            <span className="font-medium text-gray-700">{leads.length}</span> of{" "}
-            <span className="font-medium text-gray-700">{totalLeads}</span>{" "}
-            {totalLeads === 1 ? "lead" : "leads"}
-          </p>
+                  <option value="New">
+                    New
+                  </option>
 
-          {/* PAGINATION */}
-          {totalPages > 1 && (
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={handlePreviousPage}
-                disabled={currentPage === 1 || loading}
-                className="w-8 h-8 inline-flex items-center justify-center text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <FiChevronLeft size={16} />
-              </button>
+                  <option value="Contacted">
+                    Contacted
+                  </option>
 
-              <span className="px-3 h-8 inline-flex items-center text-sm font-medium text-gray-700">
-                {currentPage} / {totalPages}
-              </span>
+                  <option value="Qualified">
+                    Qualified
+                  </option>
 
-              <button
-                onClick={handleNextPage}
-                disabled={currentPage === totalPages || loading}
-                className="w-8 h-8 inline-flex items-center justify-center text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <FiChevronRight size={16} />
-              </button>
+                  <option value="Proposal">
+                    Proposal
+                  </option>
+
+                  <option value="Negotiation">
+                    Negotiation
+                  </option>
+
+                  <option value="Won">
+                    Won
+                  </option>
+
+                  <option value="Lost">
+                    Lost
+                  </option>
+                </select>
+
+              </div>
+
+              {/* SOURCE */}
+
+              <div className="mb-3">
+
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  Source
+                </label>
+
+                <select
+                  value={source}
+                  onChange={(e) => {
+                    setSource(e.target.value);
+                    setPage(1);
+                  }}
+                  className="w-full h-9 px-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                >
+                  <option value="">
+                    All Sources
+                  </option>
+
+                  <option value="Website">
+                    Website
+                  </option>
+
+                  <option value="Facebook">
+                    Facebook
+                  </option>
+
+                  <option value="Instagram">
+                    Instagram
+                  </option>
+
+                  <option value="Google Ads">
+                    Google Ads
+                  </option>
+
+                  <option value="LinkedIn">
+                    LinkedIn
+                  </option>
+
+                  <option value="Referral">
+                    Referral
+                  </option>
+
+                  <option value="Cold Call">
+                    Cold Call
+                  </option>
+
+                  <option value="Email Campaign">
+                    Email Campaign
+                  </option>
+
+                  <option value="WhatsApp">
+                    WhatsApp
+                  </option>
+
+                  <option value="Walk In">
+                    Walk In
+                  </option>
+
+                  <option value="Other">
+                    Other
+                  </option>
+                </select>
+
+              </div>
+
+              {/* PRIORITY */}
+
+              <div>
+
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  Priority
+                </label>
+
+                <select
+                  value={priority}
+                  onChange={(e) => {
+                    setPriority(e.target.value);
+                    setPage(1);
+                  }}
+                  className="w-full h-9 px-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                >
+                  <option value="">
+                    All Priorities
+                  </option>
+
+                  <option value="Low">
+                    Low
+                  </option>
+
+                  <option value="Medium">
+                    Medium
+                  </option>
+
+                  <option value="High">
+                    High
+                  </option>
+                </select>
+
+              </div>
+
             </div>
           )}
+
+        </div>
+
+        {/* REFRESH */}
+
+        <button
+          type="button"
+          onClick={fetchLeads}
+          disabled={loading}
+          title="Refresh"
+          className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50 transition"
+        >
+          <FiRefreshCw
+            size={15}
+            className={
+              loading
+                ? "animate-spin"
+                : ""
+            }
+          />
+        </button>
+
+      </div>
+
+      {/* =================================================
+          TABLE
+      ================================================= */}
+
+      {loading ? (
+        <div className="bg-white border border-gray-200 rounded-xl">
+
+          <div className="flex flex-col items-center justify-center py-16">
+
+            <div className="w-7 h-7 border-2 border-gray-200 border-t-blue-600 rounded-full animate-spin" />
+
+            <p className="text-xs text-gray-500 mt-3">
+              Loading leads...
+            </p>
+
+          </div>
+
+        </div>
+      ) : (
+        <LeadTable
+          leads={leads}
+          onView={handleViewLead}
+          onEdit={handleEditLead}
+          onDelete={handleDeleteLead}
+          onConvert={handleConvertLead}
+          deletingId={deletingId}
+          convertingId={convertingId}
+          user={user}
+        />
+      )}
+
+      {/* =================================================
+          PAGINATION
+      ================================================= */}
+
+      {!loading && pagination.total > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+
+          <p className="text-xs text-gray-500">
+            Showing{" "}
+            <span className="font-medium text-gray-700">
+              {Math.min(
+                (page - 1) * pagination.limit + 1,
+                pagination.total
+              )}
+            </span>{" "}
+            to{" "}
+            <span className="font-medium text-gray-700">
+              {Math.min(
+                page * pagination.limit,
+                pagination.total
+              )}
+            </span>{" "}
+            of{" "}
+            <span className="font-medium text-gray-700">
+              {pagination.total}
+            </span>{" "}
+            leads
+          </p>
+
+          <div className="flex items-center gap-2">
+
+            <button
+              type="button"
+              onClick={handlePreviousPage}
+              disabled={!canGoPrevious}
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <FiChevronLeft size={14} />
+
+              Previous
+            </button>
+
+            <span className="text-xs text-gray-500 px-2">
+              Page{" "}
+              <span className="font-medium text-gray-700">
+                {page}
+              </span>{" "}
+              of{" "}
+              <span className="font-medium text-gray-700">
+                {pagination.totalPages || 1}
+              </span>
+            </span>
+
+            <button
+              type="button"
+              onClick={handleNextPage}
+              disabled={!canGoNext}
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Next
+
+              <FiChevronRight size={14} />
+            </button>
+
+          </div>
+
         </div>
       )}
 
-      {/* MODALS */}
+      {/* =================================================
+          LEAD FORM
+      ================================================= */}
+
       <LeadForm
-        isOpen={showForm}
+        isOpen={formOpen}
         onClose={handleCloseForm}
         onSubmit={handleSubmitLead}
         editingLead={editingLead}
@@ -551,9 +934,15 @@ function Leads() {
         assignableUsers={assignableUsers}
       />
 
-      {viewLead && (
-        <ViewLead lead={viewLead} onClose={() => setViewLead(null)} />
-      )}
+      {/* =================================================
+          VIEW LEAD
+      ================================================= */}
+
+      <ViewLead
+        isOpen={viewOpen}
+        onClose={handleCloseView}
+        lead={selectedLead}
+      />
 
     </div>
   );

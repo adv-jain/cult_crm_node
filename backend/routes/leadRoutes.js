@@ -7,14 +7,13 @@ const {
   deleteLead,
   getLeadById,
   getAssignableUsers,
-  convertLead
+  convertLead,
 } = require("../controllers/leadController");
 
 const protect = require("../middleware/authMiddleware");
 const authorize = require("../middleware/roleMiddleware");
 
 const router = express.Router();
-
 
 // =========================
 // ASSIGNABLE USERS
@@ -27,7 +26,6 @@ router.get(
   getAssignableUsers
 );
 
-
 // =========================
 // CREATE LEAD
 // =========================
@@ -38,7 +36,6 @@ router.post(
   authorize("admin", "manager", "sales"),
   createLead
 );
-
 
 // =========================
 // GET ALL LEADS
@@ -51,7 +48,6 @@ router.get(
   getLeads
 );
 
-
 // =========================
 // CONVERT LEAD
 // =========================
@@ -62,7 +58,6 @@ router.post(
   authorize("admin", "manager", "sales"),
   convertLead
 );
-
 
 // =========================
 // GET SINGLE LEAD
@@ -75,7 +70,6 @@ router.get(
   getLeadById
 );
 
-
 // =========================
 // UPDATE LEAD
 // =========================
@@ -87,7 +81,6 @@ router.put(
   updateLead
 );
 
-
 // =========================
 // DELETE LEAD - ADMIN ONLY
 // =========================
@@ -98,6 +91,5 @@ router.delete(
   authorize("admin"),
   deleteLead
 );
-
 
 module.exports = router;

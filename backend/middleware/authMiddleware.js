@@ -2,34 +2,42 @@ const jwt = require("jsonwebtoken");
 
 const protect = (req, res, next) => {
   try {
-    // Authorization header se token lena
     const authHeader = req.headers.authorization;
 
-    // Token nahi mila
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({
-        message: "Not authorized, token missing"
+        message: "Not authorized, token missing",
       });
     }
 
-    // "Bearer TOKEN" se sirf TOKEN nikalna
     const token = authHeader.split(" ")[1];
 
-    // Token verify karna
     const decoded = jwt.verify(
       token,
       process.env.JWT_SECRET
     );
 
-    // User information request ke andar store karna
-    req.user = decoded;
+    // console.log("JWT DECODED USER:", decoded);
 
-    // Next middleware/controller par jaana
+    // JWT me id ho ya _id, dono handle honge
+    req.user = {
+      ...decoded,
+      _id: decoded._id || decoded.id || decoded.userId,
+    };
+
+    // Agar kisi bhi form me user ID nahi mili
+    if (!req.user._id) {
+      return res.status(401).json({
+        message: "User ID not found in authentication token",
+      });
+    }
+
     next();
-
   } catch (error) {
+    console.error("Auth Middleware Error:", error.message);
+
     return res.status(401).json({
-      message: "Not authorized, invalid token"
+      message: "Not authorized, invalid token",
     });
   }
 };

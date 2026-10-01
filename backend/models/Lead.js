@@ -2,36 +2,44 @@ const mongoose = require("mongoose");
 
 const leadSchema = new mongoose.Schema(
   {
-    // =====================================================
-    // BASIC INFORMATION
-    // =====================================================
+    // ==============================
+    // CONTACT INFORMATION
+    // ==============================
 
     firstName: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
     },
 
     lastName: {
       type: String,
-      trim: true
+      trim: true,
+      default: "",
     },
 
     email: {
       type: String,
-      required: true,
       trim: true,
-      lowercase: true
+      lowercase: true,
+      default: "",
     },
 
     phone: {
       type: String,
-      trim: true
+      trim: true,
+      default: "",
     },
 
-    // =====================================================
+    // ==============================
     // LEAD INFORMATION
-    // =====================================================
+    // ==============================
+
+    destination: {
+      type: String,
+      required: true,
+      trim: true,
+    },
 
     source: {
       type: String,
@@ -44,9 +52,11 @@ const leadSchema = new mongoose.Schema(
         "Referral",
         "Cold Call",
         "Email Campaign",
-        "Other"
+        "WhatsApp",
+        "Walk In",
+        "Other",
       ],
-      default: "Other"
+      default: "Website",
     },
 
     status: {
@@ -58,66 +68,109 @@ const leadSchema = new mongoose.Schema(
         "Proposal",
         "Negotiation",
         "Won",
-        "Lost"
+        "Lost",
       ],
-      default: "New"
-    },
-
-    value: {
-      type: Number,
-      default: 0
+      default: "New",
     },
 
     priority: {
       type: String,
-      enum: ["Low", "Medium", "High"],
-      default: "Medium"
+      enum: [
+        "Low",
+        "Medium",
+        "High",
+      ],
+      default: "Medium",
     },
 
-    // =====================================================
-    // RELATIONSHIPS
-    // =====================================================
-
-    company: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Company"
-    },
+    // ==============================
+    // ASSIGNMENT
+    // ==============================
 
     assignedTo: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User"
+      ref: "User",
     },
 
-    // =====================================================
+    // ==============================
     // NOTES
-    // =====================================================
+    // ==============================
 
     notes: {
       type: String,
-      trim: true
+      trim: true,
+      default: "",
     },
 
-    // =====================================================
-    // LEAD CONVERSION
-    // =====================================================
+    // ==============================
+    // CONVERSION
+    // ==============================
 
     isConverted: {
       type: Boolean,
-      default: false
+      default: false,
     },
 
     convertedAt: {
-      type: Date
+      type: Date,
+    },
+
+    // Lead → Enquiry
+    convertedEnquiry: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Enquiry",
+    },
+
+    // Kept for backward compatibility
+    // with existing CRM data/code.
+    convertedCustomer: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Customer",
     },
 
     convertedContact: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Contact"
-    }
+      ref: "Contact",
+    },
   },
   {
-    timestamps: true
+    timestamps: true,
   }
 );
 
-module.exports = mongoose.model("Lead", leadSchema);
+// ==============================
+// INDEXES
+// ==============================
+
+leadSchema.index({
+  assignedTo: 1,
+});
+
+leadSchema.index({
+  status: 1,
+});
+
+leadSchema.index({
+  source: 1,
+});
+
+leadSchema.index({
+  priority: 1,
+});
+
+leadSchema.index({
+  destination: 1,
+});
+
+leadSchema.index({
+  createdAt: -1,
+});
+
+leadSchema.index({
+  isConverted: 1,
+});
+
+module.exports = mongoose.model(
+  "Lead",
+  leadSchema
+);

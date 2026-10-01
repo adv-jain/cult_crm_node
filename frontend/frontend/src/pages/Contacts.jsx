@@ -5,7 +5,7 @@ import api from "../api";
 import ContactTable from "../components/ContactTable";
 import ContactForm from "../components/ContactForm";
 import ViewContact from "../components/ViewContact";
-import DealForm from "../components/DealForm";
+import TripForm from "../components/TripForm";
 
 import { useAuth } from "../context/AuthContext";
 import {
@@ -22,10 +22,6 @@ import {
 function Contacts() {
   const { user } = useAuth();
 
-  // ==========================================
-  // CONTACT STATES
-  // ==========================================
-
   const [contacts, setContacts] = useState([]);
 
   const [search, setSearch] = useState("");
@@ -37,43 +33,23 @@ function Contacts() {
 
   const [assignableUsers, setAssignableUsers] = useState([]);
 
-  // ==========================================
-  // DEAL DROPDOWN DATA
-  // ==========================================
-
-  const [dealCompanies, setDealCompanies] = useState([]);
-  const [dealContacts, setDealContacts] = useState([]);
-  const [dealLeads, setDealLeads] = useState([]);
-  const [dealUsers, setDealUsers] = useState([]);
-
-  // ==========================================
-  // CONTACT FORM STATES
-  // ==========================================
+  const [tripCompanies, setTripCompanies] = useState([]);
+  const [tripContacts, setTripContacts] = useState([]);
+  const [tripLeads, setTripLeads] = useState([]);
+  const [tripUsers, setTripUsers] = useState([]);
 
   const [showForm, setShowForm] = useState(false);
   const [editingContact, setEditingContact] = useState(null);
   const [viewContact, setViewContact] = useState(null);
 
-  // ==========================================
-  // DEAL FORM STATES
-  // ==========================================
-
-  const [showDealForm, setShowDealForm] = useState(false);
-  const [creatingDealContact, setCreatingDealContact] = useState(null);
-  const [creatingDealId, setCreatingDealId] = useState(null);
-  const [savingDeal, setSavingDeal] = useState(false);
-
-  // ==========================================
-  // LOADING STATES
-  // ==========================================
+  const [showTripForm, setShowTripForm] = useState(false);
+  const [creatingTripContact, setCreatingTripContact] = useState(null);
+  const [creatingTripId, setCreatingTripId] = useState(null);
+  const [savingTrip, setSavingTrip] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
-
-  // ==========================================
-  // PAGINATION
-  // ==========================================
 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -81,23 +57,11 @@ function Contacts() {
 
   const RECORDS_PER_PAGE = 50;
 
-  // ==========================================
-  // MESSAGES
-  // ==========================================
-
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
-  // ==========================================
-  // FILTER POPOVER
-  // ==========================================
-
   const [showFilters, setShowFilters] = useState(false);
   const filterRef = useRef(null);
-
-  // ==========================================
-  // FETCH CONTACTS
-  // ==========================================
 
   const fetchContacts = async (page = currentPage) => {
     try {
@@ -125,6 +89,7 @@ function Contacts() {
         "Fetch contacts error:",
         error.response?.data || error.message
       );
+
       setErrorMessage(
         error.response?.data?.message || "Failed to fetch contacts"
       );
@@ -133,33 +98,40 @@ function Contacts() {
     }
   };
 
-  // ==========================================
-  // FETCH FILTER OPTIONS
-  // ==========================================
-
   const fetchFilterOptions = async () => {
     try {
       const response = await api.get("/contacts", {
-        params: { page: 1, limit: 50 },
+        params: {
+          page: 1,
+          limit: 50,
+        },
       });
 
       const allContacts = response.data.contacts || [];
 
       const companyMap = new Map();
+
       allContacts.forEach((contact) => {
         if (contact.company?._id) {
           companyMap.set(contact.company._id, contact.company.name);
         }
       });
+
       setCompanies(
-        Array.from(companyMap, ([id, name]) => ({ id, name }))
+        Array.from(companyMap, ([id, name]) => ({
+          id,
+          name,
+        }))
       );
 
       const uniqueDesignations = [
         ...new Set(
-          allContacts.map((contact) => contact.designation).filter(Boolean)
+          allContacts
+            .map((contact) => contact.designation)
+            .filter(Boolean)
         ),
       ];
+
       setDesignations(uniqueDesignations);
     } catch (error) {
       console.error(
@@ -168,10 +140,6 @@ function Contacts() {
       );
     }
   };
-
-  // ==========================================
-  // FETCH ASSIGNABLE USERS
-  // ==========================================
 
   const fetchAssignableUsers = async () => {
     if (user?.role !== "admin" && user?.role !== "manager") {
@@ -187,52 +155,55 @@ function Contacts() {
         "Fetch assignable users error:",
         error.response?.data || error.message
       );
+
       setAssignableUsers([]);
     }
   };
 
-  // ==========================================
-  // FETCH DEAL DATA
-  // ==========================================
-
-  const fetchDealData = async () => {
+  const fetchTripData = async () => {
     try {
       const companyResponse = await api.get("/companies");
-      setDealCompanies(companyResponse.data.companies || []);
+
+      setTripCompanies(companyResponse.data.companies || []);
 
       const contactResponse = await api.get("/contacts", {
-        params: { page: 1, limit: 50 },
+        params: {
+          page: 1,
+          limit: 50,
+        },
       });
-      setDealContacts(contactResponse.data.contacts || []);
+
+      setTripContacts(contactResponse.data.contacts || []);
 
       const leadResponse = await api.get("/leads", {
-        params: { page: 1, limit: 50 },
+        params: {
+          page: 1,
+          limit: 50,
+        },
       });
-      setDealLeads(leadResponse.data.leads || []);
+
+      setTripLeads(leadResponse.data.leads || []);
 
       if (user?.role === "admin" || user?.role === "manager") {
-        const userResponse = await api.get("/deals/assignable-users");
-        setDealUsers(userResponse.data.users || []);
+        const userResponse = await api.get("/trips/assignable-users");
+        setTripUsers(userResponse.data.users || []);
       } else {
-        setDealUsers([]);
+        setTripUsers([]);
       }
     } catch (error) {
       console.error(
-        "Fetch deal data error:",
+        "Fetch trip data error:",
         error.response?.data || error.message
       );
     }
   };
 
-  // ==========================================
-  // EFFECTS
-  // ==========================================
-
   useEffect(() => {
     if (!user) return;
+
     fetchFilterOptions();
     fetchAssignableUsers();
-    fetchDealData();
+    fetchTripData();
   }, [user]);
 
   useEffect(() => {
@@ -241,33 +212,39 @@ function Contacts() {
 
   useEffect(() => {
     if (!user) return;
+
     fetchContacts(currentPage);
   }, [currentPage, search, company, designation, user]);
 
   useEffect(() => {
     if (!successMessage && !errorMessage) return;
-    const t = setTimeout(() => {
+
+    const timer = setTimeout(() => {
       setSuccessMessage("");
       setErrorMessage("");
     }, 4000);
-    return () => clearTimeout(t);
+
+    return () => clearTimeout(timer);
   }, [successMessage, errorMessage]);
 
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (filterRef.current && !filterRef.current.contains(e.target)) {
+    const handleClickOutside = (event) => {
+      if (
+        filterRef.current &&
+        !filterRef.current.contains(event.target)
+      ) {
         setShowFilters(false);
       }
     };
+
     if (showFilters) {
       document.addEventListener("mousedown", handleClickOutside);
     }
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showFilters]);
 
-  // ==========================================
-  // HANDLERS
-  // ==========================================
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showFilters]);
 
   const handleAddContact = () => {
     setEditingContact(null);
@@ -301,12 +278,13 @@ function Contacts() {
 
       await fetchContacts(currentPage);
       await fetchFilterOptions();
-      await fetchDealData();
+      await fetchTripData();
     } catch (error) {
       console.error(
         "Save contact error:",
         error.response?.data || error.message
       );
+
       setErrorMessage(
         error.response?.data?.message || "Failed to save contact"
       );
@@ -319,6 +297,7 @@ function Contacts() {
     const confirmDelete = window.confirm(
       "Are you sure you want to delete this contact?"
     );
+
     if (!confirmDelete) return;
 
     try {
@@ -327,6 +306,7 @@ function Contacts() {
       setSuccessMessage("");
 
       await api.delete(`/contacts/${id}`);
+
       setSuccessMessage("Contact deleted successfully");
 
       if (contacts.length === 1 && currentPage > 1) {
@@ -336,12 +316,13 @@ function Contacts() {
       }
 
       await fetchFilterOptions();
-      await fetchDealData();
+      await fetchTripData();
     } catch (error) {
       console.error(
         "Delete contact error:",
         error.response?.data || error.message
       );
+
       setErrorMessage(
         error.response?.data?.message || "Failed to delete contact"
       );
@@ -354,73 +335,99 @@ function Contacts() {
     setViewContact(contact);
   };
 
-  const handleCreateDeal = async (contact) => {
+  const handleCreateTrip = async (contact) => {
     try {
-      setCreatingDealId(contact._id);
+      setCreatingTripId(contact._id);
       setSuccessMessage("");
       setErrorMessage("");
 
-      await fetchDealData();
+      await fetchTripData();
 
-      setCreatingDealContact(contact);
-      setShowDealForm(true);
+      setCreatingTripContact(contact);
+      setShowTripForm(true);
     } catch (error) {
-      console.error("Open create deal error:", error);
-      setErrorMessage("Failed to open deal form");
+      console.error("Open create trip error:", error);
+      setErrorMessage("Failed to open trip form");
     } finally {
-      setCreatingDealId(null);
+      setCreatingTripId(null);
     }
   };
 
-  const handleSubmitDeal = async (formData) => {
+  const handleSubmitTrip = async (formData) => {
     try {
-      setSavingDeal(true);
+      setSavingTrip(true);
       setErrorMessage("");
       setSuccessMessage("");
 
-      await api.post("/deals", formData);
+      await api.post("/trips", formData);
 
-      setSuccessMessage("Deal created successfully");
-      setShowDealForm(false);
-      setCreatingDealContact(null);
+      setSuccessMessage("Trip created successfully");
+      setShowTripForm(false);
+      setCreatingTripContact(null);
     } catch (error) {
       console.error(
-        "Create deal error:",
+        "Create trip error:",
         error.response?.data || error.message
       );
+
       setErrorMessage(
-        error.response?.data?.message || "Failed to create deal"
+        error.response?.data?.message || "Failed to create trip"
       );
+
       throw error;
     } finally {
-      setSavingDeal(false);
+      setSavingTrip(false);
     }
   };
 
-  const dealFormEditingData = creatingDealContact
+  const tripFormEditingData = creatingTripContact
     ? {
         title:
-          `${creatingDealContact.firstName || ""} ${
-            creatingDealContact.lastName || ""
-          } Deal`.trim(),
-        value: "",
-        stage: "New",
-        probability: 20,
-        expectedCloseDate: "",
+          `${creatingTripContact.firstName || ""} ${
+            creatingTripContact.lastName || ""
+          } Trip`.trim(),
+
+        tripCode: "",
+
+        destination: "",
+
+        startDate: "",
+        endDate: "",
+
+        travelType: "Other",
+
+        adults: 1,
+        children: 0,
+        infants: 0,
+
+        status: "Planning",
+
+        estimatedValue: "",
+        totalAmount: "",
+        totalCost: "",
+
+        customer:
+          creatingTripContact.customer?._id ||
+          creatingTripContact.customer ||
+          "",
+
         company:
-          creatingDealContact.company?._id ||
-          creatingDealContact.company ||
+          creatingTripContact.company?._id ||
+          creatingTripContact.company ||
           "",
-        contact: creatingDealContact._id,
+
         lead:
-          creatingDealContact.lead?._id ||
-          creatingDealContact.lead ||
+          creatingTripContact.lead?._id ||
+          creatingTripContact.lead ||
           "",
+
         owner:
-          creatingDealContact.owner?._id ||
-          creatingDealContact.owner ||
+          creatingTripContact.owner?._id ||
+          creatingTripContact.owner ||
           "",
+
         description: "",
+        cancellationReason: "",
       }
     : null;
 
@@ -429,9 +436,9 @@ function Contacts() {
     setEditingContact(null);
   };
 
-  const handleCloseDealForm = () => {
-    setShowDealForm(false);
-    setCreatingDealContact(null);
+  const handleCloseTripForm = () => {
+    setShowTripForm(false);
+    setCreatingTripContact(null);
   };
 
   const handleClearFilters = () => {
@@ -460,34 +467,24 @@ function Contacts() {
     return [company, designation].filter(Boolean).length;
   }, [company, designation]);
 
-  // ==========================================
-  // RENDER
-  // ==========================================
-
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-5 max-w-[1600px] mx-auto">
-
-      {/* ============================================
-          HEADER: SEARCH + FILTER (left) | ADD (right)
-          ============================================ */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-
-        {/* LEFT: SEARCH + FILTER */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
-
-          {/* SEARCH */}
           <div className="relative w-full sm:w-64">
             <FiSearch
               className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
               size={15}
             />
+
             <input
               type="text"
               placeholder="Search contacts..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(event) => setSearch(event.target.value)}
               className="w-full pl-9 pr-8 h-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition"
             />
+
             {search && (
               <button
                 type="button"
@@ -499,9 +496,9 @@ function Contacts() {
             )}
           </div>
 
-          {/* FILTER BUTTON + POPOVER */}
           <div className="relative" ref={filterRef}>
             <button
+              type="button"
               onClick={() => setShowFilters((prev) => !prev)}
               className={`inline-flex items-center justify-center gap-1.5 px-3 h-9 text-sm font-medium rounded-lg border transition whitespace-nowrap ${
                 dropdownFilterCount > 0
@@ -510,7 +507,11 @@ function Contacts() {
               }`}
             >
               <FiFilter size={14} />
-              <span className="hidden sm:inline">Filters</span>
+
+              <span className="hidden sm:inline">
+                Filters
+              </span>
+
               {dropdownFilterCount > 0 && (
                 <span className="inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[10px] font-semibold bg-blue-600 text-white rounded-full">
                   {dropdownFilterCount}
@@ -518,16 +519,16 @@ function Contacts() {
               )}
             </button>
 
-            {/* MODERN FILTER POPOVER (left aligned) */}
             {showFilters && (
               <div className="absolute left-0 top-full mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-lg shadow-gray-200/60 z-30 overflow-hidden">
-
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                   <h3 className="text-sm font-semibold text-gray-900">
                     Filters
                   </h3>
+
                   {dropdownFilterCount > 0 && (
                     <button
+                      type="button"
                       onClick={handleClearFilters}
                       className="text-xs font-medium text-gray-500 hover:text-red-600 transition"
                     >
@@ -537,18 +538,22 @@ function Contacts() {
                 </div>
 
                 <div className="p-4 space-y-4">
-
-                  {/* COMPANY */}
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-2">
                       Company
                     </label>
+
                     <select
                       value={company}
-                      onChange={(e) => setCompany(e.target.value)}
+                      onChange={(event) =>
+                        setCompany(event.target.value)
+                      }
                       className="w-full h-9 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 cursor-pointer"
                     >
-                      <option value="">All Companies</option>
+                      <option value="">
+                        All Companies
+                      </option>
+
                       {companies.map((item) => (
                         <option key={item.id} value={item.id}>
                           {item.name}
@@ -557,18 +562,21 @@ function Contacts() {
                     </select>
                   </div>
 
-                  {/* DESIGNATION */}
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-2">
                       Designation
                     </label>
+
                     {designations.length > 0 ? (
                       <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
                         {designations.map((item) => (
                           <button
+                            type="button"
                             key={item}
                             onClick={() =>
-                              setDesignation(designation === item ? "" : item)
+                              setDesignation(
+                                designation === item ? "" : item
+                              )
                             }
                             className={`px-2.5 py-1 text-xs font-medium rounded-md border transition ${
                               designation === item
@@ -590,13 +598,16 @@ function Contacts() {
 
                 <div className="flex items-center justify-between gap-2 px-4 py-3 bg-gray-50 border-t border-gray-100">
                   <button
+                    type="button"
                     onClick={handleClearFilters}
                     disabled={dropdownFilterCount === 0}
                     className="text-xs font-medium text-gray-600 hover:text-gray-900 transition disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Clear all
                   </button>
+
                   <button
+                    type="button"
                     onClick={() => setShowFilters(false)}
                     className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md transition"
                   >
@@ -608,8 +619,8 @@ function Contacts() {
           </div>
         </div>
 
-        {/* RIGHT: ADD BUTTON */}
         <button
+          type="button"
           onClick={handleAddContact}
           className="inline-flex items-center justify-center gap-1.5 px-4 h-9 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition shadow-sm whitespace-nowrap self-start lg:self-auto"
         >
@@ -618,12 +629,19 @@ function Contacts() {
         </button>
       </div>
 
-      {/* ALERTS */}
       {successMessage && (
         <div className="flex items-start gap-3 bg-green-50 border border-green-200 text-green-800 text-sm px-4 py-3 rounded-lg">
-          <FiCheckCircle className="flex-shrink-0 mt-0.5" size={18} />
-          <p className="flex-1">{successMessage}</p>
+          <FiCheckCircle
+            className="flex-shrink-0 mt-0.5"
+            size={18}
+          />
+
+          <p className="flex-1">
+            {successMessage}
+          </p>
+
           <button
+            type="button"
             onClick={() => setSuccessMessage("")}
             className="text-green-600 hover:text-green-800 flex-shrink-0"
           >
@@ -634,9 +652,17 @@ function Contacts() {
 
       {errorMessage && (
         <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 text-sm px-4 py-3 rounded-lg">
-          <FiAlertCircle className="flex-shrink-0 mt-0.5" size={18} />
-          <p className="flex-1">{errorMessage}</p>
+          <FiAlertCircle
+            className="flex-shrink-0 mt-0.5"
+            size={18}
+          />
+
+          <p className="flex-1">
+            {errorMessage}
+          </p>
+
           <button
+            type="button"
             onClick={() => setErrorMessage("")}
             className="text-red-600 hover:text-red-800 flex-shrink-0"
           >
@@ -645,13 +671,14 @@ function Contacts() {
         </div>
       )}
 
-      {/* CONTACT TABLE */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <div className="flex flex-col items-center gap-3">
-              <div className="w-7 h-7 border-[3px] border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-              <p className="text-sm text-gray-500">Loading contacts...</p>
+              <div className="w-7 h-7 border-[3px] border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+              <p className="text-sm text-gray-500">
+                Loading contacts...
+              </p>
             </div>
           </div>
         ) : (
@@ -660,41 +687,53 @@ function Contacts() {
             onView={handleViewContact}
             onEdit={handleEditContact}
             onDelete={handleDeleteContact}
-            onCreateDeal={handleCreateDeal}
+            onCreateDeal={handleCreateTrip}
             deletingId={deletingId}
-            creatingDealId={creatingDealId}
+            creatingDealId={creatingTripId}
             user={user}
           />
         )}
       </div>
 
-      {/* FOOTER: SHOWING (left) | PAGE INFO + PAGINATION (right) */}
       {!loading && totalContacts > 0 && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-          {/* SHOWING */}
           <p className="text-xs text-gray-500">
             Showing{" "}
-            <span className="font-medium text-gray-700">{contacts.length}</span> of{" "}
-            <span className="font-medium text-gray-700">{totalContacts}</span>{" "}
+            <span className="font-medium text-gray-700">
+              {contacts.length}
+            </span>{" "}
+            of{" "}
+            <span className="font-medium text-gray-700">
+              {totalContacts}
+            </span>{" "}
             {totalContacts === 1 ? "contact" : "contacts"}
             {activeFilterCount > 0 && (
               <span className="ml-1">
                 · {activeFilterCount}{" "}
-                {activeFilterCount === 1 ? "filter" : "filters"} applied
+                {activeFilterCount === 1
+                  ? "filter"
+                  : "filters"}{" "}
+                applied
               </span>
             )}
           </p>
 
-          {/* PAGE INFO + PAGINATION */}
           <div className="flex items-center gap-3">
             <p className="text-xs text-gray-500">
-              Page <span className="font-medium text-gray-700">{currentPage}</span> of{" "}
-              <span className="font-medium text-gray-700">{totalPages}</span>
+              Page{" "}
+              <span className="font-medium text-gray-700">
+                {currentPage}
+              </span>{" "}
+              of{" "}
+              <span className="font-medium text-gray-700">
+                {totalPages}
+              </span>
             </p>
 
             {totalPages > 1 && (
               <div className="flex items-center gap-1.5">
                 <button
+                  type="button"
                   onClick={handlePreviousPage}
                   disabled={currentPage === 1 || loading}
                   className="w-8 h-8 inline-flex items-center justify-center text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
@@ -703,8 +742,11 @@ function Contacts() {
                 </button>
 
                 <button
+                  type="button"
                   onClick={handleNextPage}
-                  disabled={currentPage === totalPages || loading}
+                  disabled={
+                    currentPage === totalPages || loading
+                  }
                   className="w-8 h-8 inline-flex items-center justify-center text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <FiChevronRight size={16} />
@@ -715,7 +757,6 @@ function Contacts() {
         </div>
       )}
 
-      {/* CONTACT FORM */}
       <ContactForm
         isOpen={showForm}
         onClose={handleCloseForm}
@@ -726,28 +767,25 @@ function Contacts() {
         assignableUsers={assignableUsers}
       />
 
-      {/* DEAL FORM */}
-      <DealForm
-        isOpen={showDealForm}
-        onClose={handleCloseDealForm}
-        onSubmit={handleSubmitDeal}
-        editingDeal={dealFormEditingData}
-        loading={savingDeal}
-        companies={dealCompanies}
-        contacts={dealContacts}
-        leads={dealLeads}
-        users={dealUsers}
+      <TripForm
+        isOpen={showTripForm}
+        onClose={handleCloseTripForm}
+        onSubmit={handleSubmitTrip}
+        editingTrip={tripFormEditingData}
+        loading={savingTrip}
+        companies={tripCompanies}
+        contacts={tripContacts}
+        leads={tripLeads}
+        users={tripUsers}
         user={user}
       />
 
-      {/* VIEW CONTACT */}
       {viewContact && (
         <ViewContact
           contact={viewContact}
           onClose={() => setViewContact(null)}
         />
       )}
-
     </div>
   );
 }

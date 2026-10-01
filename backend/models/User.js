@@ -9,7 +9,7 @@ const userSchema = new mongoose.Schema(
     name: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
     },
 
     email: {
@@ -17,12 +17,12 @@ const userSchema = new mongoose.Schema(
       required: true,
       unique: true,
       lowercase: true,
-      trim: true
+      trim: true,
     },
 
     password: {
       type: String,
-      required: true
+      required: true,
     },
 
     // ==================================================
@@ -31,8 +31,14 @@ const userSchema = new mongoose.Schema(
 
     role: {
       type: String,
-      enum: ["admin", "manager", "sales"],
-      default: "sales"
+      enum: [
+        "admin",
+        "manager",
+        "sales",
+        "operations",
+        "accounts",
+      ],
+      default: "sales",
     },
 
     // ==================================================
@@ -41,7 +47,22 @@ const userSchema = new mongoose.Schema(
 
     phone: {
       type: String,
-      trim: true
+      trim: true,
+    },
+
+    // ==================================================
+    // PROFILE
+    // ==================================================
+
+    profileImage: {
+      type: String,
+      default: null,
+    },
+
+    designation: {
+      type: String,
+      trim: true,
+      default: null,
     },
 
     // ==================================================
@@ -50,7 +71,7 @@ const userSchema = new mongoose.Schema(
 
     isActive: {
       type: Boolean,
-      default: true
+      default: true,
     },
 
     // ==================================================
@@ -59,16 +80,16 @@ const userSchema = new mongoose.Schema(
 
     resetPasswordToken: {
       type: String,
-      default: null
+      default: null,
     },
 
     resetPasswordExpires: {
       type: Date,
-      default: null
-    }
+      default: null,
+    },
   },
   {
-    timestamps: true
+    timestamps: true,
   }
 );
 

@@ -1,35 +1,228 @@
-import {
-  BrowserRouter,
-  Routes,
-  Route,
-} from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 
+// Public Pages
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+
+// Pages
 import Dashboard from "./pages/Dashboard";
+import Calendar from "./pages/Calendar";
 import Leads from "./pages/Leads";
+import Enquiries from "./pages/Enquiries";
+import Customers from "./pages/Customers";
+import Travellers from "./pages/Travellers";
+import Quotations from "./pages/Quotations";
+import Bookings from "./pages/Bookings";
 import Contacts from "./pages/Contacts";
-import Deals from "./pages/Deals";
-import Users from "./pages/Users";
+import Companies from "./pages/Companies";
+import Trips from "./pages/Trips";
+import Itineraries from "./pages/Itineraries";
+import Packages from "./pages/Packages";
+import Hotels from "./pages/Hotels";
+import Transports from "./pages/Transports";
+import Suppliers from "./pages/Supplier";
 import Tasks from "./pages/Tasks";
 import Activities from "./pages/Activities";
-import Customers from "./pages/Customers";
-import Companies from "./pages/Companies";
-import Notifications from "./components/Notifications";
+import Users from "./pages/Users";
 
+// Components
+import Notifications from "./components/Notifications";
 import ProtectedRoute from "./components/ProtectedRoute";
 import RoleRoute from "./components/RoleRoute";
+
+// Layout
 import DashboardLayout from "./layouts/DashboardLayout";
+
+// =====================================================
+// ROLE GROUPS
+// =====================================================
+
+const ALL_ROLES = [
+  "admin",
+  "manager",
+  "sales",
+  "operations",
+  "accounts",
+];
+
+const SALES_ROLES = [
+  "admin",
+  "manager",
+  "sales",
+];
+
+const OPS_ROLES = [
+  "admin",
+  "manager",
+  "sales",
+  "operations",
+];
+
+const ADMIN_ONLY = ["admin"];
+
+// =====================================================
+// PROTECTED ROUTES CONFIG
+// =====================================================
+
+const protectedRoutes = [
+  // ===================================================
+  // Dashboard
+  // ===================================================
+
+  {
+    path: "/",
+    element: <Dashboard />,
+    roles: ALL_ROLES,
+  },
+
+  // ===================================================
+  // Calendar
+  // ===================================================
+
+  {
+    path: "/calendar",
+    element: <Calendar />,
+    roles: ALL_ROLES,
+  },
+
+  // ===================================================
+  // Sales
+  // ===================================================
+
+  {
+    path: "/leads",
+    element: <Leads />,
+    roles: SALES_ROLES,
+  },
+
+  {
+    path: "/enquiries",
+    element: <Enquiries />,
+    roles: SALES_ROLES,
+  },
+
+  {
+    path: "/customers",
+    element: <Customers />,
+    roles: SALES_ROLES,
+  },
+
+  {
+    path: "/travellers",
+    element: <Travellers />,
+    roles: SALES_ROLES,
+  },
+
+  {
+    path: "/quotations",
+    element: <Quotations />,
+    roles: SALES_ROLES,
+  },
+
+  {
+    path: "/bookings",
+    element: <Bookings />,
+    roles: SALES_ROLES,
+  },
+
+  {
+    path: "/contacts",
+    element: <Contacts />,
+    roles: SALES_ROLES,
+  },
+
+  {
+    path: "/companies",
+    element: <Companies />,
+    roles: SALES_ROLES,
+  },
+
+  {
+    path: "/trips",
+    element: <Trips />,
+    roles: SALES_ROLES,
+  },
+
+  // ===================================================
+  // Operations
+  // ===================================================
+
+  {
+    path: "/itineraries",
+    element: <Itineraries />,
+    roles: OPS_ROLES,
+  },
+
+  {
+    path: "/packages",
+    element: <Packages />,
+    roles: OPS_ROLES,
+  },
+
+  {
+    path: "/hotels",
+    element: <Hotels />,
+    roles: OPS_ROLES,
+  },
+
+  {
+    path: "/transports",
+    element: <Transports />,
+    roles: OPS_ROLES,
+  },
+
+  {
+    path: "/suppliers",
+    element: <Suppliers />,
+    roles: OPS_ROLES,
+  },
+
+  {
+    path: "/tasks",
+    element: <Tasks />,
+    roles: OPS_ROLES,
+  },
+
+  {
+    path: "/activities",
+    element: <Activities />,
+    roles: OPS_ROLES,
+  },
+
+  // ===================================================
+  // Admin
+  // ===================================================
+
+  {
+    path: "/users",
+    element: <Users />,
+    roles: ADMIN_ONLY,
+  },
+
+  // ===================================================
+  // Notifications
+  // ===================================================
+
+  {
+    path: "/notifications",
+    element: <Notifications />,
+    roles: SALES_ROLES,
+  },
+];
+
+// =====================================================
+// APP
+// =====================================================
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
 
-        {/* =====================================================
+        {/* ============================================
             PUBLIC ROUTES
-        ===================================================== */}
+        ============================================ */}
 
         <Route
           path="/login"
@@ -46,163 +239,27 @@ function App() {
           element={<ForgotPasswordPage />}
         />
 
-        {/* =====================================================
+        {/* ============================================
             PROTECTED ROUTES
-        ===================================================== */}
+        ============================================ */}
 
-        {/* DASHBOARD */}
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <RoleRoute
-                allowedRoles={["admin", "manager", "sales"]}
-              >
-                <DashboardLayout showHeader={true}>
-                  <Dashboard />
-                </DashboardLayout>
-              </RoleRoute>
-            </ProtectedRoute>
-          }
-        />
-
-        {/* USERS — Admin only */}
-        <Route
-          path="/users"
-          element={
-            <ProtectedRoute>
-              <RoleRoute allowedRoles={["admin"]}>
-                <DashboardLayout showHeader={false}>
-                  <Users />
-                </DashboardLayout>
-              </RoleRoute>
-            </ProtectedRoute>
-          }
-        />
-
-        {/* LEADS */}
-        <Route
-          path="/leads"
-          element={
-            <ProtectedRoute>
-              <RoleRoute
-                allowedRoles={["admin", "manager", "sales"]}
-              >
-                <DashboardLayout showHeader={false}>
-                  <Leads />
-                </DashboardLayout>
-              </RoleRoute>
-            </ProtectedRoute>
-          }
-        />
-
-        {/* COMPANIES — Admin, Manager, Sales */}
-        <Route
-          path="/companies"
-          element={
-            <ProtectedRoute>
-              <RoleRoute
-                allowedRoles={["admin", "manager", "sales"]}
-              >
-                <DashboardLayout showHeader={false}>
-                  <Companies />
-                </DashboardLayout>
-              </RoleRoute>
-            </ProtectedRoute>
-          }
-        />
-
-        {/* CONTACTS */}
-        <Route
-          path="/contacts"
-          element={
-            <ProtectedRoute>
-              <RoleRoute
-                allowedRoles={["admin", "manager", "sales"]}
-              >
-                <DashboardLayout showHeader={false}>
-                  <Contacts />
-                </DashboardLayout>
-              </RoleRoute>
-            </ProtectedRoute>
-          }
-        />
-
-        {/* DEALS */}
-        <Route
-          path="/deals"
-          element={
-            <ProtectedRoute>
-              <RoleRoute
-                allowedRoles={["admin", "manager", "sales"]}
-              >
-                <DashboardLayout showHeader={false}>
-                  <Deals />
-                </DashboardLayout>
-              </RoleRoute>
-            </ProtectedRoute>
-          }
-        />
-
-        {/* TASKS */}
-        <Route
-          path="/tasks"
-          element={
-            <ProtectedRoute>
-              <RoleRoute
-                allowedRoles={["admin", "manager", "sales"]}
-              >
-                <DashboardLayout showHeader={false}>
-                  <Tasks />
-                </DashboardLayout>
-              </RoleRoute>
-            </ProtectedRoute>
-          }
-        />
-
-        {/* ACTIVITIES */}
-        <Route
-          path="/activities"
-          element={
-            <ProtectedRoute>
-              <RoleRoute
-                allowedRoles={["admin", "manager", "sales"]}
-              >
-                <DashboardLayout showHeader={false}>
-                  <Activities />
-                </DashboardLayout>
-              </RoleRoute>
-            </ProtectedRoute>
-          }
-        />
-
-        {/* CUSTOMERS */}
-        <Route
-          path="/customers"
-          element={
-            <ProtectedRoute>
-              <DashboardLayout showHeader={false}>
-                <Customers />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-
-        {/* NOTIFICATIONS */}
-        <Route
-          path="/notifications"
-          element={
-            <ProtectedRoute>
-              <RoleRoute
-                allowedRoles={["admin", "manager", "sales"]}
-              >
-                <DashboardLayout showHeader={false}>
-                  <Notifications />
-                </DashboardLayout>
-              </RoleRoute>
-            </ProtectedRoute>
-          }
-        />
+        {protectedRoutes.map(
+          ({ path, element, roles }) => (
+            <Route
+              key={path}
+              path={path}
+              element={
+                <ProtectedRoute>
+                  <RoleRoute allowedRoles={roles}>
+                    <DashboardLayout>
+                      {element}
+                    </DashboardLayout>
+                  </RoleRoute>
+                </ProtectedRoute>
+              }
+            />
+          )
+        )}
 
       </Routes>
     </BrowserRouter>

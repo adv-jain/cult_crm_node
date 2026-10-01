@@ -6,17 +6,19 @@ const {
   getActivityById,
   updateActivity,
   deleteActivity,
-  getActivityUsers
+  getActivityUsers,
 } = require("../controllers/activityController");
 
 const protect = require("../middleware/authMiddleware");
-
 const authorize = require("../middleware/roleMiddleware");
 
 const router = express.Router();
 
+// =====================================================
+// ACTIVITY USERS
+// Must come before /:id
+// =====================================================
 
-// Users must come before /:id
 router.get(
   "/users",
   protect,
@@ -27,66 +29,84 @@ router.get(
   getActivityUsers
 );
 
+// =====================================================
+// CREATE ACTIVITY
+// =====================================================
 
-// Create
 router.post(
   "/",
   protect,
   authorize(
     "admin",
     "manager",
-    "sales"
+    "sales",
+    "operations",
+    "accounts"
   ),
   createActivity
 );
 
+// =====================================================
+// GET ALL ACTIVITIES
+// =====================================================
 
-// Get all
 router.get(
   "/",
   protect,
   authorize(
     "admin",
     "manager",
-    "sales"
+    "sales",
+    "operations",
+    "accounts"
   ),
   getActivities
 );
 
+// =====================================================
+// GET SINGLE ACTIVITY
+// =====================================================
 
-// Get single
 router.get(
   "/:id",
   protect,
   authorize(
     "admin",
     "manager",
-    "sales"
+    "sales",
+    "operations",
+    "accounts"
   ),
   getActivityById
 );
 
+// =====================================================
+// UPDATE ACTIVITY
+// =====================================================
 
-// Update
 router.put(
   "/:id",
   protect,
   authorize(
     "admin",
     "manager",
-    "sales"
+    "sales",
+    "operations",
+    "accounts"
   ),
   updateActivity
 );
 
+// =====================================================
+// DELETE ACTIVITY
+// Admin only
+// =====================================================
 
-// Delete
 router.delete(
   "/:id",
   protect,
   authorize("admin"),
   deleteActivity
 );
-
 
 module.exports = router;

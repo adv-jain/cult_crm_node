@@ -5,7 +5,9 @@ const User = require("../models/User");
 const Lead = require("../models/Lead");
 const Contact = require("../models/Contact");
 const Company = require("../models/Company");
-const Deal = require("../models/Deal");
+const Trip = require("../models/Trip");
+const Customer = require("../models/Customer");
+const Booking = require("../models/Booking");
 
 // =====================================================
 // HELPERS
@@ -29,13 +31,18 @@ const validateRelation = async (
   }
 
   if (!isValidId(id)) {
-    throw new Error(`Invalid ${fieldName} ID`);
+    throw new Error(
+      `Invalid ${fieldName} ID`
+    );
   }
 
-  const document = await Model.findById(id);
+  const document =
+    await Model.findById(id);
 
   if (!document) {
-    throw new Error(`${fieldName} not found`);
+    throw new Error(
+      `${fieldName} not found`
+    );
   }
 
   return document;
@@ -47,36 +54,55 @@ const validateRelation = async (
 
 const validateActivityRelations = async ({
   lead,
+  customer,
   contact,
   company,
-  deal
+  trip,
+  booking,
 }) => {
   const [
     leadDoc,
+    customerDoc,
     contactDoc,
     companyDoc,
-    dealDoc
+    tripDoc,
+    bookingDoc,
   ] = await Promise.all([
     validateRelation(
       Lead,
       lead,
       "Lead"
     ),
+
+    validateRelation(
+      Customer,
+      customer,
+      "Customer"
+    ),
+
     validateRelation(
       Contact,
       contact,
       "Contact"
     ),
+
     validateRelation(
       Company,
       company,
       "Company"
     ),
+
     validateRelation(
-      Deal,
-      deal,
-      "Deal"
-    )
+      Trip,
+      trip,
+      "Trip"
+    ),
+
+    validateRelation(
+      Booking,
+      booking,
+      "Booking"
+    ),
   ]);
 
   // ===================================================
@@ -128,58 +154,76 @@ const validateActivityRelations = async ({
   }
 
   // ===================================================
-  // Deal ↔ Contact
+  // Trip ↔ Lead
   // ===================================================
 
-  if (dealDoc && contactDoc) {
+  if (tripDoc && leadDoc) {
     if (
-      !dealDoc.contact ||
-      dealDoc.contact.toString() !==
-        contactDoc._id.toString()
-    ) {
-      throw new Error(
-        "Selected deal does not belong to the selected contact"
-      );
-    }
-  }
-
-  // ===================================================
-  // Deal ↔ Lead
-  // ===================================================
-
-  if (dealDoc && leadDoc) {
-    if (
-      !dealDoc.lead ||
-      dealDoc.lead.toString() !==
+      !tripDoc.lead ||
+      tripDoc.lead.toString() !==
         leadDoc._id.toString()
     ) {
       throw new Error(
-        "Selected deal does not belong to the selected lead"
+        "Selected trip does not belong to the selected lead"
       );
     }
   }
 
   // ===================================================
-  // Deal ↔ Company
+  // Trip ↔ Company
   // ===================================================
 
-  if (dealDoc && companyDoc) {
+  if (tripDoc && companyDoc) {
     if (
-      !dealDoc.company ||
-      dealDoc.company.toString() !==
+      !tripDoc.company ||
+      tripDoc.company.toString() !==
         companyDoc._id.toString()
     ) {
       throw new Error(
-        "Selected deal does not belong to the selected company"
+        "Selected trip does not belong to the selected company"
+      );
+    }
+  }
+
+  // ===================================================
+  // Trip ↔ Customer
+  // ===================================================
+
+  if (tripDoc && customerDoc) {
+    if (
+      tripDoc.customer &&
+      tripDoc.customer.toString() !==
+        customerDoc._id.toString()
+    ) {
+      throw new Error(
+        "Selected trip does not belong to the selected customer"
+      );
+    }
+  }
+
+  // ===================================================
+  // Booking ↔ Customer
+  // ===================================================
+
+  if (bookingDoc && customerDoc) {
+    if (
+      bookingDoc.customer &&
+      bookingDoc.customer.toString() !==
+        customerDoc._id.toString()
+    ) {
+      throw new Error(
+        "Selected booking does not belong to the selected customer"
       );
     }
   }
 
   return {
     lead: leadDoc,
+    customer: customerDoc,
     contact: contactDoc,
     company: companyDoc,
-    deal: dealDoc
+    trip: tripDoc,
+    booking: bookingDoc,
   };
 };
 
@@ -198,6 +242,10 @@ const populateActivity = (query) => {
       "firstName lastName email phone status assignedTo company"
     )
     .populate(
+      "customer",
+      "name email phone owner"
+    )
+    .populate(
       "contact",
       "firstName lastName email phone designation owner company lead"
     )
@@ -206,8 +254,12 @@ const populateActivity = (query) => {
       "name industry email phone owner"
     )
     .populate(
-      "deal",
-      "title value stage probability owner contact lead company"
+      "trip",
+      "title tripCode destination startDate endDate travelType status estimatedValue totalAmount totalCost profit customer company lead owner"
+    )
+    .populate(
+      "booking",
+      "bookingNumber customer enquiry quotation destination departure travelStartDate travelEndDate status totalAmount amountPaid amountDue paymentStatus salesOwner operationsOwner"
     );
 };
 
@@ -216,15 +268,95 @@ const populateActivity = (query) => {
 // =====================================================
 
 const getActiveSalesUserIds = async () => {
-  const salesUsers = await User.find({
-    role: "sales",
-    isActive: true
-  }).select("_id");
+  const salesUsers =
+    await User.find({
+      role: "sales",
+      isActive: true,
+    }).select("_id");
 
   return salesUsers.map(
     (user) => user._id
   );
 };
+
+// =====================================================
+// GET SALES RELATED RECORD IDS
+// =====================================================
+
+const getSalesRelatedActivityIds =
+  async (userId) => {
+    const [
+      userLeads,
+      userContacts,
+      userCompanies,
+      userTrips,
+      userCustomers,
+      userBookings,
+    ] = await Promise.all([
+      Lead.find({
+        assignedTo: userId,
+      }).select("_id"),
+
+      Contact.find({
+        owner: userId,
+      }).select("_id"),
+
+      Company.find({
+        owner: userId,
+      }).select("_id"),
+
+      Trip.find({
+        owner: userId,
+      }).select("_id"),
+
+      Customer.find({
+        owner: userId,
+      }).select("_id"),
+
+      Booking.find({
+        $or: [
+          {
+            salesOwner: userId,
+          },
+          {
+            createdBy: userId,
+          },
+        ],
+      }).select("_id"),
+    ]);
+
+    return {
+      leadIds:
+        userLeads.map(
+          (item) => item._id
+        ),
+
+      contactIds:
+        userContacts.map(
+          (item) => item._id
+        ),
+
+      companyIds:
+        userCompanies.map(
+          (item) => item._id
+        ),
+
+      tripIds:
+        userTrips.map(
+          (item) => item._id
+        ),
+
+      customerIds:
+        userCustomers.map(
+          (item) => item._id
+        ),
+
+      bookingIds:
+        userBookings.map(
+          (item) => item._id
+        ),
+    };
+  };
 
 // =====================================================
 // CHECK SALES ACCESS
@@ -237,7 +369,6 @@ const canSalesAccessActivity = (
   const currentUserId =
     userId.toString();
 
-  // Activity created by current user
   if (
     activity.createdBy?._id?.toString() ===
     currentUserId
@@ -245,7 +376,6 @@ const canSalesAccessActivity = (
     return true;
   }
 
-  // Activity related to user's Lead
   if (
     activity.lead?.assignedTo?.toString() ===
     currentUserId
@@ -253,7 +383,6 @@ const canSalesAccessActivity = (
     return true;
   }
 
-  // Activity related to user's Contact
   if (
     activity.contact?.owner?.toString() ===
     currentUserId
@@ -261,7 +390,6 @@ const canSalesAccessActivity = (
     return true;
   }
 
-  // Activity related to user's Company
   if (
     activity.company?.owner?.toString() ===
     currentUserId
@@ -269,9 +397,22 @@ const canSalesAccessActivity = (
     return true;
   }
 
-  // Activity related to user's Deal
   if (
-    activity.deal?.owner?.toString() ===
+    activity.trip?.owner?.toString() ===
+    currentUserId
+  ) {
+    return true;
+  }
+
+  if (
+    activity.customer?.owner?.toString() ===
+    currentUserId
+  ) {
+    return true;
+  }
+
+  if (
+    activity.booking?.salesOwner?.toString() ===
     currentUserId
   ) {
     return true;
@@ -296,44 +437,36 @@ const createActivity = async (
       activityDate,
       outcome,
       lead,
+      customer,
       contact,
       company,
-      deal,
-      notes
+      trip,
+      booking,
+      notes,
     } = req.body;
-
-    // =================================================
-    // BASIC VALIDATION
-    // =================================================
 
     if (!title?.trim()) {
       return res.status(400).json({
         message:
-          "Activity title is required"
+          "Activity title is required",
       });
     }
 
     if (!type) {
       return res.status(400).json({
         message:
-          "Activity type is required"
+          "Activity type is required",
       });
     }
 
-    // =================================================
-    // VALIDATE RELATIONS
-    // =================================================
-
     await validateActivityRelations({
       lead,
+      customer,
       contact,
       company,
-      deal
+      trip,
+      booking,
     });
-
-    // =================================================
-    // CREATE ACTIVITY
-    // =================================================
 
     const activity =
       await Activity.create({
@@ -357,22 +490,24 @@ const createActivity = async (
         lead:
           lead || null,
 
+        customer:
+          customer || null,
+
         contact:
           contact || null,
 
         company:
           company || null,
 
-        deal:
-          deal || null,
+        trip:
+          trip || null,
+
+        booking:
+          booking || null,
 
         notes:
-          notes || ""
+          notes || "",
       });
-
-    // =================================================
-    // POPULATE CREATED ACTIVITY
-    // =================================================
 
     const populatedActivity =
       await populateActivity(
@@ -386,9 +521,8 @@ const createActivity = async (
         "Activity created successfully",
 
       activity:
-        populatedActivity
+        populatedActivity,
     });
-
   } catch (error) {
     console.error(
       "Create activity error:",
@@ -398,7 +532,7 @@ const createActivity = async (
     return res.status(400).json({
       message:
         error.message ||
-        "Failed to create activity"
+        "Failed to create activity",
     });
   }
 };
@@ -418,28 +552,22 @@ const getActivities = async (
       outcome = "",
       createdBy = "",
       lead = "",
+      customer = "",
       contact = "",
       company = "",
-      deal = "",
-
-      // =================================================
-      // PAGINATION
-      // Default = 50
-      // Maximum = 50
-      // =================================================
+      trip = "",
+      booking = "",
 
       page = 1,
       limit = 50,
 
       sortBy = "activityDate",
-      sortOrder = "desc"
+      sortOrder = "desc",
     } = req.query;
 
     const filter = {};
 
-    // =================================================
     // SEARCH
-    // =================================================
 
     if (search.trim()) {
       filter.$or = [
@@ -447,51 +575,47 @@ const getActivities = async (
           title: {
             $regex:
               search.trim(),
-            $options: "i"
-          }
+            $options: "i",
+          },
         },
+
         {
           description: {
             $regex:
               search.trim(),
-            $options: "i"
-          }
+            $options: "i",
+          },
         },
+
         {
           notes: {
             $regex:
               search.trim(),
-            $options: "i"
-          }
-        }
+            $options: "i",
+          },
+        },
       ];
     }
 
-    // =================================================
-    // TYPE FILTER
-    // =================================================
+    // TYPE
 
     if (type) {
       filter.type = type;
     }
 
-    // =================================================
-    // OUTCOME FILTER
-    // =================================================
+    // OUTCOME
 
     if (outcome) {
       filter.outcome = outcome;
     }
 
-    // =================================================
-    // CREATED BY FILTER
-    // =================================================
+    // CREATED BY
 
     if (createdBy) {
       if (!isValidId(createdBy)) {
         return res.status(400).json({
           message:
-            "Invalid createdBy ID"
+            "Invalid createdBy ID",
         });
       }
 
@@ -499,31 +623,40 @@ const getActivities = async (
         createdBy;
     }
 
-    // =================================================
-    // LEAD FILTER
-    // =================================================
+    // LEAD
 
     if (lead) {
       if (!isValidId(lead)) {
         return res.status(400).json({
           message:
-            "Invalid lead ID"
+            "Invalid lead ID",
         });
       }
 
-      filter.lead =
-        lead;
+      filter.lead = lead;
     }
 
-    // =================================================
-    // CONTACT FILTER
-    // =================================================
+    // CUSTOMER
+
+    if (customer) {
+      if (!isValidId(customer)) {
+        return res.status(400).json({
+          message:
+            "Invalid customer ID",
+        });
+      }
+
+      filter.customer =
+        customer;
+    }
+
+    // CONTACT
 
     if (contact) {
       if (!isValidId(contact)) {
         return res.status(400).json({
           message:
-            "Invalid contact ID"
+            "Invalid contact ID",
         });
       }
 
@@ -531,15 +664,13 @@ const getActivities = async (
         contact;
     }
 
-    // =================================================
-    // COMPANY FILTER
-    // =================================================
+    // COMPANY
 
     if (company) {
       if (!isValidId(company)) {
         return res.status(400).json({
           message:
-            "Invalid company ID"
+            "Invalid company ID",
         });
       }
 
@@ -547,71 +678,53 @@ const getActivities = async (
         company;
     }
 
-    // =================================================
-    // DEAL FILTER
-    // =================================================
+    // TRIP
 
-    if (deal) {
-      if (!isValidId(deal)) {
+    if (trip) {
+      if (!isValidId(trip)) {
         return res.status(400).json({
           message:
-            "Invalid deal ID"
+            "Invalid trip ID",
         });
       }
 
-      filter.deal =
-        deal;
+      filter.trip =
+        trip;
     }
 
-    // =================================================
-    // SALES ACCESS
-    // =================================================
+    // BOOKING
 
-    if (req.user.role === "sales") {
+    if (booking) {
+      if (!isValidId(booking)) {
+        return res.status(400).json({
+          message:
+            "Invalid booking ID",
+        });
+      }
+
+      filter.booking =
+        booking;
+    }
+
+    // SALES ACCESS
+
+    if (
+      req.user.role ===
+      "sales"
+    ) {
       const userId =
         req.user.id;
 
-      const [
-        userLeads,
-        userContacts,
-        userCompanies,
-        userDeals
-      ] = await Promise.all([
-        Lead.find({
-          assignedTo: userId
-        }).select("_id"),
-
-        Contact.find({
-          owner: userId
-        }).select("_id"),
-
-        Company.find({
-          owner: userId
-        }).select("_id"),
-
-        Deal.find({
-          owner: userId
-        }).select("_id")
-      ]);
-
-      const leadIds =
-        userLeads.map(
-          (item) => item._id
-        );
-
-      const contactIds =
-        userContacts.map(
-          (item) => item._id
-        );
-
-      const companyIds =
-        userCompanies.map(
-          (item) => item._id
-        );
-
-      const dealIds =
-        userDeals.map(
-          (item) => item._id
+      const {
+        leadIds,
+        contactIds,
+        companyIds,
+        tripIds,
+        customerIds,
+        bookingIds,
+      } =
+        await getSalesRelatedActivityIds(
+          userId
         );
 
       filter.$and =
@@ -621,41 +734,59 @@ const getActivities = async (
         $or: [
           {
             createdBy:
-              userId
+              userId,
           },
+
           {
             lead: {
-              $in:
-                leadIds
-            }
+              $in: leadIds,
+            },
           },
+
           {
             contact: {
               $in:
-                contactIds
-            }
+                contactIds,
+            },
           },
+
           {
             company: {
               $in:
-                companyIds
-            }
+                companyIds,
+            },
           },
+
           {
-            deal: {
+            trip: {
               $in:
-                dealIds
-            }
-          }
-        ]
+                tripIds,
+            },
+          },
+
+          {
+            customer: {
+              $in:
+                customerIds,
+            },
+          },
+
+          {
+            booking: {
+              $in:
+                bookingIds,
+            },
+          },
+        ],
       });
     }
 
-    // =================================================
     // MANAGER ACCESS
-    // =================================================
 
-    if (req.user.role === "manager") {
+    if (
+      req.user.role ===
+      "manager"
+    ) {
       const salesUserIds =
         await getActiveSalesUserIds();
 
@@ -666,35 +797,51 @@ const getActivities = async (
         salesLeadIds,
         salesContactIds,
         salesCompanyIds,
-        salesDealIds
+        salesTripIds,
+        salesCustomerIds,
+        salesBookingIds,
       ] = await Promise.all([
         Lead.find({
           assignedTo: {
             $in:
-              salesUserIds
-          }
+              salesUserIds,
+          },
         }).distinct("_id"),
 
         Contact.find({
           owner: {
             $in:
-              salesUserIds
-          }
+              salesUserIds,
+          },
         }).distinct("_id"),
 
         Company.find({
           owner: {
             $in:
-              salesUserIds
-          }
+              salesUserIds,
+          },
         }).distinct("_id"),
 
-        Deal.find({
+        Trip.find({
           owner: {
             $in:
-              salesUserIds
-          }
-        }).distinct("_id")
+              salesUserIds,
+          },
+        }).distinct("_id"),
+
+        Customer.find({
+          owner: {
+            $in:
+              salesUserIds,
+          },
+        }).distinct("_id"),
+
+        Booking.find({
+          salesOwner: {
+            $in:
+              salesUserIds,
+          },
+        }).distinct("_id"),
       ]);
 
       filter.$and.push({
@@ -702,40 +849,56 @@ const getActivities = async (
           {
             createdBy: {
               $in:
-                salesUserIds
-            }
+                salesUserIds,
+            },
           },
+
           {
             lead: {
               $in:
-                salesLeadIds
-            }
+                salesLeadIds,
+            },
           },
+
           {
             contact: {
               $in:
-                salesContactIds
-            }
+                salesContactIds,
+            },
           },
+
           {
             company: {
               $in:
-                salesCompanyIds
-            }
+                salesCompanyIds,
+            },
           },
+
           {
-            deal: {
+            trip: {
               $in:
-                salesDealIds
-            }
-          }
-        ]
+                salesTripIds,
+            },
+          },
+
+          {
+            customer: {
+              $in:
+                salesCustomerIds,
+            },
+          },
+
+          {
+            booking: {
+              $in:
+                salesBookingIds,
+            },
+          },
+        ],
       });
     }
 
-    // =================================================
     // PAGINATION
-    // =================================================
 
     const currentPage =
       Math.max(
@@ -743,7 +906,6 @@ const getActivities = async (
         1
       );
 
-    // Maximum 50 records
     const pageLimit =
       Math.min(
         Math.max(
@@ -757,9 +919,7 @@ const getActivities = async (
       (currentPage - 1) *
       pageLimit;
 
-    // =================================================
     // SORT
-    // =================================================
 
     const allowedSortFields = [
       "createdAt",
@@ -767,7 +927,7 @@ const getActivities = async (
       "activityDate",
       "title",
       "type",
-      "outcome"
+      "outcome",
     ];
 
     const safeSortField =
@@ -782,19 +942,17 @@ const getActivities = async (
         ? 1
         : -1;
 
-    // =================================================
-    // FETCH ACTIVITIES + TOTAL
-    // =================================================
+    // FETCH
 
     const [
       activities,
-      total
+      total,
     ] = await Promise.all([
       populateActivity(
         Activity.find(filter)
           .sort({
             [safeSortField]:
-              sortDirection
+              sortDirection,
           })
           .skip(skip)
           .limit(pageLimit)
@@ -802,22 +960,14 @@ const getActivities = async (
 
       Activity.countDocuments(
         filter
-      )
+      ),
     ]);
-
-    // =================================================
-    // TOTAL PAGES
-    // =================================================
 
     const totalPages =
       Math.ceil(
         total /
           pageLimit
       );
-
-    // =================================================
-    // PAGINATION STATUS
-    // =================================================
 
     const hasNextPage =
       currentPage <
@@ -826,10 +976,6 @@ const getActivities = async (
     const hasPreviousPage =
       currentPage >
       1;
-
-    // =================================================
-    // RESPONSE
-    // =================================================
 
     return res.status(200).json({
       message:
@@ -852,9 +998,8 @@ const getActivities = async (
 
       hasPreviousPage,
 
-      activities
+      activities,
     });
-
   } catch (error) {
     console.error(
       "Get activities error:",
@@ -864,8 +1009,9 @@ const getActivities = async (
     return res.status(500).json({
       message:
         "Failed to fetch activities",
+
       error:
-        error.message
+        error.message,
     });
   }
 };
@@ -886,7 +1032,7 @@ const getActivityById = async (
     ) {
       return res.status(400).json({
         message:
-          "Invalid activity ID"
+          "Invalid activity ID",
       });
     }
 
@@ -900,16 +1046,13 @@ const getActivityById = async (
     if (!activity) {
       return res.status(404).json({
         message:
-          "Activity not found"
+          "Activity not found",
       });
     }
 
-    // =================================================
-    // SALES ACCESS
-    // =================================================
-
     if (
-      req.user.role === "sales"
+      req.user.role ===
+      "sales"
     ) {
       const allowed =
         canSalesAccessActivity(
@@ -920,17 +1063,14 @@ const getActivityById = async (
       if (!allowed) {
         return res.status(403).json({
           message:
-            "Access denied"
+            "Access denied",
         });
       }
     }
 
-    // =================================================
-    // MANAGER ACCESS
-    // =================================================
-
     if (
-      req.user.role === "manager"
+      req.user.role ===
+      "manager"
     ) {
       const salesUserIds =
         await getActiveSalesUserIds();
@@ -949,7 +1089,7 @@ const getActivityById = async (
       if (!hasAccess) {
         return res.status(403).json({
           message:
-            "Managers can only access Sales team activities"
+            "Managers can only access Sales team activities",
         });
       }
     }
@@ -958,9 +1098,8 @@ const getActivityById = async (
       message:
         "Activity fetched successfully",
 
-      activity
+      activity,
     });
-
   } catch (error) {
     console.error(
       "Get activity error:",
@@ -969,7 +1108,7 @@ const getActivityById = async (
 
     return res.status(500).json({
       message:
-        "Failed to fetch activity"
+        "Failed to fetch activity",
     });
   }
 };
@@ -990,7 +1129,7 @@ const updateActivity = async (
     ) {
       return res.status(400).json({
         message:
-          "Invalid activity ID"
+          "Invalid activity ID",
       });
     }
 
@@ -1002,31 +1141,25 @@ const updateActivity = async (
     if (!activity) {
       return res.status(404).json({
         message:
-          "Activity not found"
+          "Activity not found",
       });
     }
 
-    // =================================================
-    // SALES ACCESS
-    // =================================================
-
     if (
-      req.user.role === "sales" &&
+      req.user.role ===
+        "sales" &&
       activity.createdBy.toString() !==
         req.user.id.toString()
     ) {
       return res.status(403).json({
         message:
-          "Sales users can only update activities created by themselves"
+          "Sales users can only update activities created by themselves",
       });
     }
 
-    // =================================================
-    // MANAGER ACCESS
-    // =================================================
-
     if (
-      req.user.role === "manager"
+      req.user.role ===
+      "manager"
     ) {
       const creator =
         await User.findOne({
@@ -1037,13 +1170,13 @@ const updateActivity = async (
             "sales",
 
           isActive:
-            true
+            true,
         });
 
       if (!creator) {
         return res.status(403).json({
           message:
-            "Managers can only update Sales team activities"
+            "Managers can only update Sales team activities",
         });
       }
     }
@@ -1055,24 +1188,23 @@ const updateActivity = async (
       activityDate,
       outcome,
       lead,
+      customer,
       contact,
       company,
-      deal,
-      notes
+      trip,
+      booking,
+      notes,
     } = req.body;
-
-    // =================================================
-    // UPDATE BASIC FIELDS
-    // =================================================
 
     if (title !== undefined) {
       if (
-        typeof title !== "string" ||
+        typeof title !==
+          "string" ||
         !title.trim()
       ) {
         return res.status(400).json({
           message:
-            "Activity title cannot be empty"
+            "Activity title cannot be empty",
         });
       }
 
@@ -1085,17 +1217,26 @@ const updateActivity = async (
         type;
     }
 
-    if (description !== undefined) {
+    if (
+      description !==
+      undefined
+    ) {
       activity.description =
         description;
     }
 
-    if (activityDate !== undefined) {
+    if (
+      activityDate !==
+      undefined
+    ) {
       activity.activityDate =
         activityDate;
     }
 
-    if (outcome !== undefined) {
+    if (
+      outcome !==
+      undefined
+    ) {
       activity.outcome =
         outcome;
     }
@@ -1105,14 +1246,15 @@ const updateActivity = async (
         notes;
     }
 
-    // =================================================
-    // FINAL RELATIONS
-    // =================================================
-
     const finalLead =
       lead !== undefined
         ? lead
         : activity.lead;
+
+    const finalCustomer =
+      customer !== undefined
+        ? customer
+        : activity.customer;
 
     const finalContact =
       contact !== undefined
@@ -1124,18 +1266,22 @@ const updateActivity = async (
         ? company
         : activity.company;
 
-    const finalDeal =
-      deal !== undefined
-        ? deal
-        : activity.deal;
+    const finalTrip =
+      trip !== undefined
+        ? trip
+        : activity.trip;
 
-    // =================================================
-    // VALIDATE FINAL RELATIONS
-    // =================================================
+    const finalBooking =
+      booking !== undefined
+        ? booking
+        : activity.booking;
 
     await validateActivityRelations({
       lead:
         finalLead,
+
+      customer:
+        finalCustomer,
 
       contact:
         finalContact,
@@ -1143,43 +1289,56 @@ const updateActivity = async (
       company:
         finalCompany,
 
-      deal:
-        finalDeal
-    });
+      trip:
+        finalTrip,
 
-    // =================================================
-    // UPDATE RELATIONS
-    // =================================================
+      booking:
+        finalBooking,
+    });
 
     if (lead !== undefined) {
       activity.lead =
         lead || null;
     }
 
-    if (contact !== undefined) {
+    if (
+      customer !==
+      undefined
+    ) {
+      activity.customer =
+        customer || null;
+    }
+
+    if (
+      contact !==
+      undefined
+    ) {
       activity.contact =
         contact || null;
     }
 
-    if (company !== undefined) {
+    if (
+      company !==
+      undefined
+    ) {
       activity.company =
         company || null;
     }
 
-    if (deal !== undefined) {
-      activity.deal =
-        deal || null;
+    if (trip !== undefined) {
+      activity.trip =
+        trip || null;
     }
 
-    // =================================================
-    // SAVE
-    // =================================================
+    if (
+      booking !==
+      undefined
+    ) {
+      activity.booking =
+        booking || null;
+    }
 
     await activity.save();
-
-    // =================================================
-    // POPULATE UPDATED ACTIVITY
-    // =================================================
 
     const updatedActivity =
       await populateActivity(
@@ -1193,9 +1352,8 @@ const updateActivity = async (
         "Activity updated successfully",
 
       activity:
-        updatedActivity
+        updatedActivity,
     });
-
   } catch (error) {
     console.error(
       "Update activity error:",
@@ -1205,7 +1363,7 @@ const updateActivity = async (
     return res.status(400).json({
       message:
         error.message ||
-        "Failed to update activity"
+        "Failed to update activity",
     });
   }
 };
@@ -1226,7 +1384,7 @@ const deleteActivity = async (
     ) {
       return res.status(400).json({
         message:
-          "Invalid activity ID"
+          "Invalid activity ID",
       });
     }
 
@@ -1238,20 +1396,17 @@ const deleteActivity = async (
     if (!activity) {
       return res.status(404).json({
         message:
-          "Activity not found"
+          "Activity not found",
       });
     }
 
-    // =================================================
-    // ADMIN ONLY
-    // =================================================
-
     if (
-      req.user.role !== "admin"
+      req.user.role !==
+      "admin"
     ) {
       return res.status(403).json({
         message:
-          "Only admin can delete activities"
+          "Only admin can delete activities",
       });
     }
 
@@ -1261,9 +1416,8 @@ const deleteActivity = async (
 
     return res.status(200).json({
       message:
-        "Activity deleted successfully"
+        "Activity deleted successfully",
     });
-
   } catch (error) {
     console.error(
       "Delete activity error:",
@@ -1272,7 +1426,7 @@ const deleteActivity = async (
 
     return res.status(500).json({
       message:
-        "Failed to delete activity"
+        "Failed to delete activity",
     });
   }
 };
@@ -1294,15 +1448,15 @@ const getActivityUsers = async (
           $in: [
             "admin",
             "manager",
-            "sales"
-          ]
-        }
+            "sales",
+          ],
+        },
       })
         .select(
           "name email role isActive"
         )
         .sort({
-          name: 1
+          name: 1,
         });
 
     return res.status(200).json({
@@ -1312,9 +1466,8 @@ const getActivityUsers = async (
       count:
         users.length,
 
-      users
+      users,
     });
-
   } catch (error) {
     console.error(
       "Get activity users error:",
@@ -1323,7 +1476,7 @@ const getActivityUsers = async (
 
     return res.status(500).json({
       message:
-        "Failed to fetch users"
+        "Failed to fetch users",
     });
   }
 };
@@ -1338,5 +1491,5 @@ module.exports = {
   getActivityById,
   updateActivity,
   deleteActivity,
-  getActivityUsers
+  getActivityUsers,
 };

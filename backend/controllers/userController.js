@@ -387,7 +387,7 @@ const resetPassword = async (
     user.resetPasswordToken =
       undefined;
 
-    user.resetPasswordExpire =
+    user.resetPasswordExpires =
       undefined;
 
     await user.save();

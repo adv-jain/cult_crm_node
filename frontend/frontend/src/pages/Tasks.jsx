@@ -22,10 +22,13 @@ function Tasks() {
 
   const [tasks, setTasks] = useState([]);
 
+  // ========================================
+  // RELATED DATA
+  // ========================================
   const [leads, setLeads] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [companies, setCompanies] = useState([]);
-  const [deals, setDeals] = useState([]);
+  const [trips, setTrips] = useState([]);
   const [users, setUsers] = useState([]);
 
   const [loading, setLoading] = useState(true);
@@ -36,22 +39,33 @@ function Tasks() {
   const [editingTask, setEditingTask] = useState(null);
   const [selectedTask, setSelectedTask] = useState(null);
 
+  // ========================================
+  // FILTERS
+  // ========================================
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [priority, setPriority] = useState("");
   const [type, setType] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
 
+  // ========================================
   // PAGINATION
+  // ========================================
   const [page, setPage] = useState(1);
   const limit = 50;
+
   const [totalTasks, setTotalTasks] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
+  // ========================================
+  // ALERTS
+  // ========================================
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
+  // ========================================
   // FILTER POPOVER
+  // ========================================
   const [showFilters, setShowFilters] = useState(false);
   const filterRef = useRef(null);
 
@@ -64,29 +78,55 @@ function Tasks() {
       setErrorMessage("");
 
       const params = {};
-      if (search.trim()) params.search = search.trim();
-      if (status) params.status = status;
-      if (priority) params.priority = priority;
-      if (type) params.type = type;
-      if (assignedTo) params.assignedTo = assignedTo;
+
+      if (search.trim()) {
+        params.search = search.trim();
+      }
+
+      if (status) {
+        params.status = status;
+      }
+
+      if (priority) {
+        params.priority = priority;
+      }
+
+      if (type) {
+        params.type = type;
+      }
+
+      if (assignedTo) {
+        params.assignedTo = assignedTo;
+      }
 
       params.page = page;
       params.limit = limit;
 
-      const response = await api.get("/tasks", { params });
+      const response = await api.get("/tasks", {
+        params,
+      });
 
       setTasks(response.data.tasks || []);
+
       setTotalTasks(
-        response.data.total ?? response.data.totalTasks ?? 0
+        response.data.total ??
+          response.data.totalTasks ??
+          0
       );
-      setTotalPages(response.data.totalPages || 1);
+
+      setTotalPages(
+        response.data.totalPages || 1
+      );
     } catch (error) {
       console.error(
         "Fetch tasks error:",
-        error.response?.data || error.message
+        error.response?.data ||
+          error.message
       );
+
       setErrorMessage(
-        error.response?.data?.message || "Failed to fetch tasks"
+        error.response?.data?.message ||
+          "Failed to fetch tasks"
       );
     } finally {
       setLoading(false);
@@ -102,29 +142,63 @@ function Tasks() {
         api.get("/leads"),
         api.get("/contacts"),
         api.get("/companies"),
-        api.get("/deals"),
+        api.get("/trips"),
       ];
 
-      if (user?.role === "admin" || user?.role === "manager") {
-        requests.push(api.get("/tasks/assignable-users"));
+      // Admin + Manager can assign tasks
+      if (
+        user?.role === "admin" ||
+        user?.role === "manager"
+      ) {
+        requests.push(
+          api.get("/tasks/assignable-users")
+        );
       }
 
-      const responses = await Promise.all(requests);
+      const responses =
+        await Promise.all(requests);
 
-      setLeads(responses[0].data.leads || []);
-      setContacts(responses[1].data.contacts || []);
-      setCompanies(responses[2].data.companies || []);
-      setDeals(responses[3].data.deals || []);
+      // Leads
+      setLeads(
+        responses[0].data.leads || []
+      );
 
-      if (user?.role === "admin" || user?.role === "manager") {
-        setUsers(responses[4].data.users || []);
+      // Contacts
+      setContacts(
+        responses[1].data.contacts || []
+      );
+
+      // Companies
+      setCompanies(
+        responses[2].data.companies || []
+      );
+
+      // Trips
+      setTrips(
+        responses[3].data.trips || []
+      );
+
+      // Assignable users
+      if (
+        user?.role === "admin" ||
+        user?.role === "manager"
+      ) {
+        setUsers(
+          responses[4].data.users || []
+        );
       } else {
         setUsers([]);
       }
     } catch (error) {
       console.error(
         "Fetch related data error:",
-        error.response?.data || error.message
+        error.response?.data ||
+          error.message
+      );
+
+      setErrorMessage(
+        error.response?.data?.message ||
+          "Failed to fetch related task data"
       );
     }
   };
@@ -134,31 +208,72 @@ function Tasks() {
   // ========================================
   useEffect(() => {
     if (!user) return;
+
     fetchRelatedData();
   }, [user]);
 
   useEffect(() => {
     if (!user) return;
-    fetchTasks();
-  }, [user, page, status, priority, type, assignedTo]);
 
+    fetchTasks();
+  }, [
+    user,
+    page,
+    status,
+    priority,
+    type,
+    assignedTo,
+  ]);
+
+  // ========================================
+  // ALERT AUTO CLEAR
+  // ========================================
   useEffect(() => {
-    if (!successMessage && !errorMessage) return;
-    const t = setTimeout(() => {
+    if (
+      !successMessage &&
+      !errorMessage
+    ) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
       setSuccessMessage("");
       setErrorMessage("");
     }, 4000);
-    return () => clearTimeout(t);
-  }, [successMessage, errorMessage]);
 
+    return () =>
+      clearTimeout(timer);
+  }, [
+    successMessage,
+    errorMessage,
+  ]);
+
+  // ========================================
+  // FILTER OUTSIDE CLICK
+  // ========================================
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (filterRef.current && !filterRef.current.contains(e.target)) {
+      if (
+        filterRef.current &&
+        !filterRef.current.contains(e.target)
+      ) {
         setShowFilters(false);
       }
     };
-    if (showFilters) document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+
+    if (showFilters) {
+      document.addEventListener(
+        "mousedown",
+        handleClickOutside
+      );
+    }
+
+    return () => {
+      document.removeEventListener(
+        "mousedown",
+        handleClickOutside
+      );
+    };
   }, [showFilters]);
 
   // ========================================
@@ -170,37 +285,61 @@ function Tasks() {
   };
 
   // ========================================
-  // CRUD HANDLERS
+  // CREATE
   // ========================================
   const handleCreate = () => {
     setEditingTask(null);
     setShowForm(true);
   };
 
+  // ========================================
+  // EDIT
+  // ========================================
   const handleEdit = (task) => {
     setEditingTask(task);
     setShowForm(true);
   };
 
+  // ========================================
+  // VIEW
+  // ========================================
   const handleView = (task) => {
     setSelectedTask(task);
     setShowView(true);
   };
 
+  // ========================================
+  // DELETE
+  // ========================================
   const handleDelete = async (task) => {
-    if (user?.role !== "admin") return;
+    if (user?.role !== "admin") {
+      return;
+    }
 
-    const confirmed = window.confirm(`Delete task "${task.title}"?`);
-    if (!confirmed) return;
+    const confirmed = window.confirm(
+      `Delete task "${task.title}"?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
 
     try {
       setErrorMessage("");
       setSuccessMessage("");
 
-      await api.delete(`/tasks/${task._id}`);
-      setSuccessMessage("Task deleted successfully");
+      await api.delete(
+        `/tasks/${task._id}`
+      );
 
-      if (tasks.length === 1 && page > 1) {
+      setSuccessMessage(
+        "Task deleted successfully"
+      );
+
+      if (
+        tasks.length === 1 &&
+        page > 1
+      ) {
         setPage((prev) => prev - 1);
       } else {
         await fetchTasks();
@@ -208,41 +347,70 @@ function Tasks() {
     } catch (error) {
       console.error(
         "Delete task error:",
-        error.response?.data || error.message
+        error.response?.data ||
+          error.message
       );
+
       setErrorMessage(
-        error.response?.data?.message || "Failed to delete task"
+        error.response?.data?.message ||
+          "Failed to delete task"
       );
     }
   };
 
+  // ========================================
+  // COMPLETE
+  // ========================================
   const handleComplete = async (task) => {
-    if (task.status === "Completed") return;
+    if (
+      task.status === "Completed"
+    ) {
+      return;
+    }
 
     try {
       setErrorMessage("");
       setSuccessMessage("");
 
-      await api.put(`/tasks/${task._id}`, { status: "Completed" });
-      setSuccessMessage("Task marked as completed");
+      await api.put(
+        `/tasks/${task._id}`,
+        {
+          status: "Completed",
+        }
+      );
+
+      setSuccessMessage(
+        "Task marked as completed"
+      );
+
       await fetchTasks();
     } catch (error) {
       console.error(
         "Complete task error:",
-        error.response?.data || error.message
+        error.response?.data ||
+          error.message
       );
+
       setErrorMessage(
-        error.response?.data?.message || "Failed to complete task"
+        error.response?.data?.message ||
+          "Failed to complete task"
       );
     }
   };
 
+  // ========================================
+  // SAVED
+  // ========================================
   const handleSaved = async () => {
     setShowForm(false);
     setEditingTask(null);
+
     await fetchTasks();
   };
 
+  // ========================================
+  // RESET FILTERS
+  // ========================================
   const resetFilters = () => {
     setSearch("");
     setStatus("");
@@ -258,22 +426,58 @@ function Tasks() {
   const stats = useMemo(() => {
     return {
       total: totalTasks,
-      pending: tasks.filter((t) => t.status === "Pending").length,
-      inProgress: tasks.filter((t) => t.status === "In Progress").length,
-      completed: tasks.filter((t) => t.status === "Completed").length,
+
+      pending: tasks.filter(
+        (task) =>
+          task.status === "Pending"
+      ).length,
+
+      inProgress: tasks.filter(
+        (task) =>
+          task.status === "In Progress"
+      ).length,
+
+      completed: tasks.filter(
+        (task) =>
+          task.status === "Completed"
+      ).length,
     };
   }, [tasks, totalTasks]);
 
   // ========================================
   // FILTER COUNTS
   // ========================================
-  const activeFilterCount = useMemo(() => {
-    return [search, status, priority, type, assignedTo].filter(Boolean).length;
-  }, [search, status, priority, type, assignedTo]);
+  const activeFilterCount =
+    useMemo(() => {
+      return [
+        search,
+        status,
+        priority,
+        type,
+        assignedTo,
+      ].filter(Boolean).length;
+    }, [
+      search,
+      status,
+      priority,
+      type,
+      assignedTo,
+    ]);
 
-  const dropdownFilterCount = useMemo(() => {
-    return [status, priority, type, assignedTo].filter(Boolean).length;
-  }, [status, priority, type, assignedTo]);
+  const dropdownFilterCount =
+    useMemo(() => {
+      return [
+        status,
+        priority,
+        type,
+        assignedTo,
+      ].filter(Boolean).length;
+    }, [
+      status,
+      priority,
+      type,
+      assignedTo,
+    ]);
 
   // ========================================
   // RENDER
@@ -283,11 +487,12 @@ function Tasks() {
       <div className="p-4 sm:p-6 lg:p-8 space-y-5 max-w-[1600px] mx-auto w-full">
 
         {/* ============================================
-            HEADER: SEARCH + FILTER (left) | ADD (right)
-            ============================================ */}
+            HEADER
+        ============================================ */}
+
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
 
-          {/* LEFT: SEARCH + FILTER */}
+          {/* LEFT */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
 
             {/* SEARCH */}
@@ -299,16 +504,20 @@ function Tasks() {
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
                 size={15}
               />
+
               <input
                 type="text"
                 placeholder="Search tasks..."
                 value={search}
                 onChange={(e) => {
-                  setSearch(e.target.value);
+                  setSearch(
+                    e.target.value
+                  );
                   setPage(1);
                 }}
                 className="w-full pl-9 pr-8 h-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition"
               />
+
               {search && (
                 <button
                   type="button"
@@ -323,10 +532,17 @@ function Tasks() {
               )}
             </form>
 
-            {/* FILTER BUTTON + POPOVER */}
-            <div className="relative" ref={filterRef}>
+            {/* FILTER */}
+            <div
+              className="relative"
+              ref={filterRef}
+            >
               <button
-                onClick={() => setShowFilters((prev) => !prev)}
+                onClick={() =>
+                  setShowFilters(
+                    (prev) => !prev
+                  )
+                }
                 className={`inline-flex items-center justify-center gap-1.5 px-3 h-9 text-sm font-medium rounded-lg border transition whitespace-nowrap ${
                   dropdownFilterCount > 0
                     ? "bg-blue-50 text-blue-700 border-blue-200"
@@ -334,25 +550,37 @@ function Tasks() {
                 }`}
               >
                 <FiFilter size={14} />
-                <span className="hidden sm:inline">Filters</span>
-                {dropdownFilterCount > 0 && (
+
+                <span className="hidden sm:inline">
+                  Filters
+                </span>
+
+                {dropdownFilterCount >
+                  0 && (
                   <span className="inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[10px] font-semibold bg-blue-600 text-white rounded-full">
-                    {dropdownFilterCount}
+                    {
+                      dropdownFilterCount
+                    }
                   </span>
                 )}
               </button>
 
-              {/* MODERN FILTER POPOVER (left aligned) */}
               {showFilters && (
                 <div className="absolute left-0 top-full mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-lg shadow-gray-200/60 z-30 overflow-hidden">
+
+                  {/* FILTER HEADER */}
 
                   <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                     <h3 className="text-sm font-semibold text-gray-900">
                       Filters
                     </h3>
-                    {dropdownFilterCount > 0 && (
+
+                    {dropdownFilterCount >
+                      0 && (
                       <button
-                        onClick={resetFilters}
+                        onClick={
+                          resetFilters
+                        }
                         className="text-xs font-medium text-gray-500 hover:text-red-600 transition"
                       >
                         Reset
@@ -362,116 +590,236 @@ function Tasks() {
 
                   <div className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
 
-                    {/* STATUS CHIPS */}
+                    {/* STATUS */}
+
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-2">
                         Status
                       </label>
+
                       <div className="flex flex-wrap gap-1.5">
-                        {["Pending", "In Progress", "Completed", "Cancelled"].map((s) => (
-                          <button
-                            key={s}
-                            onClick={() => {
-                              setStatus(status === s ? "" : s);
-                              setPage(1);
-                            }}
-                            className={`px-2.5 py-1 text-xs font-medium rounded-md border transition ${
-                              status === s
-                                ? "bg-blue-600 text-white border-blue-600"
-                                : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                            }`}
-                          >
-                            {s}
-                          </button>
-                        ))}
+                        {[
+                          "Pending",
+                          "In Progress",
+                          "Completed",
+                          "Cancelled",
+                        ].map(
+                          (item) => (
+                            <button
+                              key={item}
+                              onClick={() => {
+                                setStatus(
+                                  status ===
+                                    item
+                                    ? ""
+                                    : item
+                                );
+                                setPage(1);
+                              }}
+                              className={`px-2.5 py-1 text-xs font-medium rounded-md border transition ${
+                                status ===
+                                item
+                                  ? "bg-blue-600 text-white border-blue-600"
+                                  : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                              }`}
+                            >
+                              {item}
+                            </button>
+                          )
+                        )}
                       </div>
                     </div>
 
-                    {/* PRIORITY CHIPS */}
+                    {/* PRIORITY */}
+
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-2">
                         Priority
                       </label>
+
                       <div className="flex flex-wrap gap-1.5">
-                        {["Low", "Medium", "High", "Urgent"].map((p) => (
-                          <button
-                            key={p}
-                            onClick={() => {
-                              setPriority(priority === p ? "" : p);
-                              setPage(1);
-                            }}
-                            className={`px-2.5 py-1 text-xs font-medium rounded-md border transition ${
-                              priority === p
-                                ? "bg-blue-600 text-white border-blue-600"
-                                : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                            }`}
-                          >
-                            {p}
-                          </button>
-                        ))}
+                        {[
+                          "Low",
+                          "Medium",
+                          "High",
+                          "Urgent",
+                        ].map(
+                          (item) => (
+                            <button
+                              key={item}
+                              onClick={() => {
+                                setPriority(
+                                  priority ===
+                                    item
+                                    ? ""
+                                    : item
+                                );
+                                setPage(1);
+                              }}
+                              className={`px-2.5 py-1 text-xs font-medium rounded-md border transition ${
+                                priority ===
+                                item
+                                  ? "bg-blue-600 text-white border-blue-600"
+                                  : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                              }`}
+                            >
+                              {item}
+                            </button>
+                          )
+                        )}
                       </div>
                     </div>
 
                     {/* TYPE */}
+
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-2">
                         Type
                       </label>
+
                       <select
                         value={type}
                         onChange={(e) => {
-                          setType(e.target.value);
+                          setType(
+                            e.target.value
+                          );
                           setPage(1);
                         }}
                         className="w-full h-9 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 cursor-pointer"
                       >
-                        <option value="">All Types</option>
-                        <option value="Call">Call</option>
-                        <option value="Email">Email</option>
-                        <option value="Meeting">Meeting</option>
-                        <option value="Follow-up">Follow-up</option>
-                        <option value="Demo">Demo</option>
-                        <option value="Proposal">Proposal</option>
-                        <option value="Documentation">Documentation</option>
-                        <option value="Other">Other</option>
+                        <option value="">
+                          All Types
+                        </option>
+
+                        <option value="Call">
+                          Call
+                        </option>
+
+                        <option value="Email">
+                          Email
+                        </option>
+
+                        <option value="Meeting">
+                          Meeting
+                        </option>
+
+                        <option value="Follow-up">
+                          Follow-up
+                        </option>
+
+                        <option value="Quotation">
+                          Quotation
+                        </option>
+
+                        <option value="Booking">
+                          Booking
+                        </option>
+
+                        <option value="Hotel">
+                          Hotel
+                        </option>
+
+                        <option value="Transport">
+                          Transport
+                        </option>
+
+                        <option value="Visa">
+                          Visa
+                        </option>
+
+                        <option value="Documentation">
+                          Documentation
+                        </option>
+
+                        <option value="Payment">
+                          Payment
+                        </option>
+
+                        <option value="Itinerary">
+                          Itinerary
+                        </option>
+
+                        <option value="Customer Support">
+                          Customer Support
+                        </option>
+
+                        <option value="Other">
+                          Other
+                        </option>
                       </select>
                     </div>
 
                     {/* ASSIGNED TO */}
-                    {(user?.role === "admin" || user?.role === "manager") && (
+
+                    {(user?.role ===
+                      "admin" ||
+                      user?.role ===
+                        "manager") && (
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-2">
                           Assigned To
                         </label>
+
                         <select
-                          value={assignedTo}
+                          value={
+                            assignedTo
+                          }
                           onChange={(e) => {
-                            setAssignedTo(e.target.value);
+                            setAssignedTo(
+                              e.target.value
+                            );
                             setPage(1);
                           }}
                           className="w-full h-9 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 cursor-pointer"
                         >
-                          <option value="">All Assignees</option>
-                          {users.map((item) => (
-                            <option key={item._id} value={item._id}>
-                              {item.name}
-                            </option>
-                          ))}
+                          <option value="">
+                            All Assignees
+                          </option>
+
+                          {users.map(
+                            (item) => (
+                              <option
+                                key={
+                                  item._id
+                                }
+                                value={
+                                  item._id
+                                }
+                              >
+                                {
+                                  item.name
+                                }
+                              </option>
+                            )
+                          )}
                         </select>
                       </div>
                     )}
                   </div>
 
+                  {/* FILTER FOOTER */}
+
                   <div className="flex items-center justify-between gap-2 px-4 py-3 bg-gray-50 border-t border-gray-100">
+
                     <button
-                      onClick={resetFilters}
-                      disabled={dropdownFilterCount === 0}
+                      onClick={
+                        resetFilters
+                      }
+                      disabled={
+                        dropdownFilterCount ===
+                        0
+                      }
                       className="text-xs font-medium text-gray-600 hover:text-gray-900 transition disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       Clear all
                     </button>
+
                     <button
-                      onClick={() => setShowFilters(false)}
+                      onClick={() =>
+                        setShowFilters(
+                          false
+                        )
+                      }
                       className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md transition"
                     >
                       Apply
@@ -482,7 +830,8 @@ function Tasks() {
             </div>
           </div>
 
-          {/* RIGHT: ADD BUTTON */}
+          {/* CREATE TASK */}
+
           <button
             onClick={handleCreate}
             className="inline-flex items-center justify-center gap-1.5 px-4 h-9 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition shadow-sm whitespace-nowrap self-start lg:self-auto"
@@ -492,61 +841,101 @@ function Tasks() {
           </button>
         </div>
 
-        {/* STATS CARDS */}
+        {/* ============================================
+            STATS
+        ============================================ */}
+
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+
+          {/* TOTAL */}
+
           <div className="bg-white rounded-lg border border-gray-200 px-4 py-3">
             <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">
               Total
             </p>
+
             <p className="text-xl font-bold text-gray-900 mt-1">
-              {loading ? "—" : stats.total}
+              {loading
+                ? "—"
+                : stats.total}
             </p>
           </div>
+
+          {/* PENDING */}
 
           <div className="bg-white rounded-lg border border-gray-200 px-4 py-3">
             <div className="flex items-center justify-between">
               <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">
                 Pending
               </p>
+
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
             </div>
+
             <p className="text-xl font-bold text-gray-900 mt-1">
-              {loading ? "—" : stats.pending}
+              {loading
+                ? "—"
+                : stats.pending}
             </p>
           </div>
+
+          {/* IN PROGRESS */}
 
           <div className="bg-white rounded-lg border border-gray-200 px-4 py-3">
             <div className="flex items-center justify-between">
               <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">
                 In Progress
               </p>
+
               <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
             </div>
+
             <p className="text-xl font-bold text-gray-900 mt-1">
-              {loading ? "—" : stats.inProgress}
+              {loading
+                ? "—"
+                : stats.inProgress}
             </p>
           </div>
+
+          {/* COMPLETED */}
 
           <div className="bg-white rounded-lg border border-gray-200 px-4 py-3">
             <div className="flex items-center justify-between">
               <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">
                 Completed
               </p>
+
               <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
             </div>
+
             <p className="text-xl font-bold text-gray-900 mt-1">
-              {loading ? "—" : stats.completed}
+              {loading
+                ? "—"
+                : stats.completed}
             </p>
           </div>
         </div>
 
-        {/* ALERTS */}
+        {/* ============================================
+            ALERTS
+        ============================================ */}
+
         {successMessage && (
           <div className="flex items-start gap-3 bg-green-50 border border-green-200 text-green-800 text-sm px-4 py-3 rounded-lg">
-            <FiCheckCircle className="flex-shrink-0 mt-0.5" size={18} />
-            <p className="flex-1">{successMessage}</p>
+
+            <FiCheckCircle
+              className="flex-shrink-0 mt-0.5"
+              size={18}
+            />
+
+            <p className="flex-1">
+              {successMessage}
+            </p>
+
             <button
-              onClick={() => setSuccessMessage("")}
+              onClick={() =>
+                setSuccessMessage("")
+              }
               className="text-green-600 hover:text-green-800 flex-shrink-0"
             >
               <FiX size={16} />
@@ -556,10 +945,20 @@ function Tasks() {
 
         {errorMessage && (
           <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 text-sm px-4 py-3 rounded-lg">
-            <FiAlertCircle className="flex-shrink-0 mt-0.5" size={18} />
-            <p className="flex-1">{errorMessage}</p>
+
+            <FiAlertCircle
+              className="flex-shrink-0 mt-0.5"
+              size={18}
+            />
+
+            <p className="flex-1">
+              {errorMessage}
+            </p>
+
             <button
-              onClick={() => setErrorMessage("")}
+              onClick={() =>
+                setErrorMessage("")
+              }
               className="text-red-600 hover:text-red-800 flex-shrink-0"
             >
               <FiX size={16} />
@@ -567,13 +966,22 @@ function Tasks() {
           </div>
         )}
 
-        {/* TABLE */}
+        {/* ============================================
+            TABLE
+        ============================================ */}
+
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+
           {loading ? (
             <div className="flex items-center justify-center py-16">
+
               <div className="flex flex-col items-center gap-3">
+
                 <div className="w-7 h-7 border-[3px] border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-                <p className="text-sm text-gray-500">Loading tasks...</p>
+
+                <p className="text-sm text-gray-500">
+                  Loading tasks...
+                </p>
               </div>
             </div>
           ) : (
@@ -588,83 +996,149 @@ function Tasks() {
           )}
         </div>
 
-        {/* FOOTER: SHOWING (left) | PAGE INFO + PAGINATION (right) */}
-        {!loading && totalTasks > 0 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-            {/* SHOWING */}
-            <p className="text-xs text-gray-500">
-              Showing <span className="font-medium text-gray-700">{tasks.length}</span>{" "}
-              {tasks.length === 1 ? "task" : "tasks"}
-              {totalTasks > 0 && (
-                <span className="ml-1">of {totalTasks}</span>
-              )}
-              {activeFilterCount > 0 && (
-                <span className="ml-1">
-                  · {activeFilterCount}{" "}
-                  {activeFilterCount === 1 ? "filter" : "filters"} applied
-                </span>
-              )}
-            </p>
+        {/* ============================================
+            PAGINATION
+        ============================================ */}
 
-            {/* PAGE INFO + PAGINATION */}
-            <div className="flex items-center gap-3">
+        {!loading &&
+          totalTasks > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+
               <p className="text-xs text-gray-500">
-                Page <span className="font-medium text-gray-700">{page}</span> of{" "}
-                <span className="font-medium text-gray-700">{totalPages}</span>
+
+                Showing{" "}
+
+                <span className="font-medium text-gray-700">
+                  {tasks.length}
+                </span>{" "}
+
+                {tasks.length === 1
+                  ? "task"
+                  : "tasks"}
+
+                {totalTasks > 0 && (
+                  <span className="ml-1">
+                    of {totalTasks}
+                  </span>
+                )}
+
+                {activeFilterCount >
+                  0 && (
+                  <span className="ml-1">
+                    ·{" "}
+                    {
+                      activeFilterCount
+                    }{" "}
+                    {activeFilterCount ===
+                    1
+                      ? "filter"
+                      : "filters"}{" "}
+                    applied
+                  </span>
+                )}
               </p>
 
-              {totalPages > 1 && (
-                <div className="flex items-center gap-1.5">
-                  <button
-                    disabled={page === 1}
-                    onClick={() => setPage((prev) => prev - 1)}
-                    className="w-8 h-8 inline-flex items-center justify-center text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <FiChevronLeft size={16} />
-                  </button>
+              <div className="flex items-center gap-3">
 
-                  <button
-                    disabled={page === totalPages}
-                    onClick={() => setPage((prev) => prev + 1)}
-                    className="w-8 h-8 inline-flex items-center justify-center text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <FiChevronRight size={16} />
-                  </button>
-                </div>
-              )}
+                <p className="text-xs text-gray-500">
+
+                  Page{" "}
+
+                  <span className="font-medium text-gray-700">
+                    {page}
+                  </span>{" "}
+
+                  of{" "}
+
+                  <span className="font-medium text-gray-700">
+                    {totalPages}
+                  </span>
+                </p>
+
+                {totalPages >
+                  1 && (
+                  <div className="flex items-center gap-1.5">
+
+                    <button
+                      disabled={
+                        page === 1
+                      }
+                      onClick={() =>
+                        setPage(
+                          (prev) =>
+                            prev - 1
+                        )
+                      }
+                      className="w-8 h-8 inline-flex items-center justify-center text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <FiChevronLeft
+                        size={16}
+                      />
+                    </button>
+
+                    <button
+                      disabled={
+                        page ===
+                        totalPages
+                      }
+                      onClick={() =>
+                        setPage(
+                          (prev) =>
+                            prev + 1
+                        )
+                      }
+                      className="w-8 h-8 inline-flex items-center justify-center text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <FiChevronRight
+                        size={16}
+                      />
+                    </button>
+
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
       </div>
 
-      {/* TASK FORM */}
+      {/* ============================================
+          TASK FORM
+      ============================================ */}
+
       {showForm && (
         <TaskForm
           user={user}
           editingTask={editingTask}
+
           leads={leads}
           contacts={contacts}
           companies={companies}
-          deals={deals}
+          trips={trips}
           users={users}
+
           onClose={() => {
             setShowForm(false);
             setEditingTask(null);
           }}
+
           onSaved={handleSaved}
         />
       )}
 
-      {/* VIEW TASK */}
-      {showView && selectedTask && (
-        <ViewTask
-          task={selectedTask}
-          onClose={() => {
-            setShowView(false);
-            setSelectedTask(null);
-          }}
-        />
-      )}
+      {/* ============================================
+          VIEW TASK
+      ============================================ */}
+
+      {showView &&
+        selectedTask && (
+          <ViewTask
+            task={selectedTask}
+            onClose={() => {
+              setShowView(false);
+              setSelectedTask(null);
+            }}
+          />
+        )}
     </>
   );
 }
