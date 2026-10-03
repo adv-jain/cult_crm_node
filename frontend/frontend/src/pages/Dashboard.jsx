@@ -1,4 +1,3 @@
-
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
@@ -13,15 +12,14 @@ import {
   CartesianGrid,
   BarChart,
   Bar,
+  Cell,
 } from "recharts";
 
 import {
   FiUsers,
   FiUserPlus,
   FiCalendar,
-  FiDollarSign,
   FiTrendingUp,
-  FiTrendingDown,
   FiClock,
   FiMapPin,
   FiCreditCard,
@@ -31,16 +29,64 @@ import {
   FiCheckCircle,
   FiArrowRight,
   FiBriefcase,
+  FiChevronRight,
 } from "react-icons/fi";
 
 import { TbCurrencyRupee } from "react-icons/tb";
 
+// =====================================================
+// HELPERS
+// =====================================================
+
+const formatCurrency = (value) =>
+  `₹${Number(value || 0).toLocaleString("en-IN")}`;
+
+const formatCompactCurrency = (value) => {
+  const num = Number(value || 0);
+  if (num >= 10000000) return `₹${(num / 10000000).toFixed(2)}Cr`;
+  if (num >= 100000) return `₹${(num / 100000).toFixed(2)}L`;
+  if (num >= 1000) return `₹${(num / 1000).toFixed(1)}K`;
+  return `₹${num}`;
+};
+
+const formatDate = (date) => {
+  if (!date) return "-";
+  const parsedDate = new Date(date);
+  if (Number.isNaN(parsedDate.getTime())) return "-";
+  return parsedDate.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const formatRelativeTime = (date) => {
+  if (!date) return "";
+  const d = new Date(date);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+
+  const mins = Math.floor(diffMs / 60000);
+  const hours = Math.floor(mins / 60);
+  const days = Math.floor(hours / 24);
+
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 7) return `${days}d ago`;
+
+  return d.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+  });
+};
+
+// =====================================================
+// DASHBOARD
+// =====================================================
+
 function Dashboard() {
   const navigate = useNavigate();
-
-  // =====================================================
-  // STATES
-  // =====================================================
 
   const [summary, setSummary] = useState({});
   const [pipeline, setPipeline] = useState([]);
@@ -54,27 +100,29 @@ function Dashboard() {
   const [upcomingTasks, setUpcomingTasks] = useState([]);
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   // =====================================================
-  // FETCH DASHBOARD DATA
+  // FETCH
   // =====================================================
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
       setErrorMessage("");
 
       const [
-        summaryResponse,
-        pipelineResponse,
-        sourcesResponse,
-        revenueResponse,
-        bookingStatusResponse,
-        paymentStatusResponse,
-        destinationsResponse,
-        travelTypesResponse,
-        recentResponse,
+        summaryRes,
+        pipelineRes,
+        sourcesRes,
+        revenueRes,
+        bookingStatusRes,
+        paymentStatusRes,
+        destinationsRes,
+        travelTypesRes,
+        recentRes,
       ] = await Promise.all([
         api.get("/dashboard/summary"),
         api.get("/dashboard/pipeline"),
@@ -87,34 +135,27 @@ function Dashboard() {
         api.get("/dashboard/recent"),
       ]);
 
-      setSummary(summaryResponse.data.summary || {});
-      setPipeline(pipelineResponse.data.pipeline || []);
-      setLeadSources(sourcesResponse.data.sources || []);
-      setMonthlyRevenue(revenueResponse.data.monthlyRevenue || []);
-      setBookingStatus(bookingStatusResponse.data.bookingStatus || []);
-      setPaymentStatus(paymentStatusResponse.data.paymentStatus || []);
-      setDestinations(destinationsResponse.data.destinations || []);
-      setTravelTypes(travelTypesResponse.data.travelTypes || []);
-
-      setRecentActivities(
-        recentResponse.data.recentActivities || []
-      );
-
-      setUpcomingTasks(
-        recentResponse.data.upcomingTasks || []
-      );
+      setSummary(summaryRes.data.summary || {});
+      setPipeline(pipelineRes.data.pipeline || []);
+      setLeadSources(sourcesRes.data.sources || []);
+      setMonthlyRevenue(revenueRes.data.monthlyRevenue || []);
+      setBookingStatus(bookingStatusRes.data.bookingStatus || []);
+      setPaymentStatus(paymentStatusRes.data.paymentStatus || []);
+      setDestinations(destinationsRes.data.destinations || []);
+      setTravelTypes(travelTypesRes.data.travelTypes || []);
+      setRecentActivities(recentRes.data.recentActivities || []);
+      setUpcomingTasks(recentRes.data.upcomingTasks || []);
     } catch (error) {
       console.error(
         "Dashboard error:",
         error.response?.data || error.message
       );
-
       setErrorMessage(
-        error.response?.data?.message ||
-          "Failed to load dashboard data"
+        error.response?.data?.message || "Failed to load dashboard data"
       );
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -123,60 +164,142 @@ function Dashboard() {
   }, []);
 
   // =====================================================
-  // HELPERS
+  // DERIVED DATA
   // =====================================================
 
-  const formatCurrency = (value) => {
-    return `₹${Number(value || 0).toLocaleString("en-IN")}`;
+  const statCards = useMemo(
+    () => [
+      {
+        label: "Total Leads",
+        value: summary.totalLeads,
+        icon: <FiUsers size={18} />,
+        iconBg: "bg-blue-50",
+        iconColor: "text-blue-600",
+        accent: "from-blue-500 to-blue-600",
+      },
+      {
+        label: "Enquiries",
+        value: summary.totalEnquiries,
+        icon: <FiUserPlus size={18} />,
+        iconBg: "bg-violet-50",
+        iconColor: "text-violet-600",
+        accent: "from-violet-500 to-violet-600",
+      },
+      {
+        label: "Bookings",
+        value: summary.totalBookings,
+        icon: <FiCalendar size={18} />,
+        iconBg: "bg-emerald-50",
+        iconColor: "text-emerald-600",
+        accent: "from-emerald-500 to-emerald-600",
+      },
+      {
+        label: "Total Revenue",
+        value: formatCurrency(summary.totalRevenue),
+        icon: <TbCurrencyRupee size={20} />,
+        iconBg: "bg-amber-50",
+        iconColor: "text-amber-600",
+        accent: "from-amber-500 to-amber-600",
+      },
+      {
+        label: "Customers",
+        value: summary.totalCustomers,
+        icon: <FiUsers size={18} />,
+        iconBg: "bg-cyan-50",
+        iconColor: "text-cyan-600",
+        accent: "from-cyan-500 to-cyan-600",
+      },
+      {
+        label: "Payment Due",
+        value: formatCurrency(summary.paymentDue),
+        icon: <FiCreditCard size={18} />,
+        iconBg: "bg-red-50",
+        iconColor: "text-red-600",
+        accent: "from-red-500 to-red-600",
+      },
+      {
+        label: "Upcoming Trips",
+        value: summary.upcomingTrips,
+        icon: <FiMapPin size={18} />,
+        iconBg: "bg-indigo-50",
+        iconColor: "text-indigo-600",
+        accent: "from-indigo-500 to-indigo-600",
+      },
+      {
+        label: "Net Profit",
+        value: formatCurrency(summary.netProfit),
+        icon: <FiTrendingUp size={18} />,
+        iconBg: "bg-green-50",
+        iconColor: "text-green-600",
+        accent: "from-green-500 to-green-600",
+      },
+    ],
+    [summary]
+  );
+
+  const revenueChartData = useMemo(
+    () =>
+      monthlyRevenue.map((item) => ({
+        name: item.month || item.label || item._id || "Month",
+        revenue: Number(item.revenue || item.totalRevenue || item.amount || 0),
+      })),
+    [monthlyRevenue]
+  );
+
+  const pipelineData = useMemo(
+    () =>
+      pipeline.map((item, idx) => ({
+        ...item,
+        fill: [
+          "#6366f1",
+          "#8b5cf6",
+          "#a855f7",
+          "#d946ef",
+          "#ec4899",
+          "#f43f5e",
+        ][idx % 6],
+      })),
+    [pipeline]
+  );
+
+  const maxBookingCount = useMemo(
+    () =>
+      Math.max(
+        ...bookingStatus.map((b) => Number(b.count || b.bookingCount || 0)),
+        1
+      ),
+    [bookingStatus]
+  );
+
+  const maxLeadSourceCount = useMemo(
+    () =>
+      Math.max(
+        ...leadSources.map((s) => Number(s.count || s.leadCount || 0)),
+        1
+      ),
+    [leadSources]
+  );
+
+  // =====================================================
+  // ACTIVITY ICON
+  // =====================================================
+
+  const getActivityIcon = (type) => {
+    const t = String(type || "").toLowerCase();
+    if (t === "call") return <FiPhone size={13} />;
+    if (t === "email") return <FiMail size={13} />;
+    if (t === "meeting") return <FiUsers size={13} />;
+    if (t === "note") return <FiActivity size={13} />;
+    return <FiCheckCircle size={13} />;
   };
 
-  const formatNumber = (value) => {
-    return Number(value || 0).toLocaleString("en-IN");
-  };
-
-  const formatDate = (date) => {
-    if (!date) return "-";
-
-    const parsedDate = new Date(date);
-
-    if (Number.isNaN(parsedDate.getTime())) {
-      return "-";
-    }
-
-    return parsedDate.toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  };
-
-  const formatRelativeTime = (date) => {
-    if (!date) return "";
-
-    const d = new Date(date);
-    const now = new Date();
-
-    const diffMs = now.getTime() - d.getTime();
-
-    const mins = Math.floor(diffMs / 60000);
-    const hours = Math.floor(mins / 60);
-    const days = Math.floor(hours / 24);
-
-    if (mins < 1) return "Just now";
-
-    if (mins < 60) {
-      return `${mins} min ago`;
-    }
-
-    if (hours < 24) {
-      return `${hours} hour${hours > 1 ? "s" : ""} ago`;
-    }
-
-    if (days < 7) {
-      return `${days} day${days > 1 ? "s" : ""} ago`;
-    }
-
-    return d.toLocaleDateString("en-IN");
+  const getActivityColor = (type) => {
+    const t = String(type || "").toLowerCase();
+    if (t === "call") return "bg-green-50 text-green-600";
+    if (t === "email") return "bg-purple-50 text-purple-600";
+    if (t === "meeting") return "bg-brand-blue-50 text-brand-blue";
+    if (t === "note") return "bg-amber-50 text-amber-600";
+    return "bg-gray-50 text-gray-600";
   };
 
   const getActivityRelatedName = (activity) => {
@@ -185,21 +308,13 @@ function Dashboard() {
         activity.lead.lastName || ""
       }`.trim();
     }
-
     if (activity?.contact) {
       return `${activity.contact.firstName || ""} ${
         activity.contact.lastName || ""
       }`.trim();
     }
-
-    if (activity?.company) {
-      return activity.company.name;
-    }
-
-    if (activity?.deal) {
-      return activity.deal.title;
-    }
-
+    if (activity?.company) return activity.company.name;
+    if (activity?.deal) return activity.deal.title;
     return "General activity";
   };
 
@@ -209,170 +324,14 @@ function Dashboard() {
         task.relatedLead.lastName || ""
       }`.trim();
     }
-
     if (task?.relatedContact) {
       return `${task.relatedContact.firstName || ""} ${
         task.relatedContact.lastName || ""
       }`.trim();
     }
-
-    if (task?.relatedCompany) {
-      return task.relatedCompany.name;
-    }
-
-    if (task?.relatedDeal) {
-      return task.relatedDeal.title;
-    }
-
+    if (task?.relatedCompany) return task.relatedCompany.name;
+    if (task?.relatedDeal) return task.relatedDeal.title;
     return "General task";
-  };
-
-  // =====================================================
-  // STAT CARDS
-  // =====================================================
-
-  const statCards = useMemo(() => {
-    return [
-      {
-        label: "Total Leads",
-        value: summary.totalLeads,
-        icon: <FiUsers size={19} />,
-        iconBg: "bg-blue-50",
-        iconColor: "text-blue-600",
-      },
-      {
-        label: "Enquiries",
-        value: summary.totalEnquiries,
-        icon: <FiUserPlus size={19} />,
-        iconBg: "bg-violet-50",
-        iconColor: "text-violet-600",
-      },
-      {
-        label: "Bookings",
-        value: summary.totalBookings,
-        icon: <FiCalendar size={19} />,
-        iconBg: "bg-emerald-50",
-        iconColor: "text-emerald-600",
-      },
-      {
-        label: "Total Revenue",
-        value: formatCurrency(summary.totalRevenue),
-        icon: <TbCurrencyRupee size={21} />,
-        iconBg: "bg-amber-50",
-        iconColor: "text-amber-600",
-      },
-      {
-        label: "Customers",
-        value: summary.totalCustomers,
-        icon: <FiUsers size={19} />,
-        iconBg: "bg-cyan-50",
-        iconColor: "text-cyan-600",
-      },
-      {
-        label: "Payment Due",
-        value: formatCurrency(summary.paymentDue),
-        icon: <FiCreditCard size={19} />,
-        iconBg: "bg-red-50",
-        iconColor: "text-red-600",
-      },
-      {
-        label: "Upcoming Trips",
-        value: summary.upcomingTrips,
-        icon: <FiMapPin size={19} />,
-        iconBg: "bg-indigo-50",
-        iconColor: "text-indigo-600",
-      },
-      {
-        label: "Net Profit",
-        value: formatCurrency(summary.netProfit),
-        icon: <FiTrendingUp size={19} />,
-        iconBg: "bg-green-50",
-        iconColor: "text-green-600",
-      },
-    ];
-  }, [summary]);
-
-  // =====================================================
-  // REVENUE CHART
-  // =====================================================
-
-  const revenueChartData = useMemo(() => {
-    return monthlyRevenue.map((item) => ({
-      name:
-        item.month ||
-        item.label ||
-        item._id ||
-        "Month",
-      revenue: Number(
-        item.revenue ||
-          item.totalRevenue ||
-          item.amount ||
-          0
-      ),
-    }));
-  }, [monthlyRevenue]);
-
-  // =====================================================
-  // PIPELINE
-  // =====================================================
-
-  const maxPipelineValue = useMemo(() => {
-    if (!pipeline.length) return 1;
-
-    return Math.max(
-      ...pipeline.map((item) =>
-        Number(item.totalValue || 0)
-      ),
-      1
-    );
-  }, [pipeline]);
-
-  // =====================================================
-  // ACTIVITY ICON
-  // =====================================================
-
-  const getActivityIcon = (type) => {
-    const normalizedType = String(type || "").toLowerCase();
-
-    if (normalizedType === "call") {
-      return <FiPhone size={13} />;
-    }
-
-    if (normalizedType === "email") {
-      return <FiMail size={13} />;
-    }
-
-    if (normalizedType === "meeting") {
-      return <FiUsers size={13} />;
-    }
-
-    if (normalizedType === "note") {
-      return <FiActivity size={13} />;
-    }
-
-    return <FiCheckCircle size={13} />;
-  };
-
-  const getActivityColor = (type) => {
-    const normalizedType = String(type || "").toLowerCase();
-
-    if (normalizedType === "call") {
-      return "bg-green-50 text-green-600";
-    }
-
-    if (normalizedType === "email") {
-      return "bg-purple-50 text-purple-600";
-    }
-
-    if (normalizedType === "meeting") {
-      return "bg-blue-50 text-blue-600";
-    }
-
-    if (normalizedType === "note") {
-      return "bg-amber-50 text-amber-600";
-    }
-
-    return "bg-gray-50 text-gray-600";
   };
 
   // =====================================================
@@ -381,29 +340,27 @@ function Dashboard() {
 
   if (loading) {
     return (
-      <div className="p-4 sm:p-6 max-w-[1600px] mx-auto">
-        <div className="space-y-6 animate-pulse">
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            {Array.from({ length: 8 }).map((_, index) => (
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto">
+        <div className="space-y-5 animate-pulse">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+            {Array.from({ length: 8 }).map((_, i) => (
               <div
-                key={index}
-                className="h-32 bg-white rounded-xl border border-gray-100"
+                key={i}
+                className="h-20 bg-white rounded-xl border border-gray-100"
               />
             ))}
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <div className="h-[350px] bg-white rounded-xl border border-gray-100" />
-            <div className="h-[350px] bg-white rounded-xl border border-gray-100" />
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            <div className="h-[380px] bg-white rounded-2xl border border-gray-100" />
+            <div className="h-[380px] bg-white rounded-2xl border border-gray-100" />
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            <div className="h-72 bg-white rounded-xl border border-gray-100" />
-            <div className="h-72 bg-white rounded-xl border border-gray-100" />
-            <div className="h-72 bg-white rounded-xl border border-gray-100" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div className="h-80 bg-white rounded-2xl border border-gray-100" />
+            <div className="h-80 bg-white rounded-2xl border border-gray-100" />
+            <div className="h-80 bg-white rounded-2xl border border-gray-100" />
           </div>
-
         </div>
       </div>
     );
@@ -414,18 +371,14 @@ function Dashboard() {
   // =====================================================
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-[1600px] mx-auto">
-
-      {/* =====================================================
-          ERROR
-      ===================================================== */}
+    <div className="p-4 sm:p-6 lg:p-8 space-y-5 max-w-[1600px] mx-auto">
+      {/* ERROR */}
 
       {errorMessage && (
         <div className="flex items-center justify-between gap-4 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">
           <span>{errorMessage}</span>
-
           <button
-            onClick={fetchDashboardData}
+            onClick={() => fetchDashboardData()}
             className="text-xs font-semibold text-red-700 hover:text-red-900"
           >
             Retry
@@ -433,114 +386,82 @@ function Dashboard() {
         </div>
       )}
 
-      {/* =====================================================
-          PAGE INTRO
-      ===================================================== */}
+      {/* STAT CARDS */}
 
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
-            Travel Dashboard
-          </h2>
-
-          <p className="text-sm text-gray-500 mt-1">
-            Overview of your travel sales, bookings and finances.
-          </p>
-        </div>
-
-        <button
-          onClick={fetchDashboardData}
-          className="self-start sm:self-auto inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition"
-        >
-          Refresh
-        </button>
-      </div>
-
-      {/* =====================================================
-          STAT CARDS
-      ===================================================== */}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
         {statCards.map((card) => (
           <div
             key={card.label}
-            className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 hover:shadow-md transition-shadow"
+            className="group relative bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md hover:shadow-gray-200/50 hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
           >
-            <div className="flex items-center justify-between">
+            {/* Top accent line */}
+            <div
+              className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r ${card.accent}`}
+            />
+
+            <div className="flex items-center gap-3">
               <div
-                className={`w-10 h-10 rounded-lg flex items-center justify-center ${card.iconBg} ${card.iconColor}`}
+                className={`w-10 h-10 rounded-lg flex items-center justify-center ${card.iconBg} ${card.iconColor} shrink-0`}
               >
                 {card.icon}
               </div>
 
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wide truncate">
+                  {card.label}
+                </p>
+
+                <p className="text-lg font-semibold text-gray-900 mt-0.5 truncate">
+                  {card.value ?? 0}
+                </p>
+              </div>
+
               <FiArrowRight
-                size={15}
-                className="text-gray-300"
+                size={14}
+                className="text-gray-300 group-hover:text-gray-500 group-hover:translate-x-0.5 transition-all shrink-0"
               />
             </div>
-
-            <p className="text-xs font-medium text-gray-500 mt-4">
-              {card.label}
-            </p>
-
-            <p className="text-xl font-bold text-gray-900 mt-1">
-              {card.value ?? 0}
-            </p>
           </div>
         ))}
       </div>
 
-      {/* =====================================================
-          REVENUE + PIPELINE
-      ===================================================== */}
+      {/* REVENUE + PIPELINE */}
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
         {/* REVENUE */}
 
-        <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 sm:p-6">
-
-          <div className="flex items-start justify-between mb-5">
+        <section className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sm:p-6">
+          <div className="flex items-start justify-between mb-6">
             <div>
-              <h2 className="text-base font-bold text-gray-800">
+              <h2 className="text-base font-bold text-gray-900">
                 Revenue Overview
               </h2>
-
               <p className="text-xs text-gray-500 mt-1">
-                Monthly booking revenue
+                Monthly booking revenue trend
               </p>
             </div>
 
             <div className="text-right">
-              <p className="text-xs text-gray-400">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
                 Total Revenue
               </p>
-
-              <p className="text-lg font-bold text-gray-900">
+              <p className="text-lg font-bold text-gray-900 mt-0.5">
                 {formatCurrency(summary.totalRevenue)}
               </p>
             </div>
           </div>
 
-          <div className="h-[260px] w-full">
-
+          <div className="h-[280px] w-full">
             {revenueChartData.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-sm text-gray-400">
+              <div className="h-full flex flex-col items-center justify-center text-sm text-gray-400">
+                <FiTrendingUp size={32} className="text-gray-300 mb-2" />
                 No revenue data available
               </div>
             ) : (
-              <ResponsiveContainer
-                width="100%"
-                height="100%"
-              >
+              <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
                   data={revenueChartData}
-                  margin={{
-                    top: 10,
-                    right: 10,
-                    left: 0,
-                    bottom: 0,
-                  }}
+                  margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
                 >
                   <defs>
                     <linearGradient
@@ -552,20 +473,19 @@ function Dashboard() {
                     >
                       <stop
                         offset="5%"
-                        stopColor="#2563eb"
-                        stopOpacity={0.25}
+                        stopColor="#1800AC"
+                        stopOpacity={0.3}
                       />
-
                       <stop
                         offset="95%"
-                        stopColor="#2563eb"
+                        stopColor="#1800AC"
                         stopOpacity={0}
                       />
                     </linearGradient>
                   </defs>
 
                   <CartesianGrid
-                    strokeDasharray="3 3"
+                    strokeDasharray="4 4"
                     vertical={false}
                     stroke="#f1f5f9"
                   />
@@ -574,95 +494,83 @@ function Dashboard() {
                     dataKey="name"
                     axisLine={false}
                     tickLine={false}
-                    tick={{
-                      fontSize: 11,
-                      fill: "#94a3b8",
-                    }}
+                    tick={{ fontSize: 11, fill: "#94a3b8" }}
                   />
 
                   <YAxis
                     axisLine={false}
                     tickLine={false}
-                    tick={{
-                      fontSize: 11,
-                      fill: "#94a3b8",
-                    }}
-                    tickFormatter={(value) =>
-                      `₹${(value / 1000).toFixed(0)}k`
-                    }
+                    tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    tickFormatter={formatCompactCurrency}
                   />
 
                   <Tooltip
                     contentStyle={{
                       backgroundColor: "#ffffff",
                       border: "1px solid #e5e7eb",
-                      borderRadius: "8px",
+                      borderRadius: "10px",
                       fontSize: "12px",
+                      boxShadow: "0 10px 25px -5px rgb(0 0 0 / 0.1)",
+                      padding: "10px 14px",
                     }}
-                    formatter={(value) =>
-                      formatCurrency(value)
-                    }
+                    formatter={(value) => [formatCurrency(value), "Revenue"]}
                   />
 
                   <Area
                     type="monotone"
                     dataKey="revenue"
-                    stroke="#2563eb"
+                    stroke="#1800AC"
                     strokeWidth={2.5}
                     fill="url(#revenueGradient)"
+                    activeDot={{
+                      r: 5,
+                      fill: "#1800AC",
+                      stroke: "#fff",
+                      strokeWidth: 2,
+                    }}
                   />
                 </AreaChart>
               </ResponsiveContainer>
             )}
-
           </div>
         </section>
 
         {/* PIPELINE */}
 
-        <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 sm:p-6">
-
-          <div className="flex items-start justify-between mb-5">
+        <section className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sm:p-6">
+          <div className="flex items-start justify-between mb-6">
             <div>
-              <h2 className="text-base font-bold text-gray-800">
+              <h2 className="text-base font-bold text-gray-900">
                 Sales Pipeline
               </h2>
-
               <p className="text-xs text-gray-500 mt-1">
-                Current trip value by stage
+                Trip value distribution by stage
               </p>
             </div>
 
             <button
               onClick={() => navigate("/trips")}
-              className="text-xs font-semibold text-blue-600 hover:text-blue-700"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-brand-blue hover:text-brand-blue-dark transition"
             >
               View Trips
+              <FiChevronRight size={12} />
             </button>
           </div>
 
-          {pipeline.length === 0 ? (
-            <div className="h-[260px] flex items-center justify-center text-sm text-gray-400">
+          {pipelineData.length === 0 ? (
+            <div className="h-[280px] flex flex-col items-center justify-center text-sm text-gray-400">
+              <FiBriefcase size={32} className="text-gray-300 mb-2" />
               No pipeline data available
             </div>
           ) : (
-            <div className="h-[260px]">
-
-              <ResponsiveContainer
-                width="100%"
-                height="100%"
-              >
+            <div className="h-[280px]">
+              <ResponsiveContainer width="100%" height="100%">
                 <BarChart
-                  data={pipeline}
-                  margin={{
-                    top: 10,
-                    right: 5,
-                    left: 0,
-                    bottom: 5,
-                  }}
+                  data={pipelineData}
+                  margin={{ top: 10, right: 5, left: -10, bottom: 5 }}
                 >
                   <CartesianGrid
-                    strokeDasharray="3 3"
+                    strokeDasharray="4 4"
                     vertical={false}
                     stroke="#f1f5f9"
                   />
@@ -671,421 +579,328 @@ function Dashboard() {
                     dataKey="stage"
                     axisLine={false}
                     tickLine={false}
-                    tick={{
-                      fontSize: 10,
-                      fill: "#64748b",
-                    }}
+                    tick={{ fontSize: 10, fill: "#64748b" }}
                   />
 
                   <YAxis
                     axisLine={false}
                     tickLine={false}
-                    tick={{
-                      fontSize: 10,
-                      fill: "#94a3b8",
-                    }}
-                    tickFormatter={(value) =>
-                      `₹${(value / 1000).toFixed(0)}k`
-                    }
+                    tick={{ fontSize: 10, fill: "#94a3b8" }}
+                    tickFormatter={formatCompactCurrency}
                   />
 
                   <Tooltip
                     contentStyle={{
                       backgroundColor: "#ffffff",
                       border: "1px solid #e5e7eb",
-                      borderRadius: "8px",
+                      borderRadius: "10px",
                       fontSize: "12px",
+                      boxShadow: "0 10px 25px -5px rgb(0 0 0 / 0.1)",
+                      padding: "10px 14px",
                     }}
-                    formatter={(value) =>
-                      formatCurrency(value)
-                    }
+                    formatter={(value) => [
+                      formatCurrency(value),
+                      "Pipeline Value",
+                    ]}
+                    cursor={{ fill: "rgba(99, 102, 241, 0.05)" }}
                   />
 
                   <Bar
                     dataKey="totalValue"
-                    fill="#6366f1"
-                    radius={[5, 5, 0, 0]}
-                    barSize={34}
-                  />
+                    radius={[6, 6, 0, 0]}
+                    barSize={36}
+                  >
+                    {pipelineData.map((entry, index) => (
+                      <Cell key={index} fill={entry.fill} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
-
             </div>
           )}
-
         </section>
       </div>
 
-      {/* =====================================================
-          BOOKING STATUS + PAYMENT STATUS + LEAD SOURCES
-      ===================================================== */}
+      {/* BOOKING / PAYMENT / LEAD SOURCES */}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* BOOKING STATUS */}
 
-        <section className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-
+        <section className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100">
-            <h2 className="text-sm font-bold text-gray-800">
+            <h2 className="text-sm font-bold text-gray-900">
               Booking Status
             </h2>
-
             <p className="text-xs text-gray-400 mt-1">
               Current booking distribution
             </p>
           </div>
 
           <div className="p-5 space-y-4">
-
             {bookingStatus.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-6">
+              <p className="text-sm text-gray-400 text-center py-8">
                 No booking data
               </p>
             ) : (
-              bookingStatus.map((item) => (
-                <div
-                  key={item.status}
-                  className="space-y-1.5"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-700">
-                      {item.status}
-                    </span>
+              bookingStatus.map((item) => {
+                const count = Number(item.count || item.bookingCount || 0);
+                return (
+                  <div key={item.status} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-700">
+                        {item.status}
+                      </span>
+                      <span className="text-xs font-bold text-gray-900">
+                        {count}
+                      </span>
+                    </div>
 
-                    <span className="text-xs font-semibold text-gray-500">
-                      {item.count || item.bookingCount || 0}
-                    </span>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-brand-blue to-brand-blue-dark rounded-full transition-all duration-500"
+                        style={{
+                          width: `${Math.min(
+                            (count / maxBookingCount) * 100,
+                            100
+                          )}%`,
+                        }}
+                      />
+                    </div>
                   </div>
-
-                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-blue-500 rounded-full"
-                      style={{
-                        width: `${Math.min(
-                          Number(
-                            item.count ||
-                              item.bookingCount ||
-                              0
-                          ) * 20,
-                          100
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
-
           </div>
         </section>
 
         {/* PAYMENT STATUS */}
 
-        <section className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-
+        <section className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100">
-            <h2 className="text-sm font-bold text-gray-800">
+            <h2 className="text-sm font-bold text-gray-900">
               Payment Status
             </h2>
-
             <p className="text-xs text-gray-400 mt-1">
               Payment collection overview
             </p>
           </div>
 
-          <div className="p-5 space-y-4">
-
+          <div className="p-5 space-y-3">
             {paymentStatus.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-6">
+              <p className="text-sm text-gray-400 text-center py-8">
                 No payment data
               </p>
             ) : (
               paymentStatus.map((item) => (
                 <div
                   key={item.status}
-                  className="flex items-center justify-between p-3 rounded-lg bg-gray-50"
+                  className="flex items-center justify-between p-3 rounded-xl bg-gray-50 hover:bg-gray-100/70 transition"
                 >
                   <div className="flex items-center gap-3">
-
-                    <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <div className="w-9 h-9 rounded-lg bg-brand-blue-50 text-brand-blue flex items-center justify-center">
                       <FiCreditCard size={15} />
                     </div>
 
                     <div>
-                      <p className="text-sm font-medium text-gray-700">
+                      <p className="text-sm font-semibold text-gray-800">
                         {item.status}
                       </p>
-
-                      <p className="text-[11px] text-gray-400">
+                      <p className="text-[11px] text-gray-400 mt-0.5">
                         {item.count || item.paymentCount || 0} payments
                       </p>
                     </div>
-
                   </div>
 
-                  <p className="text-sm font-bold text-gray-800">
-                    {formatCurrency(
-                      item.amount ||
-                        item.totalAmount ||
-                        0
-                    )}
+                  <p className="text-sm font-bold text-gray-900">
+                    {formatCurrency(item.amount || item.totalAmount || 0)}
                   </p>
                 </div>
               ))
             )}
-
           </div>
         </section>
 
         {/* LEAD SOURCES */}
 
-        <section className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-
+        <section className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100">
-            <h2 className="text-sm font-bold text-gray-800">
+            <h2 className="text-sm font-bold text-gray-900">
               Lead Sources
             </h2>
-
             <p className="text-xs text-gray-400 mt-1">
               Where your leads are coming from
             </p>
           </div>
 
           <div className="p-5 space-y-4">
-
             {leadSources.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-6">
+              <p className="text-sm text-gray-400 text-center py-8">
                 No lead source data
               </p>
             ) : (
-              leadSources.map((item) => (
-                <div
-                  key={item.source}
-                  className="flex items-center gap-3"
-                >
-                  <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                    <FiUsers size={15} />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-700 truncate">
-                        {item.source || "Unknown"}
-                      </span>
-
-                      <span className="text-xs font-semibold text-gray-500">
-                        {item.count || item.leadCount || 0}
-                      </span>
+              leadSources.map((item) => {
+                const count = Number(item.count || item.leadCount || 0);
+                return (
+                  <div key={item.source} className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                      <FiUsers size={15} />
                     </div>
 
-                    <div className="mt-1.5 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-indigo-500 rounded-full"
-                        style={{
-                          width: `${Math.min(
-                            Number(
-                              item.count ||
-                                item.leadCount ||
-                                0
-                            ) * 20,
-                            100
-                          )}%`,
-                        }}
-                      />
-                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-sm font-medium text-gray-700 truncate">
+                          {item.source || "Unknown"}
+                        </span>
+                        <span className="text-xs font-bold text-gray-900 ml-2">
+                          {count}
+                        </span>
+                      </div>
 
+                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full transition-all duration-500"
+                          style={{
+                            width: `${Math.min(
+                              (count / maxLeadSourceCount) * 100,
+                              100
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
-
           </div>
         </section>
       </div>
 
-      {/* =====================================================
-          DESTINATIONS + TRAVEL TYPES
-      ===================================================== */}
+      {/* DESTINATIONS + TRAVEL TYPES */}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* DESTINATIONS */}
 
-        <section className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-
+        <section className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-
             <div>
-              <h2 className="text-sm font-bold text-gray-800">
+              <h2 className="text-sm font-bold text-gray-900">
                 Popular Destinations
               </h2>
-
               <p className="text-xs text-gray-400 mt-1">
                 Booking and revenue by destination
               </p>
             </div>
 
-            <FiMapPin
-              size={17}
-              className="text-gray-400"
-            />
-
+            <div className="w-8 h-8 rounded-lg bg-brand-blue-50 text-brand-blue flex items-center justify-center">
+              <FiMapPin size={15} />
+            </div>
           </div>
 
           <div className="p-5">
-
             {destinations.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-8">
                 No destination data
               </p>
             ) : (
-              <div className="space-y-4">
-
+              <div className="space-y-3">
                 {destinations.slice(0, 5).map((item) => (
                   <div
                     key={item.destination}
-                    className="flex items-center gap-3"
+                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition"
                   >
-
-                    <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-blue to-brand-blue-dark text-white flex items-center justify-center shrink-0 shadow-sm">
                       <FiMapPin size={16} />
                     </div>
 
                     <div className="flex-1 min-w-0">
-
                       <p className="text-sm font-semibold text-gray-800 truncate">
                         {item.destination || "Unknown"}
                       </p>
-
                       <p className="text-xs text-gray-400 mt-0.5">
-                        {item.bookingCount ||
-                          item.count ||
-                          0}{" "}
-                        booking
-                        {(item.bookingCount ||
-                          item.count ||
-                          0) !== 1
+                        {item.bookingCount || item.count || 0} booking
+                        {(item.bookingCount || item.count || 0) !== 1
                           ? "s"
                           : ""}
                       </p>
-
                     </div>
 
-                    <div className="text-right">
-                      <p className="text-sm font-bold text-gray-800">
-                        {formatCurrency(
-                          item.revenue ||
-                            item.totalRevenue ||
-                            0
-                        )}
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-bold text-gray-900">
+                        {formatCurrency(item.revenue || item.totalRevenue || 0)}
                       </p>
-
-                      <p className="text-[10px] text-green-600 mt-0.5">
-                        Profit{" "}
-                        {formatCurrency(
-                          item.profit || 0
-                        )}
+                      <p className="text-[10px] font-semibold text-emerald-600 mt-0.5">
+                        Profit {formatCurrency(item.profit || 0)}
                       </p>
                     </div>
-
                   </div>
                 ))}
-
               </div>
             )}
-
           </div>
         </section>
 
         {/* TRAVEL TYPES */}
 
-        <section className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-
+        <section className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-
             <div>
-              <h2 className="text-sm font-bold text-gray-800">
+              <h2 className="text-sm font-bold text-gray-900">
                 Travel Types
               </h2>
-
               <p className="text-xs text-gray-400 mt-1">
                 Revenue by travel category
               </p>
             </div>
 
-            <FiBriefcase
-              size={17}
-              className="text-gray-400"
-            />
-
+            <div className="w-8 h-8 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center">
+              <FiBriefcase size={15} />
+            </div>
           </div>
 
           <div className="p-5">
-
             {travelTypes.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-8">
                 No travel type data
               </p>
             ) : (
               <div className="grid grid-cols-2 gap-3">
-
                 {travelTypes.slice(0, 6).map((item) => (
                   <div
                     key={item.travelType}
-                    className="border border-gray-100 rounded-lg p-4 hover:bg-gray-50 transition"
+                    className="border border-gray-100 rounded-xl p-4 hover:border-brand-blue/30 hover:bg-brand-blue-50/30 transition group"
                   >
-
                     <div className="flex items-center justify-between">
-
-                      <span className="text-sm font-medium text-gray-700">
+                      <span className="text-xs font-medium text-gray-600 group-hover:text-gray-800 transition">
                         {item.travelType || "Other"}
                       </span>
-
-                      <span className="text-xs font-bold text-gray-500">
-                        {item.bookingCount ||
-                          item.count ||
-                          0}
+                      <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                        {item.bookingCount || item.count || 0}
                       </span>
-
                     </div>
 
-                    <p className="text-sm font-bold text-gray-900 mt-2">
-                      {formatCurrency(
-                        item.revenue ||
-                          item.totalRevenue ||
-                          0
-                      )}
+                    <p className="text-base font-bold text-gray-900 mt-3">
+                      {formatCurrency(item.revenue || item.totalRevenue || 0)}
                     </p>
-
                   </div>
                 ))}
-
               </div>
             )}
-
           </div>
         </section>
       </div>
 
-      {/* =====================================================
-          UPCOMING TASKS + RECENT ACTIVITIES
-      ===================================================== */}
+      {/* UPCOMING TASKS + RECENT ACTIVITIES */}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* UPCOMING TASKS */}
 
-        <section className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-
+        <section className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-
             <div>
-              <h2 className="text-sm font-bold text-gray-800">
+              <h2 className="text-sm font-bold text-gray-900">
                 Upcoming Tasks
               </h2>
-
               <p className="text-xs text-gray-400 mt-1">
                 Tasks that need your attention
               </p>
@@ -1093,113 +908,85 @@ function Dashboard() {
 
             <button
               onClick={() => navigate("/tasks")}
-              className="text-xs font-semibold text-blue-600 hover:text-blue-700"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-brand-blue hover:text-brand-blue-dark transition"
             >
               View All
+              <FiChevronRight size={12} />
             </button>
-
           </div>
 
           <div className="p-5">
-
             {upcomingTasks.length === 0 ? (
               <div className="py-10 text-center">
-
-                <FiCheckCircle
-                  size={30}
-                  className="mx-auto text-green-400"
-                />
-
-                <p className="text-sm font-medium text-gray-600 mt-3">
+                <div className="w-14 h-14 rounded-full bg-green-50 flex items-center justify-center mx-auto">
+                  <FiCheckCircle size={26} className="text-green-500" />
+                </div>
+                <p className="text-sm font-semibold text-gray-700 mt-3">
                   No upcoming tasks
                 </p>
-
                 <p className="text-xs text-gray-400 mt-1">
                   You're all caught up.
                 </p>
-
               </div>
             ) : (
-              <div className="space-y-3">
-
+              <div className="space-y-2">
                 {upcomingTasks.slice(0, 5).map((task) => {
-
-                  const priority = String(
-                    task.priority || "Medium"
-                  ).toLowerCase();
-
+                  const priority = String(task.priority || "Medium").toLowerCase();
                   const priorityClass =
                     priority === "high"
-                      ? "bg-red-50 text-red-600"
+                      ? "bg-red-50 text-red-600 border-red-100"
                       : priority === "medium"
-                      ? "bg-amber-50 text-amber-700"
-                      : "bg-green-50 text-green-600";
+                      ? "bg-amber-50 text-amber-700 border-amber-100"
+                      : "bg-green-50 text-green-600 border-green-100";
 
                   return (
                     <div
                       key={task._id}
-                      className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition"
+                      className="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 transition group"
                     >
-
                       <div className="mt-0.5">
                         <input
                           type="checkbox"
-                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30 cursor-pointer"
                         />
                       </div>
 
                       <div className="flex-1 min-w-0">
-
-                        <p className="text-sm font-medium text-gray-800 truncate">
+                        <p className="text-sm font-semibold text-gray-800 truncate group-hover:text-brand-blue transition">
                           {task.title}
                         </p>
-
                         <p className="text-xs text-gray-500 truncate mt-0.5">
                           {getTaskRelatedName(task)}
                         </p>
-
-                        <div className="flex items-center gap-1 mt-1">
-
-                          <FiClock
-                            size={11}
-                            className="text-gray-400"
-                          />
-
+                        <div className="flex items-center gap-1 mt-1.5">
+                          <FiClock size={11} className="text-gray-400" />
                           <p className="text-[11px] text-gray-400">
                             Due {formatDate(task.dueDate)}
                           </p>
-
                         </div>
-
                       </div>
 
                       <span
-                        className={`text-[10px] font-semibold px-2 py-1 rounded-full flex-shrink-0 ${priorityClass}`}
+                        className={`text-[10px] font-bold px-2 py-1 rounded-full border flex-shrink-0 ${priorityClass}`}
                       >
                         {task.priority || "Medium"}
                       </span>
-
                     </div>
                   );
                 })}
-
               </div>
             )}
-
           </div>
         </section>
 
         {/* RECENT ACTIVITIES */}
 
-        <section className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-
+        <section className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-
             <div>
-              <h2 className="text-sm font-bold text-gray-800">
+              <h2 className="text-sm font-bold text-gray-900">
                 Recent Activities
               </h2>
-
               <p className="text-xs text-gray-400 mt-1">
                 Latest CRM activity
               </p>
@@ -1207,83 +994,61 @@ function Dashboard() {
 
             <button
               onClick={() => navigate("/activities")}
-              className="text-xs font-semibold text-blue-600 hover:text-blue-700"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-brand-blue hover:text-brand-blue-dark transition"
             >
               View All
+              <FiChevronRight size={12} />
             </button>
-
           </div>
 
           <div className="p-5">
-
             {recentActivities.length === 0 ? (
               <div className="py-10 text-center">
-
-                <FiActivity
-                  size={30}
-                  className="mx-auto text-gray-300"
-                />
-
+                <div className="w-14 h-14 rounded-full bg-gray-50 flex items-center justify-center mx-auto">
+                  <FiActivity size={26} className="text-gray-300" />
+                </div>
                 <p className="text-sm text-gray-500 mt-3">
                   No recent activities
                 </p>
-
               </div>
             ) : (
-              <div className="space-y-3">
-
-                {recentActivities.slice(0, 5).map(
-                  (activity) => (
+              <div className="space-y-2">
+                {recentActivities.slice(0, 5).map((activity) => (
+                  <div
+                    key={activity._id}
+                    className="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 transition"
+                  >
                     <div
-                      key={activity._id}
-                      className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition"
+                      className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${getActivityColor(
+                        activity.type
+                      )}`}
                     >
-
-                      <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${getActivityColor(
-                          activity.type
-                        )}`}
-                      >
-                        {getActivityIcon(
-                          activity.type
-                        )}
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-
-                        <p className="text-sm font-medium text-gray-800 truncate">
-                          {activity.title}
-                        </p>
-
-                        <p className="text-xs text-gray-500 truncate mt-0.5">
-                          {getActivityRelatedName(
-                            activity
-                          )}
-                        </p>
-
-                      </div>
-
-                      <span className="text-[10px] text-gray-400 flex-shrink-0">
-                        {formatRelativeTime(
-                          activity.activityDate ||
-                            activity.createdAt
-                        )}
-                      </span>
-
+                      {getActivityIcon(activity.type)}
                     </div>
-                  )
-                )}
 
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">
+                        {activity.title}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate mt-0.5">
+                        {getActivityRelatedName(activity)}
+                      </p>
+                    </div>
+
+                    <span className="text-[10px] font-medium text-gray-400 flex-shrink-0 bg-gray-50 px-2 py-1 rounded-full">
+                      {formatRelativeTime(
+                        activity.activityDate || activity.createdAt
+                      )}
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
-
           </div>
         </section>
       </div>
-
     </div>
   );
 }
 
 export default Dashboard;
-

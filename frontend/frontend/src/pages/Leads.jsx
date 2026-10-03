@@ -329,7 +329,7 @@ function Leads() {
         </div>
       )}
 
-      {/* TOOLBAR — Search + Filters + Refresh + Add Lead */}
+      {/* TOOLBAR */}
 
       <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
         {/* SEARCH */}
@@ -345,7 +345,7 @@ function Leads() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search leads..."
-            className="w-full h-10 pl-9 pr-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition"
+            className="w-full h-10 pl-9 pr-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:border-brand-blue transition"
           />
 
           {search && (
@@ -367,7 +367,7 @@ function Leads() {
             onClick={() => setShowFilters((value) => !value)}
             className={`inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg border text-sm font-medium transition whitespace-nowrap ${
               showFilters || activeFilterCount > 0
-                ? "border-blue-300 bg-blue-50 text-blue-700"
+                ? "border-brand-blue/30 bg-brand-blue-50 text-brand-blue-dark"
                 : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
             }`}
           >
@@ -375,7 +375,7 @@ function Leads() {
             <span>Filters</span>
 
             {activeFilterCount > 0 && (
-              <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-semibold">
+              <span className="w-5 h-5 rounded-full bg-brand-blue text-white text-[10px] flex items-center justify-center font-semibold">
                 {activeFilterCount}
               </span>
             )}
@@ -394,7 +394,7 @@ function Leads() {
                   <button
                     type="button"
                     onClick={handleClearFilters}
-                    className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                    className="text-xs text-brand-blue hover:text-brand-blue-dark font-medium"
                   >
                     Clear all
                   </button>
@@ -414,7 +414,7 @@ function Leads() {
                     setStatus(e.target.value);
                     setPage(1);
                   }}
-                  className="w-full h-9 px-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                  className="w-full h-9 px-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:border-brand-blue"
                 >
                   <option value="">All Statuses</option>
                   <option value="New">New</option>
@@ -440,7 +440,7 @@ function Leads() {
                     setSource(e.target.value);
                     setPage(1);
                   }}
-                  className="w-full h-9 px-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                  className="w-full h-9 px-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:border-brand-blue"
                 >
                   <option value="">All Sources</option>
                   <option value="Website">Website</option>
@@ -470,7 +470,7 @@ function Leads() {
                     setPriority(e.target.value);
                     setPage(1);
                   }}
-                  className="w-full h-9 px-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                  className="w-full h-9 px-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:border-brand-blue"
                 >
                   <option value="">All Priorities</option>
                   <option value="Low">Low</option>
@@ -503,7 +503,7 @@ function Leads() {
         <button
           type="button"
           onClick={handleAddLead}
-          className="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition shadow-sm whitespace-nowrap"
+          className="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-brand-blue hover:bg-brand-blue-dark text-white text-sm font-semibold transition shadow-brand whitespace-nowrap"
         >
           <FiPlus size={16} />
           <span>Add Lead</span>
@@ -515,7 +515,7 @@ function Leads() {
       {loading ? (
         <div className="bg-white border border-gray-200 rounded-xl">
           <div className="flex flex-col items-center justify-center py-16">
-            <div className="w-7 h-7 border-2 border-gray-200 border-t-blue-600 rounded-full animate-spin" />
+            <div className="w-7 h-7 border-2 border-gray-200 border-t-brand-blue rounded-full animate-spin" />
             <p className="text-xs text-gray-500 mt-3">Loading leads...</p>
           </div>
         </div>

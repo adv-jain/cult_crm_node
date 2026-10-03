@@ -1,4 +1,3 @@
-// tailwind.config.js — sidebar colors add karo
 export default {
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
@@ -11,14 +10,15 @@ export default {
           "blue-50": "#EAE6FF",
           "blue-100": "#D3C9FF",
 
-          // Sidebar specific — darker blue
-          "sidebar": "#0F007A",              // main bg
-          "sidebar-dark": "#0A0056",         // deeper
-          "sidebar-hover": "#1800AC",        // hover bg
-          "sidebar-active": "#3A24D6",       // active bg
-          "sidebar-border": "#1F0F94",       // borders
-          "sidebar-text": "#C7C0F0",         // inactive text
-          "sidebar-text-muted": "#8B82C7",   // muted text
+          // Sidebar — LIGHT theme (GoLand style)
+          "sidebar": "#FFFFFF",
+          "sidebar-dark": "#F8F9FC",
+          "sidebar-hover": "#F1F3F9",
+          "sidebar-active": "#1800AC",
+          "sidebar-border": "#EEF0F6",
+          "sidebar-text": "#4B5563",
+          "sidebar-text-muted": "#9CA3AF",
+          "sidebar-text-active": "#FFFFFF",
 
           gold: "#AEA701",
           "gold-dark": "#8E8901",
@@ -26,7 +26,6 @@ export default {
           "gold-50": "#F7F6DC",
         },
       },
-      // ... boxShadow, backgroundImage same rakho
     },
   },
   plugins: [],

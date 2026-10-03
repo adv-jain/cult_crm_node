@@ -33,9 +33,7 @@ function Users() {
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
-  // =====================================================
   // SEARCH & FILTERS
-  // =====================================================
   const [search, setSearch] = useState("");
   const [role, setRole] = useState("");
   const [status, setStatus] = useState("");
@@ -43,17 +41,13 @@ function Users() {
   const [showFilters, setShowFilters] = useState(false);
   const filterRef = useRef(null);
 
-  // =====================================================
   // PAGINATION
-  // =====================================================
   const [page, setPage] = useState(1);
   const RECORDS_PER_PAGE = 50;
   const [totalUsers, setTotalUsers] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
-  // =====================================================
   // FETCH USERS
-  // =====================================================
   const fetchUsers = async (requestedPage = page) => {
     try {
       setLoading(true);
@@ -107,9 +101,7 @@ function Users() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showFilters]);
 
-  // =====================================================
   // HANDLERS
-  // =====================================================
   const handleAddUser = () => {
     setEditingUser(null);
     setSuccessMessage("");
@@ -233,15 +225,13 @@ function Users() {
     setStatus("");
   };
 
-  // =====================================================
   // HELPERS
-  // =====================================================
   const getRoleStyle = (role) => {
     const r = (role || "").toLowerCase();
     const map = {
       admin: "bg-red-50 text-red-700 ring-red-200",
       manager: "bg-purple-50 text-purple-700 ring-purple-200",
-      sales: "bg-blue-50 text-blue-700 ring-blue-200",
+      sales: "bg-brand-blue-50 text-brand-blue-dark ring-brand-blue/20",
     };
     return map[r] || "bg-gray-50 text-gray-600 ring-gray-200";
   };
@@ -258,7 +248,7 @@ function Users() {
 
   const getAvatarColor = (name) => {
     const colors = [
-      "bg-blue-100 text-blue-700",
+      "bg-brand-blue-100 text-brand-blue-dark",
       "bg-purple-100 text-purple-700",
       "bg-green-100 text-green-700",
       "bg-pink-100 text-pink-700",
@@ -271,12 +261,9 @@ function Users() {
     return colors[idx % colors.length];
   };
 
-  // =====================================================
   // CLIENT-SIDE FILTERED USERS
-  // =====================================================
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
-      // Search: name, email, phone
       if (search.trim()) {
         const q = search.trim().toLowerCase();
         const matchesSearch =
@@ -286,12 +273,10 @@ function Users() {
         if (!matchesSearch) return false;
       }
 
-      // Role filter
       if (role && (u.role || "").toLowerCase() !== role.toLowerCase()) {
         return false;
       }
 
-      // Status filter
       if (status === "active" && !u.isActive) return false;
       if (status === "inactive" && u.isActive) return false;
 
@@ -308,9 +293,7 @@ function Users() {
     };
   }, [users, totalUsers]);
 
-  // =====================================================
   // FILTER COUNTS
-  // =====================================================
   const activeFilterCount = useMemo(() => {
     return [search, role, status].filter(Boolean).length;
   }, [search, role, status]);
@@ -319,20 +302,12 @@ function Users() {
     return [role, status].filter(Boolean).length;
   }, [role, status]);
 
-  // =====================================================
   // RENDER
-  // =====================================================
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-5 max-w-[1600px] mx-auto">
-
-      {/* ============================================
-          HEADER: SEARCH + FILTER (left) | ADD (right)
-          ============================================ */}
+      {/* HEADER */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-
-        {/* LEFT: SEARCH + FILTER */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
-
           {/* SEARCH */}
           <div className="relative w-full sm:w-64">
             <FiSearch
@@ -344,7 +319,7 @@ function Users() {
               placeholder="Search users..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-8 h-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition"
+              className="w-full pl-9 pr-8 h-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:border-brand-blue transition"
             />
             {search && (
               <button
@@ -363,23 +338,21 @@ function Users() {
               onClick={() => setShowFilters((prev) => !prev)}
               className={`inline-flex items-center justify-center gap-1.5 px-3 h-9 text-sm font-medium rounded-lg border transition whitespace-nowrap ${
                 dropdownFilterCount > 0
-                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                  ? "bg-brand-blue-50 text-brand-blue-dark border-brand-blue/30"
                   : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
               }`}
             >
               <FiFilter size={14} />
               <span className="hidden sm:inline">Filters</span>
               {dropdownFilterCount > 0 && (
-                <span className="inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[10px] font-semibold bg-blue-600 text-white rounded-full">
+                <span className="inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[10px] font-semibold bg-brand-blue text-white rounded-full">
                   {dropdownFilterCount}
                 </span>
               )}
             </button>
 
-            {/* MODERN FILTER POPOVER (left aligned) */}
             {showFilters && (
               <div className="absolute left-0 top-full mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-lg shadow-gray-200/60 z-30 overflow-hidden">
-
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                   <h3 className="text-sm font-semibold text-gray-900">
                     Filters
@@ -395,7 +368,6 @@ function Users() {
                 </div>
 
                 <div className="p-4 space-y-4">
-
                   {/* ROLE CHIPS */}
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-2">
@@ -408,7 +380,7 @@ function Users() {
                           onClick={() => setRole(role === r ? "" : r)}
                           className={`px-2.5 py-1 text-xs font-medium rounded-md border transition capitalize ${
                             role === r
-                              ? "bg-blue-600 text-white border-blue-600"
+                              ? "bg-brand-blue text-white border-brand-blue"
                               : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                           }`}
                         >
@@ -430,10 +402,12 @@ function Users() {
                       ].map((s) => (
                         <button
                           key={s.value}
-                          onClick={() => setStatus(status === s.value ? "" : s.value)}
+                          onClick={() =>
+                            setStatus(status === s.value ? "" : s.value)
+                          }
                           className={`px-2.5 py-1 text-xs font-medium rounded-md border transition ${
                             status === s.value
-                              ? "bg-blue-600 text-white border-blue-600"
+                              ? "bg-brand-blue text-white border-brand-blue"
                               : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                           }`}
                         >
@@ -454,7 +428,7 @@ function Users() {
                   </button>
                   <button
                     onClick={() => setShowFilters(false)}
-                    className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md transition"
+                    className="px-3 py-1.5 text-xs font-semibold text-white bg-brand-blue hover:bg-brand-blue-dark rounded-md transition"
                   >
                     Apply
                   </button>
@@ -467,7 +441,7 @@ function Users() {
         {/* RIGHT: ADD BUTTON */}
         <button
           onClick={handleAddUser}
-          className="inline-flex items-center justify-center gap-1.5 px-4 h-9 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition shadow-sm whitespace-nowrap self-start lg:self-auto"
+          className="inline-flex items-center justify-center gap-1.5 px-4 h-9 bg-brand-blue hover:bg-brand-blue-dark text-white text-sm font-medium rounded-lg transition shadow-brand whitespace-nowrap self-start lg:self-auto"
         >
           <FiPlus size={15} />
           Add User
@@ -554,7 +528,7 @@ function Users() {
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <div className="flex flex-col items-center gap-3">
-              <div className="w-7 h-7 border-[3px] border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+              <div className="w-7 h-7 border-[3px] border-brand-blue-50 border-t-brand-blue rounded-full animate-spin"></div>
               <p className="text-sm text-gray-500">Loading users...</p>
             </div>
           </div>
@@ -599,7 +573,7 @@ function Users() {
                 {filteredUsers.map((item) => (
                   <tr
                     key={item._id}
-                    className="hover:bg-gray-50/70 transition-colors"
+                    className="hover:bg-brand-blue-50/40 transition-colors"
                   >
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
@@ -614,7 +588,7 @@ function Users() {
                           <p className="font-medium text-gray-800 truncate">
                             {item.name}
                             {user?._id === item._id && (
-                              <span className="ml-2 text-[10px] text-blue-600 font-semibold">
+                              <span className="ml-2 text-[10px] text-brand-blue font-semibold">
                                 (You)
                               </span>
                             )}
@@ -701,10 +675,9 @@ function Users() {
         )}
       </div>
 
-      {/* FOOTER: SHOWING (left) | PAGE INFO + PAGINATION (right) */}
+      {/* FOOTER */}
       {!loading && totalUsers > 0 && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-          {/* SHOWING */}
           <p className="text-xs text-gray-500">
             Showing{" "}
             <span className="font-medium text-gray-700">
@@ -720,7 +693,6 @@ function Users() {
             )}
           </p>
 
-          {/* PAGE INFO + PAGINATION */}
           <div className="flex items-center gap-3">
             <p className="text-xs text-gray-500">
               Page <span className="font-medium text-gray-700">{page}</span> of{" "}
@@ -740,7 +712,9 @@ function Users() {
 
                 <button
                   type="button"
-                  onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+                  onClick={() =>
+                    setPage((prev) => Math.min(prev + 1, totalPages))
+                  }
                   disabled={page >= totalPages}
                   className="w-8 h-8 inline-flex items-center justify-center text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
                 >

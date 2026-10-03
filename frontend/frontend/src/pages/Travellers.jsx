@@ -241,7 +241,7 @@ function TravellerForm({
   };
 
   const inputClass =
-    "w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 focus:bg-white transition";
+    "w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:border-brand-blue focus:bg-white transition";
 
   const labelClass = "block mb-1.5 text-xs font-semibold text-gray-600";
 
@@ -539,7 +539,7 @@ function TravellerForm({
             type="submit"
             onClick={handleSubmit}
             disabled={loading}
-            className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition disabled:opacity-60 min-w-[110px] flex items-center justify-center gap-2"
+            className="px-4 py-2 text-sm font-semibold text-white bg-brand-blue rounded-lg hover:bg-brand-blue-dark transition disabled:opacity-60 min-w-[110px] flex items-center justify-center gap-2"
           >
             {loading ? (
               <>
@@ -885,9 +885,7 @@ function Travellers() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-5 max-w-[1600px] mx-auto">
-      {/* ============================================
-          HEADER
-      ============================================ */}
+      {/* HEADER */}
 
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
         {/* SEARCH + FILTER */}
@@ -906,7 +904,7 @@ function Travellers() {
               placeholder="Search travellers..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-8 h-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition"
+              className="w-full pl-9 pr-8 h-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:border-brand-blue transition"
             />
 
             {search && (
@@ -928,7 +926,7 @@ function Travellers() {
               onClick={() => setShowFilters((previous) => !previous)}
               className={`inline-flex items-center justify-center gap-1.5 px-3 h-9 text-sm font-medium rounded-lg border transition whitespace-nowrap ${
                 dropdownFilterCount > 0
-                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                  ? "bg-brand-blue-50 text-brand-blue-dark border-brand-blue/30"
                   : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
               }`}
             >
@@ -937,7 +935,7 @@ function Travellers() {
               <span className="hidden sm:inline">Filters</span>
 
               {dropdownFilterCount > 0 && (
-                <span className="inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[10px] font-semibold bg-blue-600 text-white rounded-full">
+                <span className="inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[10px] font-semibold bg-brand-blue text-white rounded-full">
                   {dropdownFilterCount}
                 </span>
               )}
@@ -945,8 +943,6 @@ function Travellers() {
 
             {showFilters && (
               <div className="absolute left-0 top-full mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-lg shadow-gray-200/60 z-30 overflow-hidden">
-                {/* HEADER */}
-
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                   <h3 className="text-sm font-semibold text-gray-900">
                     Filters
@@ -962,8 +958,6 @@ function Travellers() {
                     </button>
                   )}
                 </div>
-
-                {/* BODY */}
 
                 <div className="p-4 space-y-4">
                   <div>
@@ -981,7 +975,7 @@ function Travellers() {
                           }
                           className={`px-2.5 py-1 text-xs font-medium rounded-md border transition ${
                             status === item
-                              ? "bg-blue-600 text-white border-blue-600"
+                              ? "bg-brand-blue text-white border-brand-blue"
                               : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                           }`}
                         >
@@ -991,8 +985,6 @@ function Travellers() {
                     </div>
                   </div>
                 </div>
-
-                {/* FOOTER */}
 
                 <div className="flex items-center justify-between gap-2 px-4 py-3 bg-gray-50 border-t border-gray-100">
                   <button
@@ -1007,7 +999,7 @@ function Travellers() {
                   <button
                     type="button"
                     onClick={() => setShowFilters(false)}
-                    className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md transition"
+                    className="px-3 py-1.5 text-xs font-semibold text-white bg-brand-blue hover:bg-brand-blue-dark rounded-md transition"
                   >
                     Apply
                   </button>
@@ -1022,16 +1014,14 @@ function Travellers() {
         <button
           type="button"
           onClick={handleCreate}
-          className="inline-flex items-center justify-center gap-1.5 px-4 h-9 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition shadow-sm whitespace-nowrap self-start lg:self-auto"
+          className="inline-flex items-center justify-center gap-1.5 px-4 h-9 bg-brand-blue hover:bg-brand-blue-dark text-white text-sm font-medium rounded-lg transition shadow-brand whitespace-nowrap self-start lg:self-auto"
         >
           <FiPlus size={15} />
           Add Traveller
         </button>
       </div>
 
-      {/* ============================================
-          ACTIVE FILTER SUMMARY
-      ============================================ */}
+      {/* ACTIVE FILTER SUMMARY */}
 
       {activeFilterCount > 0 && (
         <div className="flex items-center gap-2 text-xs text-gray-500">
@@ -1043,16 +1033,14 @@ function Travellers() {
           <button
             type="button"
             onClick={handleClearFilters}
-            className="text-blue-600 hover:text-blue-700 font-medium"
+            className="text-brand-blue hover:text-brand-blue-dark font-medium"
           >
             Clear filters
           </button>
         </div>
       )}
 
-      {/* ============================================
-          ALERTS
-      ============================================ */}
+      {/* ALERTS */}
 
       {successMessage && (
         <div className="flex items-start gap-3 bg-green-50 border border-green-200 text-green-800 text-sm px-4 py-3 rounded-lg">
@@ -1086,15 +1074,13 @@ function Travellers() {
         </div>
       )}
 
-      {/* ============================================
-          TRAVELLERS TABLE
-      ============================================ */}
+      {/* TRAVELLERS TABLE */}
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <div className="flex flex-col items-center gap-3">
-              <div className="w-7 h-7 border-[3px] border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+              <div className="w-7 h-7 border-[3px] border-brand-blue-50 border-t-brand-blue rounded-full animate-spin" />
 
               <p className="text-sm text-gray-500">
                 Loading travellers...
@@ -1118,7 +1104,7 @@ function Travellers() {
             <button
               type="button"
               onClick={handleCreate}
-              className="mt-4 inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+              className="mt-4 inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-white bg-brand-blue rounded-lg hover:bg-brand-blue-dark transition"
             >
               <FiPlus size={14} />
               Add Traveller
@@ -1126,9 +1112,7 @@ function Travellers() {
           </div>
         ) : (
           <>
-            {/* ============================================
-                DESKTOP TABLE
-            ============================================ */}
+            {/* DESKTOP TABLE */}
 
             <div className="hidden lg:block overflow-x-auto">
               <table className="w-full text-sm">
@@ -1168,11 +1152,11 @@ function Travellers() {
                     return (
                       <tr
                         key={traveller._id}
-                        className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50/70 transition-colors"
+                        className="border-b border-gray-100 last:border-b-0 hover:bg-brand-blue-50/40 transition-colors"
                       >
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-700 flex items-center justify-center text-xs font-bold shrink-0">
+                            <div className="w-8 h-8 rounded-full bg-brand-blue-50 text-brand-blue-dark flex items-center justify-center text-xs font-bold shrink-0">
                               {getInitials(
                                 traveller.firstName,
                                 traveller.lastName
@@ -1232,7 +1216,7 @@ function Travellers() {
                             <button
                               type="button"
                               onClick={() => setViewTraveller(traveller)}
-                              className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-blue-700 hover:bg-blue-50 transition"
+                              className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-brand-blue-dark hover:bg-brand-blue-50 transition"
                               title="View"
                             >
                               <FiEye size={15} />
@@ -1289,9 +1273,7 @@ function Travellers() {
               </table>
             </div>
 
-            {/* ============================================
-                MOBILE CARDS
-            ============================================ */}
+            {/* MOBILE CARDS */}
 
             <div className="lg:hidden divide-y divide-gray-100">
               {travellers.map((traveller) => {
@@ -1304,7 +1286,7 @@ function Travellers() {
                   <div key={traveller._id} className="p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 rounded-full bg-blue-50 text-blue-700 flex items-center justify-center text-xs font-bold shrink-0">
+                        <div className="w-9 h-9 rounded-full bg-brand-blue-50 text-brand-blue-dark flex items-center justify-center text-xs font-bold shrink-0">
                           {getInitials(
                             traveller.firstName,
                             traveller.lastName
@@ -1367,7 +1349,7 @@ function Travellers() {
                       <button
                         type="button"
                         onClick={() => setViewTraveller(traveller)}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-blue-700 hover:bg-blue-50 transition"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-brand-blue-dark hover:bg-brand-blue-50 transition"
                         title="View"
                       >
                         <FiEye size={15} />
@@ -1402,9 +1384,7 @@ function Travellers() {
         )}
       </div>
 
-      {/* ============================================
-          PAGINATION
-      ============================================ */}
+      {/* PAGINATION */}
 
       {!loading && totalTravellers > 0 && totalPages > 1 && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -1448,9 +1428,7 @@ function Travellers() {
         </div>
       )}
 
-      {/* ============================================
-          TRAVELLER FORM
-      ============================================ */}
+      {/* TRAVELLER FORM */}
 
       <TravellerForm
         isOpen={showForm}
@@ -1466,9 +1444,7 @@ function Travellers() {
         customers={customers}
       />
 
-      {/* ============================================
-          VIEW TRAVELLER
-      ============================================ */}
+      {/* VIEW TRAVELLER */}
 
       {viewTraveller && (
         <div
@@ -1502,7 +1478,7 @@ function Travellers() {
 
             <div className="flex-1 overflow-y-auto px-5 py-4">
               <div className="flex items-center gap-3 mb-5">
-                <div className="w-11 h-11 rounded-full bg-blue-50 text-blue-700 flex items-center justify-center text-sm font-bold">
+                <div className="w-11 h-11 rounded-full bg-brand-blue-50 text-brand-blue-dark flex items-center justify-center text-sm font-bold">
                   {getInitials(
                     viewTraveller.firstName,
                     viewTraveller.lastName

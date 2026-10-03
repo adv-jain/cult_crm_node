@@ -15,7 +15,6 @@ import {
   FiChevronLeft,
   FiChevronRight,
   FiAlertCircle,
-  FiCircle,
 } from "react-icons/fi";
 
 import api from "../api";
@@ -234,14 +233,11 @@ function Calendar() {
   // =========================
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/30 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-brand-blue-50/30 p-4 sm:p-6 lg:p-8">
       <div className="max-w-[1600px] mx-auto space-y-6">
-        {/* ============================
-            HERO HEADER
-        ============================ */}
+        {/* HERO HEADER */}
 
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-700 p-6 sm:p-8 shadow-xl shadow-blue-500/20">
-          {/* Decorative circles */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-blue via-brand-blue-dark to-brand-blue-light p-6 sm:p-8 shadow-xl shadow-brand-blue/20">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/3 translate-x-1/3" />
           <div className="absolute bottom-0 left-1/3 w-40 h-40 bg-white/5 rounded-full translate-y-1/2" />
 
@@ -256,13 +252,12 @@ function Calendar() {
                   Calendar
                 </h1>
 
-                <p className="text-sm text-blue-100 mt-1">
+                <p className="text-sm text-brand-blue-100 mt-1">
                   Manage tasks and activities from one place
                 </p>
               </div>
             </div>
 
-            {/* Hero stats */}
             <div className="flex items-center gap-3 flex-wrap">
               <HeroStat
                 label="This Month"
@@ -285,13 +280,10 @@ function Calendar() {
           </div>
         </div>
 
-        {/* ============================
-            ACTION BAR
-        ============================ */}
+        {/* ACTION BAR */}
 
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-2 flex-wrap">
-            {/* View switcher */}
             <div className="inline-flex items-center bg-white rounded-xl border border-gray-200 p-1 shadow-sm">
               <ViewTab
                 active={view === "month"}
@@ -308,7 +300,6 @@ function Calendar() {
               </ViewTab>
             </div>
 
-            {/* Legend chips */}
             <div className="hidden sm:flex items-center gap-2">
               <LegendChip
                 color="blue"
@@ -330,7 +321,7 @@ function Calendar() {
                 onClick={() => setShowFilters((prev) => !prev)}
                 className={`inline-flex items-center gap-1.5 px-3.5 h-10 text-sm font-medium rounded-xl border transition-all duration-200 ${
                   activeFilterCount > 0
-                    ? "bg-blue-50 text-blue-700 border-blue-200 shadow-sm"
+                    ? "bg-brand-blue-50 text-brand-blue-dark border-brand-blue/30 shadow-sm"
                     : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:shadow-sm"
                 }`}
               >
@@ -338,7 +329,7 @@ function Calendar() {
                 Filters
 
                 {activeFilterCount > 0 && (
-                  <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold bg-blue-600 text-white rounded-full">
+                  <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold bg-brand-blue text-white rounded-full">
                     {activeFilterCount}
                   </span>
                 )}
@@ -420,9 +411,7 @@ function Calendar() {
           </div>
         )}
 
-        {/* ============================
-            CALENDAR CARD
-        ============================ */}
+        {/* CALENDAR CARD */}
 
         <div className="bg-white/70 backdrop-blur-sm border border-gray-200/80 rounded-2xl shadow-lg shadow-gray-200/40 overflow-hidden">
           {/* TOOLBAR */}
@@ -462,21 +451,15 @@ function Calendar() {
             </div>
 
             <div className="flex items-center gap-2 sm:hidden">
-              <LegendChip
-                color="blue"
-                label={`${taskCount}`}
-              />
-              <LegendChip
-                color="purple"
-                label={`${activityCount}`}
-              />
+              <LegendChip color="blue" label={`${taskCount}`} />
+              <LegendChip color="purple" label={`${activityCount}`} />
             </div>
           </div>
 
           {/* LOADING */}
           {loading ? (
             <div className="h-[600px] flex flex-col items-center justify-center">
-              <div className="w-10 h-10 border-[3px] border-blue-100 border-t-blue-600 rounded-full animate-spin" />
+              <div className="w-10 h-10 border-[3px] border-brand-blue-50 border-t-brand-blue rounded-full animate-spin" />
               <p className="text-sm text-gray-500 mt-4 font-medium">
                 Loading calendar...
               </p>
@@ -510,7 +493,7 @@ function Calendar() {
                       className={`group relative min-h-[104px] sm:min-h-[120px] rounded-xl border p-1.5 sm:p-2.5 flex flex-col cursor-pointer transition-all duration-200 ${
                         isCurrentMonth
                           ? isToday
-                            ? "bg-gradient-to-br from-blue-50 to-indigo-50/60 border-blue-300 shadow-md shadow-blue-200/40"
+                            ? "bg-gradient-to-br from-brand-blue-50 to-brand-blue-100/60 border-brand-blue/40 shadow-md shadow-brand-blue/20"
                             : isWeekend
                             ? "bg-gray-50/60 border-gray-200 hover:bg-white hover:shadow-md"
                             : "bg-white border-gray-200 hover:bg-white hover:shadow-md hover:border-gray-300"
@@ -522,7 +505,7 @@ function Calendar() {
                         <span
                           className={`inline-flex items-center justify-center w-7 h-7 text-xs sm:text-sm font-bold rounded-full transition-all ${
                             isToday
-                              ? "bg-blue-600 text-white shadow-sm shadow-blue-500/40"
+                              ? "bg-brand-blue text-white shadow-sm shadow-brand-blue/40"
                               : isCurrentMonth
                               ? "text-gray-800 group-hover:bg-gray-100"
                               : "text-gray-400"
@@ -535,7 +518,7 @@ function Calendar() {
                           <span
                             className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
                               dayEvents.length > 2
-                                ? "bg-blue-100 text-blue-700"
+                                ? "bg-brand-blue-100 text-brand-blue-dark"
                                 : "bg-gray-100 text-gray-500"
                             }`}
                           >
@@ -582,7 +565,7 @@ function Calendar() {
                               e.stopPropagation();
                               setSelectedDay({ day, events: dayEvents });
                             }}
-                            className="w-full text-left px-2 py-0.5 rounded-md text-[10px] font-bold text-blue-600 hover:bg-blue-50 transition-colors"
+                            className="w-full text-left px-2 py-0.5 rounded-md text-[10px] font-bold text-brand-blue hover:bg-brand-blue-50 transition-colors"
                           >
                             +{dayEvents.length - 2} more
                           </button>
@@ -591,7 +574,7 @@ function Calendar() {
 
                       {/* Today indicator */}
                       {isToday && (
-                        <div className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                        <div className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-brand-blue animate-pulse" />
                       )}
                     </div>
                   );
@@ -652,7 +635,7 @@ function Calendar() {
                         <span
                           className={`text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full shrink-0 ${
                             event.type === "task"
-                              ? "bg-blue-50 text-blue-700"
+                              ? "bg-brand-blue-50 text-brand-blue-dark"
                               : "bg-purple-50 text-purple-700"
                           }`}
                         >
@@ -666,9 +649,7 @@ function Calendar() {
           )}
         </div>
 
-        {/* ============================
-            DAY DETAILS PANEL
-        ============================ */}
+        {/* DAY DETAILS PANEL */}
 
         {selectedDay && (
           <DayDetailsPanel
@@ -679,9 +660,7 @@ function Calendar() {
           />
         )}
 
-        {/* ============================
-            EVENT MODAL
-        ============================ */}
+        {/* EVENT MODAL */}
 
         {selectedEvent && (
           <EventDetailsModal
@@ -700,7 +679,7 @@ function Calendar() {
 
 function HeroStat({ label, value, accent }) {
   const accents = {
-    blue: "from-blue-400/20 to-blue-500/20 border-blue-300/30",
+    blue: "from-brand-blue-100/30 to-brand-blue-50/30 border-brand-blue/30",
     emerald: "from-emerald-400/20 to-emerald-500/20 border-emerald-300/30",
     purple: "from-purple-400/20 to-purple-500/20 border-purple-300/30",
   };
@@ -733,7 +712,7 @@ function ViewTab({ active, onClick, children }) {
       onClick={onClick}
       className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
         active
-          ? "bg-blue-600 text-white shadow-sm shadow-blue-500/30"
+          ? "bg-brand-blue text-white shadow-sm shadow-brand-blue/30"
           : "text-gray-600 hover:text-gray-900"
       }`}
     >
@@ -748,12 +727,12 @@ function ViewTab({ active, onClick, children }) {
 
 function LegendChip({ color, label }) {
   const colors = {
-    blue: "bg-blue-50 text-blue-700 border-blue-200",
+    blue: "bg-brand-blue-50 text-brand-blue-dark border-brand-blue/20",
     purple: "bg-purple-50 text-purple-700 border-purple-200",
   };
 
   const dots = {
-    blue: "bg-blue-500",
+    blue: "bg-brand-blue",
     purple: "bg-purple-500",
   };
 
@@ -779,12 +758,12 @@ function LegendChip({ color, label }) {
 
 function FilterToggle({ active, onClick, color, label, count }) {
   const activeStyles = {
-    blue: "bg-blue-50 border-blue-200",
+    blue: "bg-brand-blue-50 border-brand-blue/30",
     purple: "bg-purple-50 border-purple-200",
   };
 
   const dotStyles = {
-    blue: active ? "bg-blue-500" : "bg-gray-300",
+    blue: active ? "bg-brand-blue" : "bg-gray-300",
     purple: active ? "bg-purple-500" : "bg-gray-300",
   };
 
@@ -838,10 +817,9 @@ function DayDetailsPanel({ day, events, onClose, onEventClick }) {
       }}
     >
       <div className="w-full max-w-[500px] max-h-[80vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
-        {/* HEADER */}
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-brand-blue-50 to-brand-blue-100/50">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-brand-blue">
               {events.length} {events.length === 1 ? "Event" : "Events"}
             </p>
 
@@ -858,7 +836,6 @@ function DayDetailsPanel({ day, events, onClose, onEventClick }) {
           </button>
         </div>
 
-        {/* BODY */}
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
           {events.map((event) => (
             <button
@@ -956,11 +933,10 @@ function EventDetailsModal({ eventData, onClose }) {
       }}
     >
       <div className="w-full max-w-[540px] max-h-[90vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
-        {/* HEADER */}
         <div
           className={`px-5 py-4 flex items-center justify-between ${
             isTask
-              ? "bg-gradient-to-r from-blue-50 to-indigo-50"
+              ? "bg-gradient-to-r from-brand-blue-50 to-brand-blue-100/50"
               : "bg-gradient-to-r from-purple-50 to-fuchsia-50"
           }`}
         >
@@ -968,7 +944,7 @@ function EventDetailsModal({ eventData, onClose }) {
             <div
               className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
                 isTask
-                  ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white"
+                  ? "bg-gradient-to-br from-brand-blue to-brand-blue-dark text-white"
                   : "bg-gradient-to-br from-purple-500 to-purple-600 text-white"
               }`}
             >
@@ -994,7 +970,6 @@ function EventDetailsModal({ eventData, onClose }) {
           </button>
         </div>
 
-        {/* BODY */}
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
           <div>
             <p className="text-[11px] uppercase tracking-wide font-bold text-gray-400 mb-1">
@@ -1097,7 +1072,6 @@ function EventDetailsModal({ eventData, onClose }) {
           )}
         </div>
 
-        {/* FOOTER */}
         <div className="px-5 py-3.5 border-t border-gray-100 bg-gray-50/60 flex justify-end">
           <button
             type="button"
@@ -1145,7 +1119,7 @@ function getTaskColor(status) {
     case "completed":
       return "#16a34a";
     case "in progress":
-      return "#2563eb";
+      return "#1800AC";
     case "cancelled":
       return "#6b7280";
     case "pending":
@@ -1167,7 +1141,7 @@ function getActivityColor(type) {
     case "payment":
       return "#059669";
     case "booking":
-      return "#2563eb";
+      return "#1800AC";
     case "quotation":
       return "#0891b2";
     default:

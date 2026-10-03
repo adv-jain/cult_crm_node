@@ -7,7 +7,6 @@ import {
   FiChevronLeft,
   FiChevronRight,
   FiChevronUp,
-  FiClock,
   FiEdit2,
   FiEye,
   FiFilter,
@@ -462,7 +461,7 @@ function Packages() {
               placeholder="Search packages..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-8 h-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition"
+              className="w-full pl-9 pr-8 h-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:border-brand-blue transition"
             />
 
             {search && (
@@ -483,7 +482,7 @@ function Packages() {
               onClick={() => setShowFilters((prev) => !prev)}
               className={`inline-flex items-center justify-center gap-1.5 px-3 h-9 text-sm font-medium rounded-lg border transition whitespace-nowrap ${
                 dropdownFilterCount > 0
-                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                  ? "bg-brand-blue-50 text-brand-blue-dark border-brand-blue/30"
                   : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
               }`}
             >
@@ -492,7 +491,7 @@ function Packages() {
               <span className="hidden sm:inline">Filters</span>
 
               {dropdownFilterCount > 0 && (
-                <span className="inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[10px] font-semibold bg-blue-600 text-white rounded-full">
+                <span className="inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[10px] font-semibold bg-brand-blue text-white rounded-full">
                   {dropdownFilterCount}
                 </span>
               )}
@@ -533,7 +532,7 @@ function Packages() {
                           }
                           className={`px-2.5 py-1 text-xs font-medium rounded-md border transition ${
                             statusFilter === item
-                              ? "bg-blue-600 text-white border-blue-600"
+                              ? "bg-brand-blue text-white border-brand-blue"
                               : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                           }`}
                         >
@@ -555,7 +554,7 @@ function Packages() {
                         setTypeFilter(e.target.value);
                         setPage(1);
                       }}
-                      className="w-full h-9 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 cursor-pointer"
+                      className="w-full h-9 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:border-brand-blue cursor-pointer"
                     >
                       <option value="">All Types</option>
                       {PACKAGE_TYPES.map((type) => (
@@ -587,7 +586,7 @@ function Packages() {
                           }
                           className={`flex-1 px-2.5 py-1.5 text-xs font-medium rounded-md border transition ${
                             featuredFilter === item.value
-                              ? "bg-blue-600 text-white border-blue-600"
+                              ? "bg-brand-blue text-white border-brand-blue"
                               : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                           }`}
                         >
@@ -611,7 +610,7 @@ function Packages() {
                   <button
                     type="button"
                     onClick={() => setShowFilters(false)}
-                    className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md transition"
+                    className="px-3 py-1.5 text-xs font-semibold text-white bg-brand-blue hover:bg-brand-blue-dark rounded-md transition"
                   >
                     Apply
                   </button>
@@ -624,7 +623,7 @@ function Packages() {
         <button
           type="button"
           onClick={handleCreate}
-          className="inline-flex items-center justify-center gap-1.5 px-4 h-9 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition shadow-sm whitespace-nowrap self-start lg:self-auto"
+          className="inline-flex items-center justify-center gap-1.5 px-4 h-9 bg-brand-blue hover:bg-brand-blue-dark text-white text-sm font-medium rounded-lg transition shadow-brand whitespace-nowrap self-start lg:self-auto"
         >
           <FiPlus size={15} />
           Create Package
@@ -642,7 +641,7 @@ function Packages() {
           <button
             type="button"
             onClick={handleClearFilters}
-            className="text-blue-600 hover:text-blue-700 font-medium"
+            className="text-brand-blue hover:text-brand-blue-dark font-medium"
           >
             Clear filters
           </button>
@@ -670,7 +669,7 @@ function Packages() {
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <div className="flex flex-col items-center gap-3">
-              <div className="w-7 h-7 border-[3px] border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+              <div className="w-7 h-7 border-[3px] border-brand-blue-50 border-t-brand-blue rounded-full animate-spin" />
               <p className="text-sm text-gray-500">Loading packages...</p>
             </div>
           </div>
@@ -691,7 +690,7 @@ function Packages() {
             <button
               type="button"
               onClick={handleCreate}
-              className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition"
+              className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-brand-blue hover:bg-brand-blue-dark text-white text-sm font-medium rounded-lg transition"
             >
               <FiPlus size={15} />
               Create Package
@@ -859,10 +858,10 @@ function PackageRow({
 
   return (
     <>
-      <tr className="hover:bg-gray-50/70 transition-colors">
+      <tr className="hover:bg-brand-blue-50/40 transition-colors">
         <td className="px-5 py-3.5">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-lg bg-brand-blue-50 text-brand-blue-dark flex items-center justify-center shrink-0">
               <FiPackage size={17} />
             </div>
 
@@ -871,7 +870,7 @@ function PackageRow({
                 <button
                   type="button"
                   onClick={onView}
-                  className="font-semibold text-gray-800 hover:text-blue-600 truncate max-w-[220px] text-left"
+                  className="font-semibold text-gray-800 hover:text-brand-blue truncate max-w-[220px] text-left"
                 >
                   {pkg.name}
                 </button>
@@ -934,7 +933,7 @@ function PackageRow({
               type="button"
               onClick={onView}
               title="View"
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 bg-gray-50 hover:text-blue-600 hover:bg-blue-50 transition"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 bg-gray-50 hover:text-brand-blue-dark hover:bg-brand-blue-50 transition"
             >
               <FiEye size={15} />
             </button>
@@ -1545,7 +1544,7 @@ function PackageForm({ packageData, onClose, onSaved }) {
                   >
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-xs font-semibold">
+                        <div className="w-7 h-7 rounded-lg bg-brand-blue-50 text-brand-blue-dark flex items-center justify-center text-xs font-semibold">
                           {day.dayNumber}
                         </div>
 
@@ -1638,7 +1637,7 @@ function PackageForm({ packageData, onClose, onSaved }) {
                 <button
                   type="button"
                   onClick={addItineraryDay}
-                  className="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-blue-300 text-blue-600 hover:bg-blue-50 rounded-lg text-xs font-medium"
+                  className="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-brand-blue/40 text-brand-blue hover:bg-brand-blue-50 rounded-lg text-xs font-medium"
                 >
                   <FiPlus size={14} />
                   Add Day
@@ -1724,7 +1723,7 @@ function PackageForm({ packageData, onClose, onSaved }) {
                 <button
                   type="button"
                   onClick={addHotel}
-                  className="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-blue-300 text-blue-600 hover:bg-blue-50 rounded-lg text-xs font-medium"
+                  className="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-brand-blue/40 text-brand-blue hover:bg-brand-blue-50 rounded-lg text-xs font-medium"
                 >
                   <FiPlus size={14} />
                   Add Hotel
@@ -1803,7 +1802,7 @@ function PackageForm({ packageData, onClose, onSaved }) {
                 <button
                   type="button"
                   onClick={addTransport}
-                  className="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-blue-300 text-blue-600 hover:bg-blue-50 rounded-lg text-xs font-medium"
+                  className="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-brand-blue/40 text-brand-blue hover:bg-brand-blue-50 rounded-lg text-xs font-medium"
                 >
                   <FiPlus size={14} />
                   Add Transport
@@ -1897,7 +1896,7 @@ function PackageForm({ packageData, onClose, onSaved }) {
                               event.target.checked
                             )
                           }
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          className="rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
                         />
                         Included in package
                       </label>
@@ -1919,7 +1918,7 @@ function PackageForm({ packageData, onClose, onSaved }) {
                 <button
                   type="button"
                   onClick={addActivity}
-                  className="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-blue-300 text-blue-600 hover:bg-blue-50 rounded-lg text-xs font-medium"
+                  className="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-brand-blue/40 text-brand-blue hover:bg-brand-blue-50 rounded-lg text-xs font-medium"
                 >
                   <FiPlus size={14} />
                   Add Activity
@@ -2115,7 +2114,7 @@ function PackageForm({ packageData, onClose, onSaved }) {
                   onChange={(event) =>
                     updateField("featured", event.target.checked)
                   }
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  className="rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
                 />
                 Mark as featured package
               </label>
@@ -2134,7 +2133,7 @@ function PackageForm({ packageData, onClose, onSaved }) {
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-medium"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-blue hover:bg-brand-blue-dark disabled:opacity-60 text-white text-sm font-medium"
             >
               {saving && (
                 <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
@@ -2240,7 +2239,7 @@ function PackageView({ packageData, onClose, onEdit }) {
               onClick={() => setActiveSection(key)}
               className={`px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap ${
                 activeSection === key
-                  ? "bg-blue-50 text-blue-700"
+                  ? "bg-brand-blue-50 text-brand-blue-dark"
                   : "text-gray-500 hover:bg-gray-50"
               }`}
             >
@@ -2403,7 +2402,7 @@ function ItineraryView({ packageData }) {
           className="border border-gray-200 rounded-xl p-4"
         >
           <div className="flex gap-3">
-            <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-xs font-semibold shrink-0">
+            <div className="w-9 h-9 rounded-lg bg-brand-blue-50 text-brand-blue-dark flex items-center justify-center text-xs font-semibold shrink-0">
               {day.dayNumber}
             </div>
 
@@ -2413,7 +2412,7 @@ function ItineraryView({ packageData }) {
               </h3>
 
               {day.destination && (
-                <p className="text-xs text-blue-600 mt-1">
+                <p className="text-xs text-brand-blue mt-1">
                   {day.destination}
                 </p>
               )}
@@ -2703,7 +2702,7 @@ function Input({
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         required={required}
-        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 outline-none focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 outline-none focus:bg-white focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/10"
       />
     </label>
   );
@@ -2721,7 +2720,7 @@ function NumberInput({ label, value, onChange, min = 0 }) {
         min={min}
         value={value ?? 0}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 outline-none focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 outline-none focus:bg-white focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/10"
       />
     </label>
   );
@@ -2737,7 +2736,7 @@ function Select({ label, value, onChange, options }) {
       <select
         value={value ?? ""}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 outline-none focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 outline-none focus:bg-white focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/10"
       >
         {options.map((option) => (
           <option key={option} value={option}>
@@ -2761,7 +2760,7 @@ function Textarea({ label, value, onChange, placeholder, rows = 3 }) {
         value={value ?? ""}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 outline-none resize-none focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 outline-none resize-none focus:bg-white focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/10"
       />
     </label>
   );
@@ -2776,7 +2775,7 @@ function ListEditor({ label, values, onAdd, onChange, onRemove, placeholder }) {
         <button
           type="button"
           onClick={onAdd}
-          className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
+          className="inline-flex items-center gap-1 text-xs text-brand-blue hover:text-brand-blue-dark"
         >
           <FiPlus size={13} />
           Add
@@ -2796,7 +2795,7 @@ function ListEditor({ label, values, onAdd, onChange, onRemove, placeholder }) {
               value={value}
               onChange={(event) => onChange(index, event.target.value)}
               placeholder={placeholder}
-              className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:bg-white focus:border-blue-400"
+              className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:bg-white focus:border-brand-blue"
             />
 
             <button

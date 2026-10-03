@@ -476,7 +476,7 @@ function Enquiries() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search enquiries..."
-            className="w-full h-10 pl-9 pr-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition"
+            className="w-full h-10 pl-9 pr-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:border-brand-blue transition"
           />
 
           {search && (
@@ -498,7 +498,7 @@ function Enquiries() {
             onClick={() => setShowFilters((p) => !p)}
             className={`inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg border text-sm font-medium transition whitespace-nowrap ${
               showFilters || hasFilters
-                ? "border-blue-300 bg-blue-50 text-blue-700"
+                ? "border-brand-blue/30 bg-brand-blue-50 text-brand-blue-dark"
                 : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
             }`}
           >
@@ -506,7 +506,7 @@ function Enquiries() {
             <span>Filters</span>
 
             {hasFilters && (
-              <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-semibold">
+              <span className="w-5 h-5 rounded-full bg-brand-blue text-white text-[10px] flex items-center justify-center font-semibold">
                 {activeFilterCount}
               </span>
             )}
@@ -525,7 +525,7 @@ function Enquiries() {
                   <button
                     type="button"
                     onClick={clearFilters}
-                    className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                    className="text-xs text-brand-blue hover:text-brand-blue-dark font-medium"
                   >
                     Clear all
                   </button>
@@ -542,7 +542,7 @@ function Enquiries() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full h-9 px-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                  className="w-full h-9 px-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:border-brand-blue"
                 >
                   <option value="">All statuses</option>
                   {STATUS_OPTIONS.map((s) => (
@@ -563,7 +563,7 @@ function Enquiries() {
                 <select
                   value={priorityFilter}
                   onChange={(e) => setPriorityFilter(e.target.value)}
-                  className="w-full h-9 px-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                  className="w-full h-9 px-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:border-brand-blue"
                 >
                   <option value="">All priorities</option>
                   {PRIORITY_OPTIONS.map((p) => (
@@ -584,7 +584,7 @@ function Enquiries() {
                 <select
                   value={travelTypeFilter}
                   onChange={(e) => setTravelTypeFilter(e.target.value)}
-                  className="w-full h-9 px-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                  className="w-full h-9 px-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:border-brand-blue"
                 >
                   <option value="">All types</option>
                   {TRAVEL_TYPES.map((t) => (
@@ -619,7 +619,7 @@ function Enquiries() {
         <button
           type="button"
           onClick={openCreateForm}
-          className="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition shadow-sm whitespace-nowrap"
+          className="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-brand-blue hover:bg-brand-blue-dark text-white text-sm font-semibold transition shadow-brand whitespace-nowrap"
         >
           <FiPlus size={16} />
           <span>New Enquiry</span>
@@ -665,7 +665,7 @@ function Enquiries() {
                 <tr>
                   <td colSpan="8" className="px-5 py-16 text-center">
                     <div className="flex flex-col items-center justify-center gap-3">
-                      <div className="w-7 h-7 border-2 border-gray-200 border-t-blue-600 rounded-full animate-spin" />
+                      <div className="w-7 h-7 border-2 border-gray-200 border-t-brand-blue rounded-full animate-spin" />
                       <span className="text-xs text-gray-500">
                         Loading enquiries...
                       </span>
@@ -696,7 +696,7 @@ function Enquiries() {
                     <tr
                       key={enquiry._id}
                       onClick={() => handleRowClick(enquiry)}
-                      className="cursor-pointer transition-colors hover:bg-blue-50/40 group"
+                      className="cursor-pointer transition-colors hover:bg-brand-blue-50/40 group"
                     >
                       {/* CUSTOMER */}
 
@@ -794,7 +794,7 @@ function Enquiries() {
                             e.stopPropagation();
                             handleCreateQuotation(enquiry);
                           }}
-                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-blue hover:text-brand-blue-dark transition-colors"
                         >
                           <FiFileText size={13} />
                           Create Quote

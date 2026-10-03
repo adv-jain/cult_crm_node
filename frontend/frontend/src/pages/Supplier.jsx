@@ -503,7 +503,7 @@ function Supplier() {
               placeholder="Search suppliers..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-8 h-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition"
+              className="w-full pl-9 pr-8 h-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:border-brand-blue transition"
             />
 
             {search && (
@@ -524,7 +524,7 @@ function Supplier() {
               onClick={() => setShowFilters((prev) => !prev)}
               className={`inline-flex items-center justify-center gap-1.5 px-3 h-9 text-sm font-medium rounded-lg border transition whitespace-nowrap ${
                 dropdownFilterCount > 0
-                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                  ? "bg-brand-blue-50 text-brand-blue-dark border-brand-blue/30"
                   : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
               }`}
             >
@@ -533,7 +533,7 @@ function Supplier() {
               <span className="hidden sm:inline">Filters</span>
 
               {dropdownFilterCount > 0 && (
-                <span className="inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[10px] font-semibold bg-blue-600 text-white rounded-full">
+                <span className="inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[10px] font-semibold bg-brand-blue text-white rounded-full">
                   {dropdownFilterCount}
                 </span>
               )}
@@ -570,7 +570,7 @@ function Supplier() {
                         setTypeFilter(e.target.value);
                         setPage(1);
                       }}
-                      className="w-full h-9 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 cursor-pointer"
+                      className="w-full h-9 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:border-brand-blue cursor-pointer"
                     >
                       <option value="">All Types</option>
 
@@ -606,7 +606,7 @@ function Supplier() {
                           }
                           className={`px-2.5 py-1 text-xs font-medium rounded-md border transition ${
                             statusFilter === status
-                              ? "bg-blue-600 text-white border-blue-600"
+                              ? "bg-brand-blue text-white border-brand-blue"
                               : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                           }`}
                         >
@@ -630,7 +630,7 @@ function Supplier() {
                   <button
                     type="button"
                     onClick={() => setShowFilters(false)}
-                    className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md transition"
+                    className="px-3 py-1.5 text-xs font-semibold text-white bg-brand-blue hover:bg-brand-blue-dark rounded-md transition"
                   >
                     Apply
                   </button>
@@ -657,7 +657,7 @@ function Supplier() {
           <button
             type="button"
             onClick={openCreateForm}
-            className="inline-flex items-center justify-center gap-1.5 px-4 h-9 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition shadow-sm whitespace-nowrap"
+            className="inline-flex items-center justify-center gap-1.5 px-4 h-9 bg-brand-blue hover:bg-brand-blue-dark text-white text-sm font-medium rounded-lg transition shadow-brand whitespace-nowrap"
           >
             <FiPlus size={15} />
             Add Supplier
@@ -676,7 +676,7 @@ function Supplier() {
           <button
             type="button"
             onClick={handleClearFilters}
-            className="text-blue-600 hover:text-blue-700 font-medium"
+            className="text-brand-blue hover:text-brand-blue-dark font-medium"
           >
             Clear filters
           </button>
@@ -720,7 +720,7 @@ function Supplier() {
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <div className="flex flex-col items-center gap-3">
-              <div className="w-7 h-7 border-[3px] border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+              <div className="w-7 h-7 border-[3px] border-brand-blue-50 border-t-brand-blue rounded-full animate-spin" />
 
               <p className="text-sm text-gray-500">
                 Loading suppliers...
@@ -745,7 +745,7 @@ function Supplier() {
             <button
               type="button"
               onClick={openCreateForm}
-              className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition"
+              className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-brand-blue hover:bg-brand-blue-dark text-white text-sm font-medium rounded-lg transition"
             >
               <FiPlus size={15} />
               Add Supplier
@@ -784,7 +784,7 @@ function Supplier() {
                 {suppliers.map((supplier) => (
                   <tr
                     key={supplier._id}
-                    className="hover:bg-gray-50/70 transition-colors"
+                    className="hover:bg-brand-blue-50/40 transition-colors"
                   >
                     <td className="px-5 py-3.5">
                       <div className="min-w-0">
@@ -801,7 +801,7 @@ function Supplier() {
                     </td>
 
                     <td className="px-5 py-3.5">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full border text-[11px] font-semibold bg-blue-50 text-blue-700 border-blue-200">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full border text-[11px] font-semibold bg-brand-blue-50 text-brand-blue-dark border-brand-blue/20">
                         {supplier.supplierType || "Other"}
                       </span>
                     </td>
@@ -846,7 +846,7 @@ function Supplier() {
                           type="button"
                           onClick={() => handleView(supplier)}
                           title="View"
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 bg-gray-50 hover:text-blue-600 hover:bg-blue-50 transition"
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 bg-gray-50 hover:text-brand-blue-dark hover:bg-brand-blue-50 transition"
                         >
                           <FiEye size={15} />
                         </button>
@@ -1226,7 +1226,7 @@ function Supplier() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition disabled:opacity-60 min-w-[100px]"
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-brand-blue rounded-lg hover:bg-brand-blue-dark transition disabled:opacity-60 min-w-[100px]"
                 >
                   {saving ? (
                     <>
@@ -1359,7 +1359,7 @@ function Supplier() {
                       (destination, index) => (
                         <span
                           key={index}
-                          className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-medium"
+                          className="bg-brand-blue-50 text-brand-blue-dark px-3 py-1 rounded-full text-xs font-medium"
                         >
                           {destination}
                         </span>
@@ -1430,7 +1430,7 @@ function Supplier() {
 // =====================================================
 
 const inputClass =
-  "w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 placeholder:text-gray-400";
+  "w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 outline-none transition focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/10 placeholder:text-gray-400";
 
 function Field({ label, required = false, children }) {
   return (

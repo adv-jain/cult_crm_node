@@ -224,14 +224,9 @@ function Activities() {
 
       await api.delete(`/activities/${activity._id}`);
 
-      setSuccessMessage(
-        "Activity deleted successfully"
-      );
+      setSuccessMessage("Activity deleted successfully");
 
-      if (
-        activities.length === 1 &&
-        page > 1
-      ) {
+      if (activities.length === 1 && page > 1) {
         setPage((prev) => prev - 1);
       } else {
         await fetchActivities();
@@ -266,18 +261,15 @@ function Activities() {
       total: totalActivities,
 
       calls: activities.filter(
-        (activity) =>
-          activity.type === "Call"
+        (activity) => activity.type === "Call"
       ).length,
 
       meetings: activities.filter(
-        (activity) =>
-          activity.type === "Meeting"
+        (activity) => activity.type === "Meeting"
       ).length,
 
       positive: activities.filter(
-        (activity) =>
-          activity.outcome === "Positive"
+        (activity) => activity.outcome === "Positive"
       ).length,
     };
   }, [activities, totalActivities]);
@@ -287,18 +279,11 @@ function Activities() {
   // =========================================================
 
   const activeFilterCount = useMemo(() => {
-    return [
-      search,
-      type,
-      outcome,
-    ].filter(Boolean).length;
+    return [search, type, outcome].filter(Boolean).length;
   }, [search, type, outcome]);
 
   const dropdownFilterCount = useMemo(() => {
-    return [
-      type,
-      outcome,
-    ].filter(Boolean).length;
+    return [type, outcome].filter(Boolean).length;
   }, [type, outcome]);
 
   // =========================================================
@@ -308,19 +293,11 @@ function Activities() {
   return (
     <>
       <div className="p-4 sm:p-6 lg:p-8 space-y-5 max-w-[1600px] mx-auto w-full">
-
-        {/* =====================================================
-            HEADER
-        ===================================================== */}
-
+        {/* HEADER */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-
           {/* LEFT: SEARCH + FILTER */}
-
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
-
             {/* SEARCH */}
-
             <form
               onSubmit={handleSearch}
               className="relative w-full sm:w-64"
@@ -338,7 +315,7 @@ function Activities() {
                   setSearch(e.target.value);
                   setPage(1);
                 }}
-                className="w-full pl-9 pr-8 h-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition"
+                className="w-full pl-9 pr-8 h-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:border-brand-blue transition"
               />
 
               {search && (
@@ -356,43 +333,31 @@ function Activities() {
             </form>
 
             {/* FILTER */}
-
-            <div
-              className="relative"
-              ref={filterRef}
-            >
+            <div className="relative" ref={filterRef}>
               <button
                 onClick={() =>
-                  setShowFilters(
-                    (prev) => !prev
-                  )
+                  setShowFilters((prev) => !prev)
                 }
                 className={`inline-flex items-center justify-center gap-1.5 px-3 h-9 text-sm font-medium rounded-lg border transition whitespace-nowrap ${
                   dropdownFilterCount > 0
-                    ? "bg-blue-50 text-blue-700 border-blue-200"
+                    ? "bg-brand-blue-50 text-brand-blue-dark border-brand-blue/30"
                     : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
                 }`}
               >
                 <FiFilter size={14} />
 
-                <span className="hidden sm:inline">
-                  Filters
-                </span>
+                <span className="hidden sm:inline">Filters</span>
 
                 {dropdownFilterCount > 0 && (
-                  <span className="inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[10px] font-semibold bg-blue-600 text-white rounded-full">
+                  <span className="inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[10px] font-semibold bg-brand-blue text-white rounded-full">
                     {dropdownFilterCount}
                   </span>
                 )}
               </button>
 
-              {/* FILTER POPOVER */}
-
               {showFilters && (
                 <div className="absolute left-0 top-full mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-lg shadow-gray-200/60 z-30 overflow-hidden">
-
                   <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-
                     <h3 className="text-sm font-semibold text-gray-900">
                       Filters
                     </h3>
@@ -405,13 +370,10 @@ function Activities() {
                         Reset
                       </button>
                     )}
-
                   </div>
 
                   <div className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
-
                     {/* TYPE */}
-
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-2">
                         Type
@@ -420,85 +382,32 @@ function Activities() {
                       <select
                         value={type}
                         onChange={(e) => {
-                          setType(
-                            e.target.value
-                          );
+                          setType(e.target.value);
                           setPage(1);
                         }}
-                        className="w-full h-9 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 cursor-pointer"
+                        className="w-full h-9 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:border-brand-blue cursor-pointer"
                       >
-                        <option value="">
-                          All Types
-                        </option>
-
-                        <option value="Call">
-                          Call
-                        </option>
-
-                        <option value="Email">
-                          Email
-                        </option>
-
-                        <option value="Meeting">
-                          Meeting
-                        </option>
-
-                        <option value="Note">
-                          Note
-                        </option>
-
-                        <option value="Follow-up">
-                          Follow-up
-                        </option>
-
-                        <option value="WhatsApp">
-                          WhatsApp
-                        </option>
-
-                        <option value="SMS">
-                          SMS
-                        </option>
-
-                        <option value="Quotation">
-                          Quotation
-                        </option>
-
-                        <option value="Booking">
-                          Booking
-                        </option>
-
-                        <option value="Payment">
-                          Payment
-                        </option>
-
-                        <option value="Hotel">
-                          Hotel
-                        </option>
-
-                        <option value="Transport">
-                          Transport
-                        </option>
-
-                        <option value="Itinerary">
-                          Itinerary
-                        </option>
-
-                        <option value="Document">
-                          Document
-                        </option>
-
-                        <option value="Customer Support">
-                          Customer Support
-                        </option>
-
-                        <option value="Other">
-                          Other
-                        </option>
+                        <option value="">All Types</option>
+                        <option value="Call">Call</option>
+                        <option value="Email">Email</option>
+                        <option value="Meeting">Meeting</option>
+                        <option value="Note">Note</option>
+                        <option value="Follow-up">Follow-up</option>
+                        <option value="WhatsApp">WhatsApp</option>
+                        <option value="SMS">SMS</option>
+                        <option value="Quotation">Quotation</option>
+                        <option value="Booking">Booking</option>
+                        <option value="Payment">Payment</option>
+                        <option value="Hotel">Hotel</option>
+                        <option value="Transport">Transport</option>
+                        <option value="Itinerary">Itinerary</option>
+                        <option value="Document">Document</option>
+                        <option value="Customer Support">Customer Support</option>
+                        <option value="Other">Other</option>
                       </select>
                     </div>
 
                     {/* OUTCOME */}
-
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-2">
                         Outcome
@@ -516,16 +425,12 @@ function Activities() {
                           <button
                             key={o}
                             onClick={() => {
-                              setOutcome(
-                                outcome === o
-                                  ? ""
-                                  : o
-                              );
+                              setOutcome(outcome === o ? "" : o);
                               setPage(1);
                             }}
                             className={`px-2.5 py-1 text-xs font-medium rounded-md border transition ${
                               outcome === o
-                                ? "bg-blue-600 text-white border-blue-600"
+                                ? "bg-brand-blue text-white border-brand-blue"
                                 : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                             }`}
                           >
@@ -537,26 +442,20 @@ function Activities() {
                   </div>
 
                   <div className="flex items-center justify-between gap-2 px-4 py-3 bg-gray-50 border-t border-gray-100">
-
                     <button
                       onClick={resetFilters}
-                      disabled={
-                        dropdownFilterCount === 0
-                      }
+                      disabled={dropdownFilterCount === 0}
                       className="text-xs font-medium text-gray-600 hover:text-gray-900 transition disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       Clear all
                     </button>
 
                     <button
-                      onClick={() =>
-                        setShowFilters(false)
-                      }
-                      className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md transition"
+                      onClick={() => setShowFilters(false)}
+                      className="px-3 py-1.5 text-xs font-semibold text-white bg-brand-blue hover:bg-brand-blue-dark rounded-md transition"
                     >
                       Apply
                     </button>
-
                   </div>
                 </div>
               )}
@@ -564,161 +463,100 @@ function Activities() {
           </div>
 
           {/* ADD */}
-
           <button
             onClick={handleCreate}
-            className="inline-flex items-center justify-center gap-1.5 px-4 h-9 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition shadow-sm whitespace-nowrap self-start lg:self-auto"
+            className="inline-flex items-center justify-center gap-1.5 px-4 h-9 bg-brand-blue hover:bg-brand-blue-dark text-white text-sm font-medium rounded-lg transition shadow-brand whitespace-nowrap self-start lg:self-auto"
           >
             <FiPlus size={15} />
             Add Activity
           </button>
         </div>
 
-        {/* =====================================================
-            STATS
-        ===================================================== */}
-
+        {/* STATS */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-
           <div className="bg-white rounded-lg border border-gray-200 px-4 py-3">
             <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">
               Total
             </p>
-
             <p className="text-xl font-bold text-gray-900 mt-1">
-              {loading
-                ? "—"
-                : stats.total}
+              {loading ? "—" : stats.total}
             </p>
           </div>
 
           <div className="bg-white rounded-lg border border-gray-200 px-4 py-3">
-
             <div className="flex items-center justify-between">
               <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">
                 Calls
               </p>
-
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+              <span className="w-1.5 h-1.5 rounded-full bg-brand-blue"></span>
             </div>
-
             <p className="text-xl font-bold text-gray-900 mt-1">
-              {loading
-                ? "—"
-                : stats.calls}
+              {loading ? "—" : stats.calls}
             </p>
           </div>
 
           <div className="bg-white rounded-lg border border-gray-200 px-4 py-3">
-
             <div className="flex items-center justify-between">
-
               <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">
                 Meetings
               </p>
-
               <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
-
             </div>
-
             <p className="text-xl font-bold text-gray-900 mt-1">
-              {loading
-                ? "—"
-                : stats.meetings}
+              {loading ? "—" : stats.meetings}
             </p>
           </div>
 
           <div className="bg-white rounded-lg border border-gray-200 px-4 py-3">
-
             <div className="flex items-center justify-between">
-
               <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">
                 Positive
               </p>
-
               <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-
             </div>
-
             <p className="text-xl font-bold text-gray-900 mt-1">
-              {loading
-                ? "—"
-                : stats.positive}
+              {loading ? "—" : stats.positive}
             </p>
           </div>
         </div>
 
-        {/* =====================================================
-            ALERTS
-        ===================================================== */}
-
+        {/* ALERTS */}
         {successMessage && (
           <div className="flex items-start gap-3 bg-green-50 border border-green-200 text-green-800 text-sm px-4 py-3 rounded-lg">
-
-            <FiCheckCircle
-              className="flex-shrink-0 mt-0.5"
-              size={18}
-            />
-
-            <p className="flex-1">
-              {successMessage}
-            </p>
-
+            <FiCheckCircle className="flex-shrink-0 mt-0.5" size={18} />
+            <p className="flex-1">{successMessage}</p>
             <button
-              onClick={() =>
-                setSuccessMessage("")
-              }
+              onClick={() => setSuccessMessage("")}
               className="text-green-600 hover:text-green-800 flex-shrink-0"
             >
               <FiX size={16} />
             </button>
-
           </div>
         )}
 
         {errorMessage && (
           <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 text-sm px-4 py-3 rounded-lg">
-
-            <FiAlertCircle
-              className="flex-shrink-0 mt-0.5"
-              size={18}
-            />
-
-            <p className="flex-1">
-              {errorMessage}
-            </p>
-
+            <FiAlertCircle className="flex-shrink-0 mt-0.5" size={18} />
+            <p className="flex-1">{errorMessage}</p>
             <button
-              onClick={() =>
-                setErrorMessage("")
-              }
+              onClick={() => setErrorMessage("")}
               className="text-red-600 hover:text-red-800 flex-shrink-0"
             >
               <FiX size={16} />
             </button>
-
           </div>
         )}
 
-        {/* =====================================================
-            TABLE
-        ===================================================== */}
-
+        {/* TABLE */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-
           {loading ? (
             <div className="flex items-center justify-center py-16">
-
               <div className="flex flex-col items-center gap-3">
-
-                <div className="w-7 h-7 border-[3px] border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-
+                <div className="w-7 h-7 border-[3px] border-brand-blue-50 border-t-brand-blue rounded-full animate-spin"></div>
                 <p className="text-sm text-gray-500">
                   Loading activities...
                 </p>
-
               </div>
-
             </div>
           ) : (
             <ActivityTable
@@ -729,112 +567,60 @@ function Activities() {
               onDelete={handleDelete}
             />
           )}
-
         </div>
 
-        {/* =====================================================
-            PAGINATION
-        ===================================================== */}
+        {/* PAGINATION */}
+        {!loading && totalActivities > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+            <p className="text-xs text-gray-500">
+              Showing{" "}
+              <span className="font-medium text-gray-700">
+                {activities.length}
+              </span>{" "}
+              {activities.length === 1 ? "activity" : "activities"}
+              {totalActivities > 0 && (
+                <span className="ml-1">of {totalActivities}</span>
+              )}
+              {activeFilterCount > 0 && (
+                <span className="ml-1">
+                  · {activeFilterCount}{" "}
+                  {activeFilterCount === 1 ? "filter" : "filters"} applied
+                </span>
+              )}
+            </p>
 
-        {!loading &&
-          totalActivities > 0 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-
+            <div className="flex items-center gap-3">
               <p className="text-xs text-gray-500">
-
-                Showing{" "}
-
-                <span className="font-medium text-gray-700">
-                  {activities.length}
-                </span>{" "}
-
-                {activities.length === 1
-                  ? "activity"
-                  : "activities"}
-
-                {totalActivities > 0 && (
-                  <span className="ml-1">
-                    of {totalActivities}
-                  </span>
-                )}
-
-                {activeFilterCount > 0 && (
-                  <span className="ml-1">
-                    · {activeFilterCount}{" "}
-                    {activeFilterCount === 1
-                      ? "filter"
-                      : "filters"}{" "}
-                    applied
-                  </span>
-                )}
-
+                Page{" "}
+                <span className="font-medium text-gray-700">{page}</span> of{" "}
+                <span className="font-medium text-gray-700">{totalPages}</span>
               </p>
 
-              <div className="flex items-center gap-3">
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    disabled={page === 1}
+                    onClick={() => setPage((prev) => prev - 1)}
+                    className="w-8 h-8 inline-flex items-center justify-center text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <FiChevronLeft size={16} />
+                  </button>
 
-                <p className="text-xs text-gray-500">
-
-                  Page{" "}
-
-                  <span className="font-medium text-gray-700">
-                    {page}
-                  </span>{" "}
-
-                  of{" "}
-
-                  <span className="font-medium text-gray-700">
-                    {totalPages}
-                  </span>
-
-                </p>
-
-                {totalPages > 1 && (
-                  <div className="flex items-center gap-1.5">
-
-                    <button
-                      disabled={page === 1}
-                      onClick={() =>
-                        setPage(
-                          (prev) =>
-                            prev - 1
-                        )
-                      }
-                      className="w-8 h-8 inline-flex items-center justify-center text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <FiChevronLeft
-                        size={16}
-                      />
-                    </button>
-
-                    <button
-                      disabled={
-                        page === totalPages
-                      }
-                      onClick={() =>
-                        setPage(
-                          (prev) =>
-                            prev + 1
-                        )
-                      }
-                      className="w-8 h-8 inline-flex items-center justify-center text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <FiChevronRight
-                        size={16}
-                      />
-                    </button>
-
-                  </div>
-                )}
-
-              </div>
+                  <button
+                    disabled={page === totalPages}
+                    onClick={() => setPage((prev) => prev + 1)}
+                    className="w-8 h-8 inline-flex items-center justify-center text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <FiChevronRight size={16} />
+                  </button>
+                </div>
+              )}
             </div>
-          )}
+          </div>
+        )}
       </div>
 
-      {/* =====================================================
-          ACTIVITY FORM
-      ===================================================== */}
-
+      {/* ACTIVITY FORM */}
       {showForm && (
         <ActivityForm
           user={user}
@@ -851,20 +637,16 @@ function Activities() {
         />
       )}
 
-      {/* =====================================================
-          VIEW ACTIVITY
-      ===================================================== */}
-
-      {showView &&
-        selectedActivity && (
-          <ViewActivity
-            activity={selectedActivity}
-            onClose={() => {
-              setShowView(false);
-              setSelectedActivity(null);
-            }}
-          />
-        )}
+      {/* VIEW ACTIVITY */}
+      {showView && selectedActivity && (
+        <ViewActivity
+          activity={selectedActivity}
+          onClose={() => {
+            setShowView(false);
+            setSelectedActivity(null);
+          }}
+        />
+      )}
     </>
   );
 }
