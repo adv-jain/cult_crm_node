@@ -1,10 +1,11 @@
-
 const mongoose = require("mongoose");
 
 const Booking = require("../models/Booking");
 const Quotation = require("../models/Quotation");
 const Customer = require("../models/Customer");
 const Enquiry = require("../models/Enquiry");
+const Lead = require("../models/Lead");
+const Trip = require("../models/Trip");
 const User = require("../models/User");
 
 const { createNotification } = require("../services/notificationService");
@@ -22,28 +23,15 @@ const toObjectId = (id) => {
 };
 
 const validateDateRange = (travelDate, returnDate) => {
-  if (!travelDate) {
-    return "Travel date is required";
-  }
-
+  if (!travelDate) return "Travel date is required";
   const travel = new Date(travelDate);
-
-  if (Number.isNaN(travel.getTime())) {
-    return "Invalid travel date";
-  }
+  if (Number.isNaN(travel.getTime())) return "Invalid travel date";
 
   if (returnDate) {
     const returnD = new Date(returnDate);
-
-    if (Number.isNaN(returnD.getTime())) {
-      return "Invalid return date";
-    }
-
-    if (returnD < travel) {
-      return "Return date cannot be before travel date";
-    }
+    if (Number.isNaN(returnD.getTime())) return "Invalid return date";
+    if (returnD < travel) return "Return date cannot be before travel date";
   }
-
   return null;
 };
 
@@ -53,114 +41,146 @@ const validateFinancials = ({
   discountAmount,
   taxAmount,
 }) => {
-  const values = {
-    totalAmount,
-    totalCost,
-    discountAmount,
-    taxAmount,
-  };
-
+  const values = { totalAmount, totalCost, discountAmount, taxAmount };
   for (const [field, value] of Object.entries(values)) {
-    if (!Number.isFinite(Number(value))) {
-      return `${field} must be a valid number`;
-    }
-
-    if (Number(value) < 0) {
-      return `${field} cannot be negative`;
-    }
+    if (!Number.isFinite(Number(value))) return `${field} must be a valid number`;
+    if (Number(value) < 0) return `${field} cannot be negative`;
   }
-
   if (Number(discountAmount) > Number(totalAmount)) {
     return "Discount amount cannot be greater than total amount";
   }
-
   return null;
 };
 
-const validateTravellerCounts = ({
-  adults,
-  children,
-  infants,
-}) => {
-  if (!Number.isInteger(adults) || adults < 1) {
-    return "Adults must be at least 1";
-  }
-
-  if (!Number.isInteger(children) || children < 0) {
-    return "Children cannot be negative";
-  }
-
-  if (!Number.isInteger(infants) || infants < 0) {
-    return "Infants cannot be negative";
-  }
-
+const validateTravellerCounts = ({ adults, children, infants }) => {
+  if (!Number.isInteger(adults) || adults < 1) return "Adults must be at least 1";
+  if (!Number.isInteger(children) || children < 0) return "Children cannot be negative";
+  if (!Number.isInteger(infants) || infants < 0) return "Infants cannot be negative";
   return null;
 };
 
 const getActiveSalesUsers = async () => {
-  return User.find({
-    role: "sales",
-    isActive: true,
-  }).select("_id");
+  return User.find({ role: "sales", isActive: true }).select("_id");
 };
 
 const canViewBooking = (booking, user) => {
-  if (user.role === "admin" || user.role === "accounts") {
-    return true;
-  }
-
-  if (user.role === "manager") {
-    if (!booking.salesOwner) {
-      return false;
-    }
-
-    return true;
-  }
-
+  if (user.role === "admin" || user.role === "accounts") return true;
+  if (user.role === "manager") return Boolean(booking.salesOwner);
   if (user.role === "sales") {
-    return (
-      booking.salesOwner &&
-      booking.salesOwner.toString() === user.id.toString()
-    );
+    return booking.salesOwner && booking.salesOwner.toString() === user.id.toString();
   }
-
   if (user.role === "operations") {
-    return (
-      booking.operationsOwner &&
-      booking.operationsOwner.toString() === user.id.toString()
-    );
+    return booking.operationsOwner && booking.operationsOwner.toString() === user.id.toString();
   }
-
   return false;
 };
 
 const canManageBooking = (booking, user) => {
-  if (user.role === "admin") {
-    return true;
-  }
-
+  if (user.role === "admin") return true;
   if (user.role === "manager") {
-    return (
-      booking.salesOwner &&
-      booking.salesOwner.toString() === user.id.toString()
-    );
+    return booking.salesOwner && booking.salesOwner.toString() === user.id.toString();
   }
-
   if (user.role === "sales") {
-    return (
-      booking.salesOwner &&
-      booking.salesOwner.toString() === user.id.toString()
-    );
+    return booking.salesOwner && booking.salesOwner.toString() === user.id.toString();
   }
-
   if (user.role === "operations") {
-    return (
-      booking.operationsOwner &&
-      booking.operationsOwner.toString() === user.id.toString()
-    );
+    return booking.operationsOwner && booking.operationsOwner.toString() === user.id.toString();
+  }
+  return false;
+};
+
+/* ======================================================
+   FIND OR CREATE CUSTOMER
+====================================================== */
+
+const findOrCreateCustomer = async ({
+  customerId,
+  quotationDoc,
+  enquiryDoc,
+  leadDoc,
+  session,
+  userId,
+}) => {
+  if (customerId && isValidObjectId(customerId)) {
+    const existing = await Customer.findById(customerId).session(session);
+    if (existing) return existing;
   }
 
-  return false;
+  if (quotationDoc?.customer) {
+    const existing = await Customer.findById(quotationDoc.customer).session(session);
+    if (existing) return existing;
+  }
+
+  const leadId = leadDoc?._id || quotationDoc?.lead || enquiryDoc?.lead || null;
+
+  let lead = leadDoc;
+  if (!lead && leadId && isValidObjectId(leadId)) {
+    lead = await Lead.findById(leadId).session(session);
+  }
+
+  const firstName = String(lead?.firstName || "").trim();
+  const lastName = String(lead?.lastName || "").trim();
+  const phone = String(lead?.phone || "").trim();
+  const email = String(lead?.email || "").trim().toLowerCase();
+
+  if (!firstName && !phone && !email) return null;
+
+  const duplicateQuery = [];
+  if (phone) duplicateQuery.push({ phone });
+  if (email) duplicateQuery.push({ email });
+
+  let existingCustomer = null;
+  if (duplicateQuery.length > 0) {
+    existingCustomer = await Customer.findOne({
+      $or: duplicateQuery,
+    }).session(session);
+  }
+
+  if (existingCustomer) return existingCustomer;
+
+  const [newCustomer] = await Customer.create(
+    [
+      {
+        firstName,
+        lastName,
+        phone,
+        email,
+        owner: userId,
+        lead: lead?._id || null,
+        customerType: "Individual",
+        status: "Active",
+        customerSince: new Date(),
+      },
+    ],
+    { session }
+  );
+
+  return newCustomer;
+};
+
+/* ======================================================
+   GENERATE TRIP CODE
+====================================================== */
+
+const generateTripCode = async (session) => {
+  const year = new Date().getFullYear();
+
+  const latestTrip = await Trip.findOne({
+    tripCode: { $regex: `^TRP-${year}-` },
+  })
+    .sort({ createdAt: -1 })
+    .select("tripCode")
+    .session(session);
+
+  let nextNumber = 1;
+
+  if (latestTrip && latestTrip.tripCode) {
+    const parts = latestTrip.tripCode.split("-");
+    const lastNumber = parseInt(parts[2], 10);
+    if (!Number.isNaN(lastNumber)) nextNumber = lastNumber + 1;
+  }
+
+  return `TRP-${year}-${String(nextNumber).padStart(4, "0")}`;
 };
 
 // ======================================================
@@ -200,321 +220,231 @@ const createBooking = async (req, res) => {
       internalNotes,
     } = req.body;
 
-    // --------------------------------------------------
-    // BASIC VALIDATION
-    // --------------------------------------------------
+    /* --------------------------------------------------
+       BASIC VALIDATION
+    -------------------------------------------------- */
 
     if (!quotation) {
       await session.abortTransaction();
-
-      return res.status(400).json({
-        message: "Quotation is required",
-      });
+      return res.status(400).json({ message: "Quotation is required" });
     }
 
     if (!isValidObjectId(quotation)) {
       await session.abortTransaction();
-
-      return res.status(400).json({
-        message: "Invalid quotation ID",
-      });
+      return res.status(400).json({ message: "Invalid quotation ID" });
     }
 
-    // --------------------------------------------------
-    // FIND QUOTATION
-    // --------------------------------------------------
+    /* --------------------------------------------------
+       FIND QUOTATION
+    -------------------------------------------------- */
 
     const quotationDoc = await Quotation.findById(quotation).session(session);
 
     if (!quotationDoc) {
       await session.abortTransaction();
-
-      return res.status(404).json({
-        message: "Quotation not found",
-      });
+      return res.status(404).json({ message: "Quotation not found" });
     }
 
-    // Only accepted quotation can become booking
     if (quotationDoc.status !== "Accepted") {
       await session.abortTransaction();
-
       return res.status(400).json({
         message: "Only Accepted quotations can be converted into booking",
       });
     }
 
-    // --------------------------------------------------
-    // PREVENT DUPLICATE BOOKING
-    // --------------------------------------------------
+    /* --------------------------------------------------
+       PREVENT DUPLICATE BOOKING
+    -------------------------------------------------- */
 
     const existingBooking = await Booking.findOne({
       quotation: quotationDoc._id,
-      status: {
-        $nin: ["Cancelled", "Refunded"],
-      },
+      status: { $nin: ["Cancelled", "Refunded"] },
     }).session(session);
 
     if (existingBooking) {
       await session.abortTransaction();
-
       return res.status(400).json({
         message: "A booking already exists for this quotation",
         booking: existingBooking,
       });
     }
 
-    // --------------------------------------------------
-    // CUSTOMER
-    // --------------------------------------------------
+    /* --------------------------------------------------
+       ENQUIRY
+    -------------------------------------------------- */
 
-    const customerId =
-      customer || quotationDoc.customer;
-
-    if (!customerId) {
-      await session.abortTransaction();
-
-      return res.status(400).json({
-        message: "Customer is required",
-      });
-    }
-
-    if (!isValidObjectId(customerId)) {
-      await session.abortTransaction();
-
-      return res.status(400).json({
-        message: "Invalid customer ID",
-      });
-    }
-
-    const customerDoc = await Customer.findById(customerId).session(session);
-
-    if (!customerDoc) {
-      await session.abortTransaction();
-
-      return res.status(404).json({
-        message: "Customer not found",
-      });
-    }
-
-    // --------------------------------------------------
-    // ENQUIRY
-    // --------------------------------------------------
-
-    const enquiryId =
-      enquiry || quotationDoc.enquiry;
+    const enquiryId = enquiry || quotationDoc.enquiry;
+    let enquiryDoc = null;
 
     if (enquiryId) {
       if (!isValidObjectId(enquiryId)) {
         await session.abortTransaction();
-
-        return res.status(400).json({
-          message: "Invalid enquiry ID",
-        });
+        return res.status(400).json({ message: "Invalid enquiry ID" });
       }
 
-      const enquiryDoc = await Enquiry.findById(enquiryId).session(session);
+      enquiryDoc = await Enquiry.findById(enquiryId).session(session);
 
       if (!enquiryDoc) {
         await session.abortTransaction();
-
-        return res.status(404).json({
-          message: "Enquiry not found",
-        });
+        return res.status(404).json({ message: "Enquiry not found" });
       }
     }
 
-    // --------------------------------------------------
-    // SALES OWNER
-    // --------------------------------------------------
+    /* --------------------------------------------------
+       LEAD
+    -------------------------------------------------- */
 
-    let bookingSalesOwner =
-      salesOwner ||
-      quotationDoc.assignedTo ||
-      req.user.id;
+    const leadId = lead || quotationDoc.lead || enquiryDoc?.lead || null;
+    let leadDoc = null;
 
-    if (!isValidObjectId(bookingSalesOwner)) {
+    if (leadId) {
+      if (!isValidObjectId(leadId)) {
+        await session.abortTransaction();
+        return res.status(400).json({ message: "Invalid lead ID" });
+      }
+
+      leadDoc = await Lead.findById(leadId).session(session);
+    }
+
+    /* --------------------------------------------------
+       FIND OR CREATE CUSTOMER
+    -------------------------------------------------- */
+
+    const customerDoc = await findOrCreateCustomer({
+      customerId: customer,
+      quotationDoc,
+      enquiryDoc,
+      leadDoc,
+      session,
+      userId: req.user.id,
+    });
+
+    if (!customerDoc) {
       await session.abortTransaction();
-
       return res.status(400).json({
-        message: "Invalid sales owner ID",
+        message: "Unable to determine customer. Please ensure lead has name and phone.",
       });
     }
 
-    // Sales user can only own their own bookings
+    const customerId = customerDoc._id;
+
+    /* --------------------------------------------------
+       SALES OWNER
+    -------------------------------------------------- */
+
+    let bookingSalesOwner =
+      salesOwner || quotationDoc.assignedTo || req.user.id;
+
+    if (!isValidObjectId(bookingSalesOwner)) {
+      await session.abortTransaction();
+      return res.status(400).json({ message: "Invalid sales owner ID" });
+    }
+
     if (req.user.role === "sales") {
       bookingSalesOwner = req.user.id;
     }
 
-    const salesUser = await User.findById(
-      bookingSalesOwner
-    ).session(session);
-
+    const salesUser = await User.findById(bookingSalesOwner).session(session);
     if (!salesUser) {
       await session.abortTransaction();
-
-      return res.status(404).json({
-        message: "Sales owner not found",
-      });
+      return res.status(404).json({ message: "Sales owner not found" });
     }
-
     if (!salesUser.isActive) {
       await session.abortTransaction();
-
-      return res.status(400).json({
-        message: "Sales owner is inactive",
-      });
+      return res.status(400).json({ message: "Sales owner is inactive" });
     }
-
-    if (
-      !["admin", "manager", "sales"].includes(
-        salesUser.role
-      )
-    ) {
+    if (!["admin", "manager", "sales"].includes(salesUser.role)) {
       await session.abortTransaction();
-
       return res.status(400).json({
-        message:
-          "Sales owner must have admin, manager or sales role",
+        message: "Sales owner must have admin, manager or sales role",
       });
     }
 
-    // --------------------------------------------------
-    // OPERATIONS OWNER
-    // --------------------------------------------------
+    /* --------------------------------------------------
+       OPERATIONS OWNER
+    -------------------------------------------------- */
 
-    let bookingOperationsOwner =
-      operationsOwner || null;
+    let bookingOperationsOwner = operationsOwner || null;
 
     if (bookingOperationsOwner) {
       if (!isValidObjectId(bookingOperationsOwner)) {
         await session.abortTransaction();
-
-        return res.status(400).json({
-          message: "Invalid operations owner ID",
-        });
+        return res.status(400).json({ message: "Invalid operations owner ID" });
       }
 
-      const operationsUser = await User.findById(
-        bookingOperationsOwner
-      ).session(session);
+      const operationsUser = await User.findById(bookingOperationsOwner).session(session);
 
       if (!operationsUser) {
         await session.abortTransaction();
-
-        return res.status(404).json({
-          message: "Operations owner not found",
-        });
+        return res.status(404).json({ message: "Operations owner not found" });
       }
-
       if (!operationsUser.isActive) {
         await session.abortTransaction();
-
-        return res.status(400).json({
-          message: "Operations owner is inactive",
-        });
+        return res.status(400).json({ message: "Operations owner is inactive" });
       }
-
       if (operationsUser.role !== "operations") {
         await session.abortTransaction();
-
         return res.status(400).json({
-          message:
-            "Operations owner must have operations role",
+          message: "Operations owner must have operations role",
         });
       }
     }
 
-    // --------------------------------------------------
-    // OPTIONAL REFERENCES
-    // --------------------------------------------------
+    /* --------------------------------------------------
+       OPTIONAL REFERENCES
+    -------------------------------------------------- */
 
     const optionalReferences = [
       { name: "company", value: company },
-      { name: "trip", value: trip },
-      { name: "lead", value: lead },
     ];
 
     for (const reference of optionalReferences) {
-      if (
-        reference.value &&
-        !isValidObjectId(reference.value)
-      ) {
+      if (reference.value && !isValidObjectId(reference.value)) {
         await session.abortTransaction();
-
         return res.status(400).json({
           message: `Invalid ${reference.name} ID`,
         });
       }
     }
 
-    // --------------------------------------------------
-    // USE QUOTATION DATA AS DEFAULT
-    // --------------------------------------------------
+    /* --------------------------------------------------
+       QUOTATION DATA DEFAULTS
+    -------------------------------------------------- */
 
-    const bookingDestination =
-      destination || quotationDoc.destination;
-
+    const bookingDestination = destination || quotationDoc.destination;
     if (!bookingDestination) {
       await session.abortTransaction();
-
-      return res.status(400).json({
-        message: "Destination is required",
-      });
+      return res.status(400).json({ message: "Destination is required" });
     }
 
-    const bookingTravelDate =
-      travelDate || quotationDoc.travelDate;
+    const bookingTravelDate = travelDate || quotationDoc.travelDate;
+    const bookingReturnDate = returnDate || quotationDoc.returnDate;
 
-    const bookingReturnDate =
-      returnDate || quotationDoc.returnDate;
-
-    const dateError = validateDateRange(
-      bookingTravelDate,
-      bookingReturnDate
-    );
-
+    const dateError = validateDateRange(bookingTravelDate, bookingReturnDate);
     if (dateError) {
       await session.abortTransaction();
-
-      return res.status(400).json({
-        message: dateError,
-      });
+      return res.status(400).json({ message: dateError });
     }
 
     const bookingAdults =
-      adults !== undefined
-        ? Number(adults)
-        : Number(quotationDoc.adults || 1);
-
+      adults !== undefined ? Number(adults) : Number(quotationDoc.adults || 1);
     const bookingChildren =
-      children !== undefined
-        ? Number(children)
-        : Number(quotationDoc.children || 0);
-
+      children !== undefined ? Number(children) : Number(quotationDoc.children || 0);
     const bookingInfants =
-      infants !== undefined
-        ? Number(infants)
-        : Number(quotationDoc.infants || 0);
+      infants !== undefined ? Number(infants) : Number(quotationDoc.infants || 0);
 
-    const travellerCountError =
-      validateTravellerCounts({
-        adults: bookingAdults,
-        children: bookingChildren,
-        infants: bookingInfants,
-      });
+    const travellerCountError = validateTravellerCounts({
+      adults: bookingAdults,
+      children: bookingChildren,
+      infants: bookingInfants,
+    });
 
     if (travellerCountError) {
       await session.abortTransaction();
-
-      return res.status(400).json({
-        message: travellerCountError,
-      });
+      return res.status(400).json({ message: travellerCountError });
     }
 
-    const bookingCurrency =
-      currency ||
-      quotationDoc.currency ||
-      "INR";
+    const bookingCurrency = currency || quotationDoc.currency || "INR";
 
     const bookingTotalAmount =
       totalAmount !== undefined
@@ -545,15 +475,12 @@ const createBooking = async (req, res) => {
 
     if (financialError) {
       await session.abortTransaction();
-
-      return res.status(400).json({
-        message: financialError,
-      });
+      return res.status(400).json({ message: financialError });
     }
 
-    // --------------------------------------------------
-    // CREATE BOOKING
-    // --------------------------------------------------
+    /* --------------------------------------------------
+       CREATE BOOKING
+    -------------------------------------------------- */
 
     const booking = await Booking.create(
       [
@@ -561,67 +488,38 @@ const createBooking = async (req, res) => {
           quotation: quotationDoc._id,
           enquiry: enquiryId || null,
           customer: customerId,
-
           company: company || customerDoc.company || null,
-
           trip: trip || quotationDoc.trip || null,
-
-          lead: lead || quotationDoc.lead || null,
-
-          travellers: Array.isArray(travellers)
-            ? travellers
-            : [],
-
+          lead: leadId || null,
+          travellers: Array.isArray(travellers) ? travellers : [],
           destination: bookingDestination,
           departureCity,
-
           travelDate: bookingTravelDate,
           returnDate: bookingReturnDate,
-
           adults: bookingAdults,
           children: bookingChildren,
           infants: bookingInfants,
-
-          travelType:
-            travelType ||
-            quotationDoc.travelType ||
-            "Other",
-
+          travelType: travelType || quotationDoc.travelType || "Other",
           currency: bookingCurrency,
-
           status: "Pending",
-
           confirmationStatus: {
             hotel: "Pending",
             transport: "Pending",
             activities: "Not Required",
             overall: "Pending",
           },
-
           totalAmount: bookingTotalAmount,
           totalCost: bookingTotalCost,
-
           discountAmount: bookingDiscount,
           taxAmount: bookingTax,
-
-          profitAmount:
-            bookingTotalAmount -
-            bookingTotalCost,
-
+          profitAmount: bookingTotalAmount - bookingTotalCost,
           amountPaid: 0,
-
           amountDue: bookingTotalAmount,
-
           paymentStatus: "Pending",
-
           salesOwner: bookingSalesOwner,
-
-          operationsOwner:
-            bookingOperationsOwner,
-
+          operationsOwner: bookingOperationsOwner,
           specialRequests,
           internalNotes,
-
           createdBy: req.user.id,
         },
       ],
@@ -630,31 +528,92 @@ const createBooking = async (req, res) => {
 
     const createdBooking = booking[0];
 
-    // --------------------------------------------------
-    // COMMIT TRANSACTION
-    // --------------------------------------------------
+    /* --------------------------------------------------
+       AUTO-CREATE TRIP
+    -------------------------------------------------- */
+
+    const tripCode = await generateTripCode(session);
+
+    const totalPax = bookingAdults + bookingChildren;
+    const tripTitle = `${bookingDestination} - ${totalPax} Pax`;
+
+    const [tripDoc] = await Trip.create(
+      [
+        {
+          title: tripTitle,
+          tripCode,
+          destination: bookingDestination,
+          startDate: bookingTravelDate,
+          endDate: bookingReturnDate,
+          travelType: travelType || quotationDoc.travelType || "Other",
+          adults: bookingAdults,
+          children: bookingChildren,
+          infants: bookingInfants,
+          status: "Confirmed",
+          estimatedValue: bookingTotalAmount,
+          totalAmount: bookingTotalAmount,
+          totalCost: bookingTotalCost,
+          profit: bookingTotalAmount - bookingTotalCost,
+          customer: customerId,
+          booking: createdBooking._id,
+          quotation: quotationDoc._id,
+          itinerary: quotationDoc.itinerary || null,
+          company: company || customerDoc.company || null,
+          lead: leadId || null,
+          owner: bookingSalesOwner,
+          description: `Auto-created from booking ${
+            createdBooking.bookingNumber || createdBooking._id
+          }`,
+        },
+      ],
+      { session }
+    );
+
+    /* Link trip to booking */
+    createdBooking.trip = tripDoc._id;
+    await createdBooking.save({ session });
+
+    /* --------------------------------------------------
+       LINK CUSTOMER → QUOTATION + ENQUIRY
+    -------------------------------------------------- */
+
+    if (!quotationDoc.customer) {
+      quotationDoc.customer = customerId;
+      await quotationDoc.save({ session });
+    }
+
+    if (enquiryDoc && !enquiryDoc.customer) {
+      enquiryDoc.customer = customerId;
+      await enquiryDoc.save({ session });
+    }
+
+    /* --------------------------------------------------
+       COMMIT
+    -------------------------------------------------- */
 
     await session.commitTransaction();
 
-    // --------------------------------------------------
-    // POPULATE
-    // --------------------------------------------------
+    /* --------------------------------------------------
+       POPULATE
+    -------------------------------------------------- */
 
     await createdBooking.populate([
       {
         path: "quotation",
-        select:
-          "quotationNumber title totalAmount status",
+        select: "quotationNumber title totalAmount status",
       },
       {
         path: "customer",
-        select:
-          "firstName lastName email phone",
+        select: "firstName lastName email phone",
       },
       {
         path: "enquiry",
+        select: "title destination travelDate returnDate status",
+      },
+      {
+        path: "trip",
         select:
-          "title destination travelDate returnDate status",
+          "title tripCode destination startDate endDate status adults children infants totalAmount",
       },
       {
         path: "salesOwner",
@@ -670,16 +629,15 @@ const createBooking = async (req, res) => {
       },
     ]);
 
-    // --------------------------------------------------
-    // NOTIFICATION
-    // --------------------------------------------------
+    /* --------------------------------------------------
+       NOTIFICATIONS
+    -------------------------------------------------- */
 
     await createNotification({
       recipient: bookingSalesOwner,
       type: "BOOKING_CREATED",
       title: "New Booking Created",
-      message:
-        `Booking for ${createdBooking.destination} has been created.`,
+      message: `Booking for ${createdBooking.destination} has been created.`,
       relatedBooking: createdBooking._id,
       relatedCustomer: createdBooking.customer,
       relatedEnquiry: createdBooking.enquiry,
@@ -687,14 +645,12 @@ const createBooking = async (req, res) => {
       relatedLead: createdBooking.lead,
     });
 
-    // Operations notification
     if (bookingOperationsOwner) {
       await createNotification({
         recipient: bookingOperationsOwner,
         type: "BOOKING_CREATED",
         title: "New Booking Assigned",
-        message:
-          `A new ${createdBooking.destination} booking has been assigned to operations.`,
+        message: `A new ${createdBooking.destination} booking has been assigned to operations.`,
         relatedBooking: createdBooking._id,
         relatedCustomer: createdBooking.customer,
         relatedEnquiry: createdBooking.enquiry,
@@ -716,10 +672,7 @@ const createBooking = async (req, res) => {
       );
     }
 
-    console.error(
-      "Create booking error:",
-      error
-    );
+    console.error("Create booking error:", error);
 
     return res.status(500).json({
       message: "Failed to create booking",
@@ -746,9 +699,7 @@ const getBookings = async (req, res) => {
       search,
     } = req.query;
 
-    const pageNumber =
-      Math.max(Number(req.query.page) || 1, 1);
-
+    const pageNumber = Math.max(Number(req.query.page) || 1, 1);
     const limitNumber = Math.min(
       Math.max(Number(req.query.limit) || 10, 1),
       50
@@ -756,44 +707,27 @@ const getBookings = async (req, res) => {
 
     const query = {};
 
-    // --------------------------------------------------
-    // ROLE SCOPE
-    // --------------------------------------------------
-
     if (req.user.role === "sales") {
       query.salesOwner = toObjectId(req.user.id);
     }
 
     if (req.user.role === "operations") {
-      query.operationsOwner = toObjectId(
-        req.user.id
-      );
+      query.operationsOwner = toObjectId(req.user.id);
     }
 
     if (req.user.role === "manager") {
-      const salesUsers =
-        await getActiveSalesUsers();
+      const salesUsers = await getActiveSalesUsers();
+      const activeSalesIds = salesUsers.map((user) => user._id);
 
-      const activeSalesIds =
-        salesUsers.map((user) => user._id);
-
-      // Manager can only see active sales team
       if (salesOwner) {
         if (!isValidObjectId(salesOwner)) {
-          return res.status(400).json({
-            message: "Invalid sales owner ID",
-          });
+          return res.status(400).json({ message: "Invalid sales owner ID" });
         }
 
-        const requestedSalesId =
-          salesOwner.toString();
-
-        const allowed =
-          activeSalesIds.some(
-            (id) =>
-              id.toString() ===
-              requestedSalesId
-          );
+        const requestedSalesId = salesOwner.toString();
+        const allowed = activeSalesIds.some(
+          (id) => id.toString() === requestedSalesId
+        );
 
         if (!allowed) {
           return res.status(403).json({
@@ -802,71 +736,32 @@ const getBookings = async (req, res) => {
           });
         }
 
-        query.salesOwner =
-          toObjectId(salesOwner);
+        query.salesOwner = toObjectId(salesOwner);
       } else {
-        query.salesOwner = {
-          $in: activeSalesIds,
-        };
+        query.salesOwner = { $in: activeSalesIds };
       }
     }
-
-    // --------------------------------------------------
-    // CUSTOMER FILTER
-    // --------------------------------------------------
 
     if (customer) {
       if (!isValidObjectId(customer)) {
-        return res.status(400).json({
-          message: "Invalid customer ID",
-        });
+        return res.status(400).json({ message: "Invalid customer ID" });
       }
-
       query.customer = toObjectId(customer);
     }
 
-    // --------------------------------------------------
-    // SALES OWNER FILTER
-    // --------------------------------------------------
-
-    if (
-      salesOwner &&
-      !["sales", "manager"].includes(
-        req.user.role
-      )
-    ) {
+    if (salesOwner && !["sales", "manager"].includes(req.user.role)) {
       if (!isValidObjectId(salesOwner)) {
-        return res.status(400).json({
-          message: "Invalid sales owner ID",
-        });
+        return res.status(400).json({ message: "Invalid sales owner ID" });
       }
-
-      query.salesOwner =
-        toObjectId(salesOwner);
+      query.salesOwner = toObjectId(salesOwner);
     }
 
-    // --------------------------------------------------
-    // OPERATIONS OWNER FILTER
-    // --------------------------------------------------
-
-    if (
-      operationsOwner &&
-      req.user.role !== "operations"
-    ) {
+    if (operationsOwner && req.user.role !== "operations") {
       if (!isValidObjectId(operationsOwner)) {
-        return res.status(400).json({
-          message:
-            "Invalid operations owner ID",
-        });
+        return res.status(400).json({ message: "Invalid operations owner ID" });
       }
-
-      query.operationsOwner =
-        toObjectId(operationsOwner);
+      query.operationsOwner = toObjectId(operationsOwner);
     }
-
-    // --------------------------------------------------
-    // STATUS FILTER
-    // --------------------------------------------------
 
     if (status) {
       const allowedStatuses = [
@@ -881,17 +776,11 @@ const getBookings = async (req, res) => {
       ];
 
       if (!allowedStatuses.includes(status)) {
-        return res.status(400).json({
-          message: "Invalid booking status",
-        });
+        return res.status(400).json({ message: "Invalid booking status" });
       }
 
       query.status = status;
     }
-
-    // --------------------------------------------------
-    // PAYMENT STATUS FILTER
-    // --------------------------------------------------
 
     if (paymentStatus) {
       const allowedPaymentStatuses = [
@@ -902,107 +791,57 @@ const getBookings = async (req, res) => {
         "Refunded",
       ];
 
-      if (
-        !allowedPaymentStatuses.includes(
-          paymentStatus
-        )
-      ) {
-        return res.status(400).json({
-          message:
-            "Invalid payment status",
-        });
+      if (!allowedPaymentStatuses.includes(paymentStatus)) {
+        return res.status(400).json({ message: "Invalid payment status" });
       }
 
-      query.paymentStatus =
-        paymentStatus;
+      query.paymentStatus = paymentStatus;
     }
-
-    // --------------------------------------------------
-    // DESTINATION
-    // --------------------------------------------------
 
     if (destination) {
-      query.destination = {
-        $regex: destination,
-        $options: "i",
-      };
+      query.destination = { $regex: destination, $options: "i" };
     }
-
-    // --------------------------------------------------
-    // SEARCH
-    // --------------------------------------------------
 
     if (search) {
       query.$or = [
-        {
-          bookingNumber: {
-            $regex: search,
-            $options: "i",
-          },
-        },
-        {
-          destination: {
-            $regex: search,
-            $options: "i",
-          },
-        },
+        { bookingNumber: { $regex: search, $options: "i" } },
+        { destination: { $regex: search, $options: "i" } },
       ];
     }
 
-    // --------------------------------------------------
-    // PAGINATION
-    // --------------------------------------------------
+    const skip = (pageNumber - 1) * limitNumber;
 
-    const skip =
-      (pageNumber - 1) *
-      limitNumber;
+    const [bookings, total] = await Promise.all([
+      Booking.find(query)
+        .populate(
+          "quotation",
+          "quotationNumber title totalAmount status"
+        )
+        .populate("customer", "firstName lastName email phone")
+        .populate("enquiry", "title destination travelDate returnDate")
+        .populate(
+          "trip",
+          "title tripCode destination startDate endDate status"
+        )
+        .populate("salesOwner", "name email role")
+        .populate("operationsOwner", "name email role")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNumber),
 
-    const [bookings, total] =
-      await Promise.all([
-        Booking.find(query)
-          .populate(
-            "quotation",
-            "quotationNumber title totalAmount status"
-          )
-          .populate(
-            "customer",
-            "firstName lastName email phone"
-          )
-          .populate(
-            "enquiry",
-            "title destination travelDate returnDate"
-          )
-          .populate(
-            "salesOwner",
-            "name email role"
-          )
-          .populate(
-            "operationsOwner",
-            "name email role"
-          )
-          .sort({ createdAt: -1 })
-          .skip(skip)
-          .limit(limitNumber),
-
-        Booking.countDocuments(query),
-      ]);
+      Booking.countDocuments(query),
+    ]);
 
     return res.status(200).json({
       message: "Bookings fetched successfully",
       count: bookings.length,
       total,
       page: pageNumber,
-      pages: Math.ceil(
-        total / limitNumber
-      ),
+      pages: Math.ceil(total / limitNumber),
       bookings,
     });
   } catch (error) {
-    console.error(
-      "Get bookings error:",
-      error
-    );
-
+    console.error("Get bookings error:", error);
     return res.status(500).json({
       message: "Failed to fetch bookings",
       error: error.message,
@@ -1019,46 +858,26 @@ const getBookingById = async (req, res) => {
     const { id } = req.params;
 
     if (!isValidObjectId(id)) {
-      return res.status(400).json({
-        message: "Invalid booking ID",
-      });
+      return res.status(400).json({ message: "Invalid booking ID" });
     }
 
-    const booking =
-      await Booking.findById(id)
-        .populate("quotation")
-        .populate("customer")
-        .populate("enquiry")
-        .populate("trip")
-        .populate("lead")
-        .populate(
-          "salesOwner",
-          "name email role"
-        )
-        .populate(
-          "operationsOwner",
-          "name email role"
-        )
-        .populate(
-          "createdBy",
-          "name email role"
-        );
+    const booking = await Booking.findById(id)
+      .populate("quotation")
+      .populate("customer")
+      .populate("enquiry")
+      .populate("trip")
+      .populate("lead")
+      .populate("salesOwner", "name email role")
+      .populate("operationsOwner", "name email role")
+      .populate("createdBy", "name email role");
 
     if (!booking) {
-      return res.status(404).json({
-        message: "Booking not found",
-      });
+      return res.status(404).json({ message: "Booking not found" });
     }
 
-    if (
-      !canViewBooking(
-        booking,
-        req.user
-      )
-    ) {
+    if (!canViewBooking(booking, req.user)) {
       return res.status(403).json({
-        message:
-          "Not authorized to view this booking",
+        message: "Not authorized to view this booking",
       });
     }
 
@@ -1067,11 +886,7 @@ const getBookingById = async (req, res) => {
       booking,
     });
   } catch (error) {
-    console.error(
-      "Get booking error:",
-      error
-    );
-
+    console.error("Get booking error:", error);
     return res.status(500).json({
       message: "Failed to fetch booking",
       error: error.message,
@@ -1088,50 +903,26 @@ const updateBooking = async (req, res) => {
     const { id } = req.params;
 
     if (!isValidObjectId(id)) {
-      return res.status(400).json({
-        message: "Invalid booking ID",
-      });
+      return res.status(400).json({ message: "Invalid booking ID" });
     }
 
-    const booking =
-      await Booking.findById(id);
+    const booking = await Booking.findById(id);
 
     if (!booking) {
-      return res.status(404).json({
-        message: "Booking not found",
-      });
+      return res.status(404).json({ message: "Booking not found" });
     }
 
-    if (
-      !canManageBooking(
-        booking,
-        req.user
-      )
-    ) {
+    if (!canManageBooking(booking, req.user)) {
       return res.status(403).json({
-        message:
-          "Not authorized to update this booking",
+        message: "Not authorized to update this booking",
       });
     }
 
-    // --------------------------------------------------
-    // PROTECTED STATUSES
-    // --------------------------------------------------
-
-    if (
-      ["Completed", "Cancelled", "Refunded"].includes(
-        booking.status
-      )
-    ) {
+    if (["Completed", "Cancelled", "Refunded"].includes(booking.status)) {
       return res.status(400).json({
-        message:
-          `Booking cannot be updated after ${booking.status.toLowerCase()} status`,
+        message: `Booking cannot be updated after ${booking.status.toLowerCase()} status`,
       });
     }
-
-    // --------------------------------------------------
-    // ALLOWED NON-FINANCIAL FIELDS
-    // --------------------------------------------------
 
     const allowedFields = [
       "travellers",
@@ -1151,77 +942,53 @@ const updateBooking = async (req, res) => {
 
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) {
-        booking[field] =
-          req.body[field];
+        booking[field] = req.body[field];
       }
     });
 
-    // --------------------------------------------------
-    // DATE VALIDATION
-    // --------------------------------------------------
+    const dateError = validateDateRange(booking.travelDate, booking.returnDate);
+    if (dateError) return res.status(400).json({ message: dateError });
 
-    const dateError =
-      validateDateRange(
-        booking.travelDate,
-        booking.returnDate
-      );
-
-    if (dateError) {
-      return res.status(400).json({
-        message: dateError,
-      });
-    }
-
-    // --------------------------------------------------
-    // TRAVELLER COUNT VALIDATION
-    // --------------------------------------------------
-
-    const travellerCountError =
-      validateTravellerCounts({
-        adults: Number(booking.adults),
-        children: Number(booking.children),
-        infants: Number(booking.infants),
-      });
-
-    if (travellerCountError) {
-      return res.status(400).json({
-        message: travellerCountError,
-      });
-    }
-
-    // --------------------------------------------------
-    // FINANCIAL VALUES ARE NOT DIRECTLY EDITABLE
-    // --------------------------------------------------
-
-    // totalAmount, totalCost, discountAmount,
-    // taxAmount and amountPaid should be controlled
-    // by quotation/payment/finance workflows.
-
-    // --------------------------------------------------
-    // PROFIT
-    // --------------------------------------------------
+    const travellerCountError = validateTravellerCounts({
+      adults: Number(booking.adults),
+      children: Number(booking.children),
+      infants: Number(booking.infants),
+    });
+    if (travellerCountError) return res.status(400).json({ message: travellerCountError });
 
     booking.profitAmount =
-      (Number(booking.totalAmount) || 0) -
-      (Number(booking.totalCost) || 0);
+      (Number(booking.totalAmount) || 0) - (Number(booking.totalCost) || 0);
 
     await booking.save();
 
+    /* Sync Trip */
+    if (booking.trip) {
+      try {
+        await Trip.findByIdAndUpdate(booking.trip, {
+          title: `${booking.destination} - ${
+            Number(booking.adults || 0) + Number(booking.children || 0)
+          } Pax`,
+          destination: booking.destination,
+          startDate: booking.travelDate,
+          endDate: booking.returnDate,
+          adults: booking.adults,
+          children: booking.children,
+          infants: booking.infants,
+          travelType: booking.travelType,
+          totalAmount: booking.totalAmount,
+          totalCost: booking.totalCost,
+          profit: booking.profitAmount,
+        });
+      } catch (tripErr) {
+        console.error("Failed to sync trip:", tripErr.message);
+      }
+    }
+
     await booking.populate([
-      {
-        path: "customer",
-        select:
-          "firstName lastName email phone",
-      },
-      {
-        path: "salesOwner",
-        select: "name email role",
-      },
-      {
-        path: "operationsOwner",
-        select:
-          "name email role",
-      },
+      { path: "customer", select: "firstName lastName email phone" },
+      { path: "trip", select: "title tripCode destination status" },
+      { path: "salesOwner", select: "name email role" },
+      { path: "operationsOwner", select: "name email role" },
     ]);
 
     return res.status(200).json({
@@ -1229,11 +996,7 @@ const updateBooking = async (req, res) => {
       booking,
     });
   } catch (error) {
-    console.error(
-      "Update booking error:",
-      error
-    );
-
+    console.error("Update booking error:", error);
     return res.status(500).json({
       message: "Failed to update booking",
       error: error.message,
@@ -1250,89 +1013,62 @@ const confirmBooking = async (req, res) => {
     const { id } = req.params;
 
     if (!isValidObjectId(id)) {
-      return res.status(400).json({
-        message: "Invalid booking ID",
-      });
+      return res.status(400).json({ message: "Invalid booking ID" });
     }
 
-    const booking =
-      await Booking.findById(id);
+    const booking = await Booking.findById(id);
 
     if (!booking) {
-      return res.status(404).json({
-        message: "Booking not found",
-      });
+      return res.status(404).json({ message: "Booking not found" });
     }
 
-    if (
-      !canManageBooking(
-        booking,
-        req.user
-      )
-    ) {
+    if (!canManageBooking(booking, req.user)) {
       return res.status(403).json({
-        message:
-          "Not authorized to confirm this booking",
+        message: "Not authorized to confirm this booking",
       });
     }
 
-    // Only these states can become Confirmed
     if (
-      ![
-        "Pending",
-        "Partially Confirmed",
-        "On Hold",
-      ].includes(booking.status)
+      !["Pending", "Partially Confirmed", "On Hold"].includes(booking.status)
     ) {
       return res.status(400).json({
-        message:
-          `Booking cannot be confirmed from ${booking.status} status`,
+        message: `Booking cannot be confirmed from ${booking.status} status`,
       });
     }
 
     booking.status = "Confirmed";
-
-    booking.confirmationStatus.overall =
-      "Confirmed";
-
+    booking.confirmationStatus.overall = "Confirmed";
     await booking.save();
 
+    /* Sync Trip status */
+    if (booking.trip) {
+      try {
+        await Trip.findByIdAndUpdate(booking.trip, { status: "Confirmed" });
+      } catch (tripErr) {
+        console.error("Failed to sync trip:", tripErr.message);
+      }
+    }
+
     await createNotification({
-      recipient:
-        booking.salesOwner ||
-        req.user.id,
-
+      recipient: booking.salesOwner || req.user.id,
       type: "BOOKING_CONFIRMED",
-
       title: "Booking Confirmed",
-
-      message:
-        `Booking ${booking.bookingNumber || ""} for ${booking.destination} has been confirmed.`,
-
-      relatedBooking:
-        booking._id,
-
-      relatedCustomer:
-        booking.customer,
-
-      relatedQuotation:
-        booking.quotation,
+      message: `Booking ${
+        booking.bookingNumber || ""
+      } for ${booking.destination} has been confirmed.`,
+      relatedBooking: booking._id,
+      relatedCustomer: booking.customer,
+      relatedQuotation: booking.quotation,
     });
 
     return res.status(200).json({
-      message:
-        "Booking confirmed successfully",
+      message: "Booking confirmed successfully",
       booking,
     });
   } catch (error) {
-    console.error(
-      "Confirm booking error:",
-      error
-    );
-
+    console.error("Confirm booking error:", error);
     return res.status(500).json({
-      message:
-        "Failed to confirm booking",
+      message: "Failed to confirm booking",
       error: error.message,
     });
   }
@@ -1347,109 +1083,72 @@ const cancelBooking = async (req, res) => {
     const { id } = req.params;
 
     if (!isValidObjectId(id)) {
-      return res.status(400).json({
-        message: "Invalid booking ID",
-      });
+      return res.status(400).json({ message: "Invalid booking ID" });
     }
 
-    const booking =
-      await Booking.findById(id);
+    const booking = await Booking.findById(id);
 
     if (!booking) {
-      return res.status(404).json({
-        message: "Booking not found",
-      });
+      return res.status(404).json({ message: "Booking not found" });
     }
 
-    if (
-      !canManageBooking(
-        booking,
-        req.user
-      )
-    ) {
+    if (!canManageBooking(booking, req.user)) {
       return res.status(403).json({
-        message:
-          "Not authorized to cancel this booking",
+        message: "Not authorized to cancel this booking",
       });
     }
 
-    // --------------------------------------------------
-    // INVALID CANCELLATION STATES
-    // --------------------------------------------------
-
-    if (
-      ["Completed", "Cancelled", "Refunded"].includes(
-        booking.status
-      )
-    ) {
+    if (["Completed", "Cancelled", "Refunded"].includes(booking.status)) {
       return res.status(400).json({
-        message:
-          `Booking cannot be cancelled from ${booking.status} status`,
+        message: `Booking cannot be cancelled from ${booking.status} status`,
       });
     }
 
-    const cancellationReason =
-      req.body.cancellationReason;
+    const cancellationReason = req.body.cancellationReason;
 
-    if (
-      !cancellationReason ||
-      !cancellationReason.trim()
-    ) {
+    if (!cancellationReason || !cancellationReason.trim()) {
       return res.status(400).json({
-        message:
-          "Cancellation reason is required",
+        message: "Cancellation reason is required",
       });
     }
 
     booking.status = "Cancelled";
-
-    booking.cancellationReason =
-      cancellationReason.trim();
-
-    booking.cancelledAt =
-      new Date();
-
-    booking.cancelledBy =
-      req.user.id;
-
+    booking.cancellationReason = cancellationReason.trim();
+    booking.cancelledAt = new Date();
+    booking.cancelledBy = req.user.id;
     await booking.save();
 
+    /* Sync Trip status */
+    if (booking.trip) {
+      try {
+        await Trip.findByIdAndUpdate(booking.trip, {
+          status: "Cancelled",
+          cancellationReason: cancellationReason.trim(),
+          cancelledAt: new Date(),
+        });
+      } catch (tripErr) {
+        console.error("Failed to sync trip:", tripErr.message);
+      }
+    }
+
     await createNotification({
-      recipient:
-        booking.salesOwner ||
-        req.user.id,
-
+      recipient: booking.salesOwner || req.user.id,
       type: "BOOKING_CANCELLED",
-
       title: "Booking Cancelled",
-
-      message:
-        `Booking for ${booking.destination} has been cancelled.`,
-
-      relatedBooking:
-        booking._id,
-
-      relatedCustomer:
-        booking.customer,
-
-      relatedQuotation:
-        booking.quotation,
+      message: `Booking for ${booking.destination} has been cancelled.`,
+      relatedBooking: booking._id,
+      relatedCustomer: booking.customer,
+      relatedQuotation: booking.quotation,
     });
 
     return res.status(200).json({
-      message:
-        "Booking cancelled successfully",
+      message: "Booking cancelled successfully",
       booking,
     });
   } catch (error) {
-    console.error(
-      "Cancel booking error:",
-      error
-    );
-
+    console.error("Cancel booking error:", error);
     return res.status(500).json({
-      message:
-        "Failed to cancel booking",
+      message: "Failed to cancel booking",
       error: error.message,
     });
   }
@@ -1467,4 +1166,3 @@ module.exports = {
   confirmBooking,
   cancelBooking,
 };
-

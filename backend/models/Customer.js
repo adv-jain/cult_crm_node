@@ -2,154 +2,113 @@ const mongoose = require("mongoose");
 
 const customerSchema = new mongoose.Schema(
   {
-    // Main contact person for this customer
-    contact: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Contact"
-    },
-
+    // Company link (optional)
     company: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Company"
+      ref: "Company",
+      default: null,
     },
 
-    // Customer information
+    // Customer type
     customerType: {
       type: String,
-      enum: [
-        "Individual",
-        "Corporate",
-        "Family",
-        "Group",
-        "Other"
-      ],
-      default: "Individual"
+      enum: ["Individual", "Corporate", "Family", "Group", "Other"],
+      default: "Individual",
     },
 
+    // Basic info
     firstName: {
       type: String,
-      trim: true
+      trim: true,
     },
 
     lastName: {
       type: String,
-      trim: true
+      trim: true,
     },
 
     email: {
       type: String,
       trim: true,
-      lowercase: true
+      lowercase: true,
     },
 
     phone: {
       type: String,
-      trim: true
+      trim: true,
     },
 
     alternatePhone: {
       type: String,
-      trim: true
+      trim: true,
     },
 
     whatsapp: {
       type: String,
-      trim: true
+      trim: true,
     },
 
     // Address
     address: {
-      street: {
-        type: String,
-        trim: true
-      },
-
-      city: {
-        type: String,
-        trim: true
-      },
-
-      state: {
-        type: String,
-        trim: true
-      },
-
-      country: {
-        type: String,
-        trim: true,
-        default: "India"
-      },
-
-      postalCode: {
-        type: String,
-        trim: true
-      }
+      street: { type: String, trim: true },
+      city: { type: String, trim: true },
+      state: { type: String, trim: true },
+      country: { type: String, trim: true, default: "India" },
+      postalCode: { type: String, trim: true },
     },
 
     // Emergency contact
     emergencyContact: {
-      name: {
-        type: String,
-        trim: true
-      },
-
-      relationship: {
-        type: String,
-        trim: true
-      },
-
-      phone: {
-        type: String,
-        trim: true
-      }
+      name: { type: String, trim: true },
+      relationship: { type: String, trim: true },
+      phone: { type: String, trim: true },
     },
 
-    // Sales/lead source
+    // Lead reference (source)
     lead: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Lead"
+      ref: "Lead",
+      default: null,
     },
 
-    // Employee responsible for customer
+    // Employee responsible
     owner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true
+      required: true,
     },
 
     customerSince: {
       type: Date,
-      default: Date.now
+      default: Date.now,
     },
 
     status: {
       type: String,
-      enum: [
-        "Active",
-        "Inactive",
-        "Potential"
-      ],
-      default: "Active"
+      enum: ["Active", "Inactive", "Potential"],
+      default: "Active",
     },
 
     notes: {
       type: String,
-      trim: true
-    }
+      trim: true,
+    },
   },
   {
-    timestamps: true
+    timestamps: true,
   }
 );
 
-// Indexes
+// =========================================================
+// INDEXES
+// =========================================================
+
 customerSchema.index({ owner: 1 });
 customerSchema.index({ company: 1 });
 customerSchema.index({ lead: 1 });
+customerSchema.index({ phone: 1 });
+customerSchema.index({ email: 1 });
 customerSchema.index({ status: 1 });
 customerSchema.index({ customerType: 1 });
 
-module.exports = mongoose.model(
-  "Customer",
-  customerSchema
-);
+module.exports = mongoose.model("Customer", customerSchema);

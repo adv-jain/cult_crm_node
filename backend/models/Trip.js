@@ -104,21 +104,52 @@ const tripSchema = new mongoose.Schema(
     customer: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Customer",
+      default: null,
+    },
+
+    /* ==========================================
+       BOOKING REFERENCE (auto-created from booking)
+    ========================================== */
+    booking: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Booking",
+      default: null,
+    },
+
+    /* ==========================================
+       QUOTATION REFERENCE
+    ========================================== */
+    quotation: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Quotation",
+      default: null,
+    },
+
+    /* ==========================================
+       ITINERARY REFERENCE
+    ========================================== */
+    itinerary: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Itinerary",
+      default: null,
     },
 
     company: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Company",
+      default: null,
     },
 
     lead: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Lead",
+      default: null,
     },
 
     owner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      default: null,
     },
 
     description: {
@@ -151,5 +182,8 @@ tripSchema.index({ lead: 1 });
 tripSchema.index({ owner: 1 });
 tripSchema.index({ status: 1 });
 tripSchema.index({ startDate: 1 });
+tripSchema.index({ booking: 1 });
+tripSchema.index({ quotation: 1 });
+tripSchema.index({ itinerary: 1 });
 
 module.exports = mongoose.model("Trip", tripSchema);

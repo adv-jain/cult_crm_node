@@ -4,6 +4,7 @@ import {
   FiCheck,
   FiClock,
   FiDownload,
+  FiEdit2,
   FiHome,
   FiMapPin,
   FiActivity,
@@ -65,13 +66,14 @@ function ViewSection({
   className = "",
 }) {
   const colorMap = {
-    blue: "bg-blue-50 text-blue-600",
+    blue: "bg-brand-blue-50 text-brand-blue",
     purple: "bg-purple-50 text-purple-600",
     emerald: "bg-emerald-50 text-emerald-600",
-    amber: "bg-amber-50 text-amber-600",
+    amber: "bg-brand-gold-50 text-brand-gold-dark",
     pink: "bg-pink-50 text-pink-600",
     indigo: "bg-indigo-50 text-indigo-600",
     cyan: "bg-cyan-50 text-cyan-600",
+    orange: "bg-orange-50 text-orange-600",
   };
 
   return (
@@ -110,6 +112,19 @@ function getItineraryHotelName(hotel) {
 
 function getItineraryTransportName(transport) {
   if (!transport) return "Transport";
+
+  /* Backend array bhejta hai */
+  if (Array.isArray(transport)) {
+    const first = transport[0];
+    if (!first) return "Transport";
+    return (
+      first.transport?.name ||
+      first.name ||
+      first.type ||
+      "Transport"
+    );
+  }
+
   return (
     transport.transport?.name ||
     transport.name ||
@@ -160,7 +175,11 @@ function getFreeTimeText(freeTime) {
    QUOTATION VIEW (READ-ONLY)
 ========================================================= */
 
-export default function QuotationView({ quotation, onClose }) {
+export default function QuotationView({
+  quotation,
+  onClose,
+  onEdit,
+}) {
   useEffect(() => {
     if (!quotation) return;
 
@@ -192,6 +211,12 @@ export default function QuotationView({ quotation, onClose }) {
     }
   };
 
+  const handleEdit = () => {
+    if (onEdit) {
+      onEdit(quotation);
+    }
+  };
+
   if (!quotation) return null;
 
   const currency = quotation.currency || "INR";
@@ -209,7 +234,7 @@ export default function QuotationView({ quotation, onClose }) {
 
         {/* HEADER */}
         <div className="relative shrink-0 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600" />
+          <div className="absolute inset-0 bg-gradient-to-r from-brand-blue to-brand-blue-light" />
           <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/10" />
           <div className="absolute -bottom-8 right-16 w-20 h-20 rounded-full bg-white/5" />
 
@@ -226,7 +251,7 @@ export default function QuotationView({ quotation, onClose }) {
                   </h2>
 
                   <span className="inline-flex items-center gap-1 rounded-full bg-white/15 backdrop-blur-sm border border-white/20 px-2 py-0.5 text-[10px] font-semibold text-white">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-gold" />
                     {quotation.status || "Draft"}
                   </span>
                 </div>
@@ -344,16 +369,14 @@ export default function QuotationView({ quotation, onClose }) {
             </ViewSection>
           </div>
 
-          {/* ==========================================
-              SELECTED PACKAGE
-          ========================================== */}
+          {/* SELECTED PACKAGE */}
           {quotation.package && (
             <ViewSection
               title="Selected Package"
               icon={<FiPackage size={14} />}
               iconColor="emerald"
             >
-              <div className="rounded-lg border border-green-100 bg-green-50/60 p-3">
+              <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-gray-900">
@@ -369,7 +392,7 @@ export default function QuotationView({ quotation, onClose }) {
                         : ""}
                     </p>
                     {quotation.package.pricing?.adultPrice > 0 && (
-                      <p className="text-xs font-semibold text-green-700 mt-1">
+                      <p className="text-xs font-semibold text-emerald-700 mt-1">
                         ₹
                         {Number(
                           quotation.package.pricing.adultPrice
@@ -382,8 +405,8 @@ export default function QuotationView({ quotation, onClose }) {
 
                 <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-2">
                   {quotation.package.hotelCategory && (
-                    <div className="rounded-lg border border-green-100 bg-white px-2.5 py-1.5">
-                      <p className="text-[9px] font-bold uppercase tracking-wide text-green-600">
+                    <div className="rounded-lg border border-emerald-100 bg-white px-2.5 py-1.5">
+                      <p className="text-[9px] font-bold uppercase tracking-wide text-emerald-600">
                         Hotel
                       </p>
                       <p className="text-[11px] font-semibold text-gray-800 mt-0.5 truncate">
@@ -392,8 +415,8 @@ export default function QuotationView({ quotation, onClose }) {
                     </div>
                   )}
                   {quotation.package.mealPlan && (
-                    <div className="rounded-lg border border-green-100 bg-white px-2.5 py-1.5">
-                      <p className="text-[9px] font-bold uppercase tracking-wide text-green-600">
+                    <div className="rounded-lg border border-emerald-100 bg-white px-2.5 py-1.5">
+                      <p className="text-[9px] font-bold uppercase tracking-wide text-emerald-600">
                         Meals
                       </p>
                       <p className="text-[11px] font-semibold text-gray-800 mt-0.5 truncate">
@@ -402,8 +425,8 @@ export default function QuotationView({ quotation, onClose }) {
                     </div>
                   )}
                   {quotation.package.transportation && (
-                    <div className="rounded-lg border border-green-100 bg-white px-2.5 py-1.5">
-                      <p className="text-[9px] font-bold uppercase tracking-wide text-green-600">
+                    <div className="rounded-lg border border-emerald-100 bg-white px-2.5 py-1.5">
+                      <p className="text-[9px] font-bold uppercase tracking-wide text-emerald-600">
                         Transport
                       </p>
                       <p className="text-[11px] font-semibold text-gray-800 mt-0.5 truncate">
@@ -416,19 +439,17 @@ export default function QuotationView({ quotation, onClose }) {
             </ViewSection>
           )}
 
-          {/* ==========================================
-              ITINERARY (only if NO package)
-          ========================================== */}
+          {/* ITINERARY */}
           {itinerary && !quotation.package && (
             <ViewSection
               title="Travel Itinerary"
               icon={<FiMapPin size={14} />}
               iconColor="emerald"
             >
-              <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50/60 p-3.5">
+              <div className="mb-4 rounded-lg border border-brand-blue/20 bg-brand-blue-50/60 p-3.5">
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 text-white shrink-0">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-brand-blue to-brand-blue-light text-white shrink-0">
                       <FiMapPin size={15} />
                     </div>
 
@@ -527,8 +548,8 @@ export default function QuotationView({ quotation, onClose }) {
 
               {Array.isArray(itinerary.importantNotes) &&
                 itinerary.importantNotes.length > 0 && (
-                  <div className="mt-3 rounded-lg border border-amber-100 bg-amber-50/60 p-3">
-                    <p className="text-[11px] font-bold text-amber-800 mb-2">
+                  <div className="mt-3 rounded-lg border border-brand-gold/30 bg-brand-gold-50/60 p-3">
+                    <p className="text-[11px] font-bold text-brand-gold-dark mb-2">
                       Important Notes
                     </p>
 
@@ -536,7 +557,7 @@ export default function QuotationView({ quotation, onClose }) {
                       {itinerary.importantNotes.map((note, i) => (
                         <li
                           key={i}
-                          className="text-xs text-amber-700 flex gap-2"
+                          className="text-xs text-brand-gold-dark flex gap-2"
                         >
                           <span className="shrink-0">•</span>
                           <span>{note}</span>
@@ -780,7 +801,7 @@ export default function QuotationView({ quotation, onClose }) {
                     >
                       <FiCheck
                         size={13}
-                        className="text-green-500 mt-0.5 shrink-0"
+                        className="text-emerald-500 mt-0.5 shrink-0"
                       />
                       <span>{item}</span>
                     </li>
@@ -842,23 +863,26 @@ export default function QuotationView({ quotation, onClose }) {
         </div>
 
         {/* FOOTER */}
-        <div className="flex shrink-0 items-center justify-between gap-2 border-t border-gray-100 bg-gradient-to-r from-gray-50 to-blue-50/30 px-5 py-3">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-t border-gray-100 bg-gradient-to-r from-gray-50 to-brand-blue-50/30 px-5 py-3">
           <button
             type="button"
             onClick={handleDownloadPDF}
-            className="inline-flex items-center gap-2 h-9 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 text-sm font-semibold text-white shadow-md shadow-blue-500/25 transition hover:shadow-lg hover:shadow-blue-500/30 hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98]"
+            className="inline-flex items-center gap-2 h-9 rounded-lg bg-brand-blue px-4 text-sm font-semibold text-white shadow-brand transition hover:bg-brand-blue-dark hover:shadow-brand-lg active:scale-[0.98]"
           >
             <FiDownload size={14} />
             Download PDF
           </button>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-9 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 hover:border-gray-300"
-          >
-            Close
-          </button>
+          {onEdit && (
+            <button
+              type="button"
+              onClick={handleEdit}
+              className="inline-flex items-center gap-2 h-9 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 hover:border-gray-300"
+            >
+              <FiEdit2 size={14} />
+              Edit
+            </button>
+          )}
         </div>
       </div>
 
@@ -894,17 +918,17 @@ function SummaryCard({
   highlight = false,
 }) {
   const colorMap = {
-    blue: "bg-blue-50/60 border-blue-100 text-blue-600",
+    blue: "bg-brand-blue-50/60 border-brand-blue/20 text-brand-blue",
     purple: "bg-purple-50/60 border-purple-100 text-purple-600",
     indigo: "bg-indigo-50/60 border-indigo-100 text-indigo-600",
-    green: "bg-green-50/60 border-green-100 text-green-600",
+    green: "bg-emerald-50/60 border-emerald-100 text-emerald-600",
   };
 
   const valueColorMap = {
-    blue: "text-blue-900",
+    blue: "text-brand-blue-dark",
     purple: "text-purple-900",
     indigo: "text-indigo-900",
-    green: "text-green-900",
+    green: "text-emerald-900",
   };
 
   return (
@@ -934,8 +958,8 @@ function SummaryCard({
 
 function OverviewItem({ label, value }) {
   return (
-    <div className="rounded-lg border border-blue-100 bg-white px-2.5 py-2">
-      <p className="text-[9px] font-bold uppercase tracking-wide text-blue-500">
+    <div className="rounded-lg border border-brand-blue/20 bg-white px-2.5 py-2">
+      <p className="text-[9px] font-bold uppercase tracking-wide text-brand-blue">
         {label}
       </p>
       <p className="text-xs font-semibold text-gray-800 mt-1 truncate">
@@ -953,8 +977,8 @@ function DetailRow({
   danger = false,
 }) {
   let valueClass = "text-gray-800";
-  if (highlight) valueClass = "text-blue-700 font-bold";
-  else if (success) valueClass = "text-green-600 font-semibold";
+  if (highlight) valueClass = "text-brand-blue-dark font-bold";
+  else if (success) valueClass = "text-emerald-600 font-semibold";
   else if (danger) valueClass = "text-red-600 font-semibold";
 
   return (
@@ -976,7 +1000,7 @@ function ItemRow({
   amount,
 }) {
   const colorMap = {
-    blue: "bg-blue-50 text-blue-600",
+    blue: "bg-brand-blue-50 text-brand-blue",
     orange: "bg-orange-50 text-orange-600",
     purple: "bg-purple-50 text-purple-600",
     indigo: "bg-indigo-50 text-indigo-600",
@@ -1018,8 +1042,8 @@ function ItemRow({
 function DayCard({ day, index }) {
   return (
     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-      <div className="flex items-center gap-2.5 border-b border-gray-100 bg-gradient-to-r from-blue-50/60 to-white px-3.5 py-2.5">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 text-white text-[11px] font-bold shrink-0">
+      <div className="flex items-center gap-2.5 border-b border-gray-100 bg-gradient-to-r from-brand-blue-50/60 to-white px-3.5 py-2.5">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-brand-blue to-brand-blue-light text-white text-[11px] font-bold shrink-0">
           {day.dayNumber || index + 1}
         </div>
 
@@ -1038,7 +1062,7 @@ function DayCard({ day, index }) {
         </div>
 
         {(day.city || day.location) && (
-          <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 shrink-0">
+          <span className="inline-flex items-center gap-1 rounded-md bg-brand-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-brand-blue shrink-0">
             <FiMapPin size={9} />
             {[day.city, day.location].filter(Boolean).join(", ")}
           </span>
@@ -1055,7 +1079,7 @@ function DayCard({ day, index }) {
         {Array.isArray(day.activities) && day.activities.length > 0 && (
           <div>
             <div className="flex items-center gap-1.5 mb-1.5">
-              <FiActivity size={11} className="text-blue-600" />
+              <FiActivity size={11} className="text-brand-blue" />
               <span className="text-[10px] font-bold uppercase tracking-wide text-gray-600">
                 Activities
               </span>
@@ -1118,7 +1142,7 @@ function DayCard({ day, index }) {
         {getMealsText(day.meals) && (
           <div>
             <div className="flex items-center gap-1.5 mb-1">
-              <FiCoffee size={11} className="text-amber-600" />
+              <FiCoffee size={11} className="text-brand-gold" />
               <span className="text-[10px] font-bold uppercase tracking-wide text-gray-600">
                 Meals
               </span>
@@ -1165,13 +1189,13 @@ function ArrayCard({ title, items, variant = "success" }) {
     <div
       className={`rounded-lg border p-3 ${
         isSuccess
-          ? "bg-green-50/60 border-green-100"
+          ? "bg-emerald-50/60 border-emerald-100"
           : "bg-red-50/60 border-red-100"
       }`}
     >
       <p
         className={`text-[11px] font-bold mb-2 ${
-          isSuccess ? "text-green-800" : "text-red-800"
+          isSuccess ? "text-emerald-800" : "text-red-800"
         }`}
       >
         {title}
@@ -1182,7 +1206,7 @@ function ArrayCard({ title, items, variant = "success" }) {
           <li
             key={i}
             className={`text-xs flex gap-2 ${
-              isSuccess ? "text-green-700" : "text-red-700"
+              isSuccess ? "text-emerald-700" : "text-red-700"
             }`}
           >
             {isSuccess ? (

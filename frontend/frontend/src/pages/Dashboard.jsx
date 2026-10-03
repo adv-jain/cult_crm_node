@@ -629,15 +629,15 @@ function Dashboard() {
               </h2>
 
               <p className="text-xs text-gray-500 mt-1">
-                Current deal value by stage
+                Current trip value by stage
               </p>
             </div>
 
             <button
-              onClick={() => navigate("/deals")}
+              onClick={() => navigate("/trips")}
               className="text-xs font-semibold text-blue-600 hover:text-blue-700"
             >
-              View Deals
+              View Trips
             </button>
           </div>
 

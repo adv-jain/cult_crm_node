@@ -11,6 +11,7 @@ import {
   FiPackage,
   FiCheck,
   FiEdit2,
+  FiTrash2,
 } from "react-icons/fi";
 
 const formatFare = (fare, currency = "INR") => {
@@ -23,6 +24,7 @@ export default function TransportView({
   onClose,
   onSelect,
   onEdit,
+  onDelete,
   selectLabel = "Use This Transport",
 }) {
   useEffect(() => {
@@ -310,8 +312,19 @@ export default function TransportView({
           )}
         </div>
 
-        {/* FOOTER — Edit + Use This Transport (Close hata diya) */}
+        {/* FOOTER — Delete + Edit + Use This Transport */}
         <div className="px-5 py-3.5 border-t border-gray-100 bg-gray-50/60 flex justify-end gap-2">
+          {onDelete && (
+            <button
+              type="button"
+              onClick={() => onDelete(transport)}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition"
+            >
+              <FiTrash2 size={14} />
+              Delete
+            </button>
+          )}
+
           {onEdit && (
             <button
               type="button"

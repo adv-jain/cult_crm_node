@@ -6,8 +6,6 @@ import {
   FiCheck,
   FiChevronLeft,
   FiChevronRight,
-  FiEdit2,
-  FiEye,
   FiFileText,
   FiFilter,
   FiPlus,
@@ -15,6 +13,7 @@ import {
   FiTrash2,
   FiUsers,
   FiX,
+  FiBriefcase,
 } from "react-icons/fi";
 
 import { useLocation, useNavigate } from "react-router-dom";
@@ -389,6 +388,13 @@ export default function Quotations() {
     }
   };
 
+  /* CONVERT TO BOOKING */
+  const handleConvertToBooking = (quotation) => {
+    navigate("/bookings", {
+      state: { createFromQuotation: quotation },
+    });
+  };
+
   /* DELETE */
   const handleDelete = async () => {
     if (!confirmDelete) return;
@@ -447,30 +453,9 @@ export default function Quotations() {
     }
   };
 
-  /* ACTION BUTTON */
-  const renderActionButton = ({
-    icon: Icon,
-    label,
-    onClick,
-    colorClass,
-    disabled,
-  }) => (
-    <button
-      type="button"
-      title={label}
-      aria-label={label}
-      onClick={onClick}
-      disabled={disabled}
-      className={`w-8 h-8 rounded-lg flex items-center justify-center transition disabled:opacity-40 disabled:cursor-not-allowed ${colorClass}`}
-    >
-      <Icon size={14} />
-    </button>
-  );
-
   /* RENDER */
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-5 max-w-[1600px] mx-auto">
-
       {/* HEADER */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
@@ -489,7 +474,7 @@ export default function Quotations() {
                 setSearch(event.target.value);
                 setPage(1);
               }}
-              className="w-full pl-9 pr-8 h-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition"
+              className="w-full pl-9 pr-8 h-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:border-brand-blue transition"
             />
 
             {search && (
@@ -515,7 +500,7 @@ export default function Quotations() {
               }
               className={`inline-flex items-center justify-center gap-1.5 px-3 h-9 text-sm font-medium rounded-lg border transition whitespace-nowrap ${
                 dropdownFilterCount > 0
-                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                  ? "bg-brand-blue-50 text-brand-blue-dark border-brand-blue/30"
                   : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
               }`}
             >
@@ -524,7 +509,7 @@ export default function Quotations() {
               <span className="hidden sm:inline">Filters</span>
 
               {dropdownFilterCount > 0 && (
-                <span className="inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[10px] font-semibold bg-blue-600 text-white rounded-full">
+                <span className="inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[10px] font-semibold bg-brand-blue text-white rounded-full">
                   {dropdownFilterCount}
                 </span>
               )}
@@ -564,7 +549,7 @@ export default function Quotations() {
                         }}
                         className={`px-2.5 py-1 text-xs font-medium rounded-md border transition ${
                           status === item
-                            ? "bg-blue-600 text-white border-blue-600"
+                            ? "bg-brand-blue text-white border-brand-blue"
                             : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                         }`}
                       >
@@ -587,7 +572,7 @@ export default function Quotations() {
                   <button
                     type="button"
                     onClick={() => setShowFilters(false)}
-                    className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md transition"
+                    className="px-3 py-1.5 text-xs font-semibold text-white bg-brand-blue hover:bg-brand-blue-dark rounded-md transition"
                   >
                     Apply
                   </button>
@@ -601,7 +586,7 @@ export default function Quotations() {
         <button
           type="button"
           onClick={() => openCreate()}
-          className="inline-flex items-center justify-center gap-1.5 px-4 h-9 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition shadow-sm whitespace-nowrap self-start lg:self-auto"
+          className="inline-flex items-center justify-center gap-1.5 px-4 h-9 bg-brand-blue hover:bg-brand-blue-dark text-white text-sm font-medium rounded-lg transition shadow-brand whitespace-nowrap self-start lg:self-auto"
         >
           <FiPlus size={15} />
           New Quotation
@@ -619,7 +604,7 @@ export default function Quotations() {
           <button
             type="button"
             onClick={handleClearFilters}
-            className="text-blue-600 hover:text-blue-700 font-medium"
+            className="text-brand-blue hover:text-brand-blue-dark font-medium"
           >
             Clear filters
           </button>
@@ -628,7 +613,7 @@ export default function Quotations() {
 
       {/* SUCCESS */}
       {successMessage && (
-        <div className="flex items-start gap-3 bg-green-50 border border-green-200 text-green-800 text-sm px-4 py-3 rounded-lg">
+        <div className="flex items-start gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm px-4 py-3 rounded-lg">
           <FiCheck
             className="flex-shrink-0 mt-0.5"
             size={18}
@@ -639,7 +624,7 @@ export default function Quotations() {
           <button
             type="button"
             onClick={() => setSuccessMessage("")}
-            className="text-green-600 hover:text-green-800"
+            className="text-emerald-600 hover:text-emerald-800"
           >
             <FiX size={16} />
           </button>
@@ -695,7 +680,7 @@ export default function Quotations() {
             <button
               type="button"
               onClick={() => openCreate()}
-              className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition"
+              className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-brand-blue hover:bg-brand-blue-dark text-white text-sm font-medium rounded-lg transition"
             >
               <FiPlus size={15} />
               Create Quotation
@@ -738,17 +723,20 @@ export default function Quotations() {
                   const isActionLoading =
                     actionLoading?.endsWith(quotation._id);
 
-                  const canEdit = true;
-                  const canDelete = isAdmin;
+                  const isAccepted =
+                    String(quotation.status || "")
+                      .trim()
+                      .toLowerCase() === "accepted";
 
                   return (
                     <tr
                       key={quotation._id}
-                      className="hover:bg-gray-50/70 transition-colors"
+                      onClick={() => handleView(quotation)}
+                      className="hover:bg-brand-blue-50/40 transition-colors cursor-pointer"
                     >
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                          <div className="w-9 h-9 rounded-lg bg-brand-blue-50 text-brand-blue flex items-center justify-center shrink-0">
                             <FiFileText size={17} />
                           </div>
 
@@ -830,36 +818,37 @@ export default function Quotations() {
                       </td>
 
                       <td className="px-5 py-3.5">
-                        <div className="flex items-center justify-end gap-1.5 min-w-max">
-                          {renderActionButton({
-                            icon: FiEye,
-                            label: "View",
-                            onClick: () => handleView(quotation),
-                            colorClass:
-                              "text-gray-500 bg-gray-50 hover:text-blue-600 hover:bg-blue-50",
-                            disabled: isActionLoading,
-                          })}
+                        <div
+                          className="flex items-center justify-end gap-1.5 min-w-max"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {isAccepted && (
+                            <button
+                              type="button"
+                              title="Convert to Booking"
+                              onClick={() =>
+                                handleConvertToBooking(quotation)
+                              }
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-semibold text-white bg-brand-blue hover:bg-brand-blue-dark transition shadow-sm"
+                            >
+                              <FiBriefcase size={11} />
+                              Convert
+                            </button>
+                          )}
 
-                          {canEdit &&
-                            renderActionButton({
-                              icon: FiEdit2,
-                              label: "Edit",
-                              onClick: () => openEdit(quotation),
-                              colorClass:
-                                "text-gray-500 bg-gray-50 hover:text-amber-600 hover:bg-amber-50",
-                              disabled: isActionLoading,
-                            })}
-
-                          {canDelete &&
-                            renderActionButton({
-                              icon: FiTrash2,
-                              label: "Delete",
-                              onClick: () =>
-                                setConfirmDelete(quotation),
-                              colorClass:
-                                "text-red-500 bg-red-50 hover:bg-red-100",
-                              disabled: isActionLoading,
-                            })}
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              title="Delete"
+                              onClick={() =>
+                                setConfirmDelete(quotation)
+                              }
+                              disabled={isActionLoading}
+                              className="w-8 h-8 rounded-lg flex items-center justify-center text-red-500 bg-red-50 hover:bg-red-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              <FiTrash2 size={14} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -938,12 +927,16 @@ export default function Quotations() {
       <QuotationView
         quotation={viewQuotation}
         onClose={() => setViewQuotation(null)}
+        onEdit={(quotation) => {
+          setViewQuotation(null);
+          openEdit(quotation);
+        }}
       />
 
       {/* DELETE CONFIRMATION */}
       {confirmDelete && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-[2px]"
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) {
               setConfirmDelete(null);

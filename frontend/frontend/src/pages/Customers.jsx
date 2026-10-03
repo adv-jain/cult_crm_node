@@ -159,6 +159,7 @@ function Customers() {
     const styles = {
       Active: "bg-green-50 text-green-700 border-green-200",
       Inactive: "bg-gray-50 text-gray-600 border-gray-200",
+      Potential: "bg-amber-50 text-amber-700 border-amber-200",
       Churned: "bg-red-50 text-red-700 border-red-200",
     };
 
@@ -196,11 +197,39 @@ function Customers() {
     return `${words[0][0]}${words[1][0]}`.toUpperCase();
   };
 
+  /* =========================================================
+     GET CUSTOMER NAME — ab contact nahi, direct fields use
+  ========================================================= */
   const getCustomerName = (customer) => {
-    const firstName = customer.contact?.firstName || "";
-    const lastName = customer.contact?.lastName || "";
+    if (!customer) return "Unknown";
 
-    return `${firstName} ${lastName}`.trim() || "Unknown";
+    /* Direct customer fields */
+    const firstName = customer.firstName || "";
+    const lastName = customer.lastName || "";
+
+    const fullName = `${firstName} ${lastName}`.trim();
+
+    if (fullName) return fullName;
+
+    /* Fallback: Lead se */
+    if (customer.lead) {
+      const leadName = `${customer.lead.firstName || ""} ${
+        customer.lead.lastName || ""
+      }`.trim();
+      if (leadName) return leadName;
+    }
+
+    return "Unknown";
+  };
+
+  const getCustomerEmail = (customer) => {
+    if (!customer) return "";
+    return customer.email || customer.lead?.email || "";
+  };
+
+  const getCustomerPhone = (customer) => {
+    if (!customer) return "";
+    return customer.phone || customer.lead?.phone || "";
   };
 
   const formatDate = (date) => {
@@ -316,7 +345,7 @@ function Customers() {
                     </label>
 
                     <div className="flex flex-wrap gap-1.5">
-                      {["Active", "Inactive", "Churned"].map((customerStatus) => (
+                      {["Active", "Inactive", "Potential"].map((customerStatus) => (
                         <button
                           type="button"
                           key={customerStatus}
@@ -439,6 +468,7 @@ function Customers() {
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50/60">
                   <TableHead>Customer</TableHead>
+                  <TableHead>Phone</TableHead>
                   <TableHead>Company</TableHead>
                   <TableHead>Owner</TableHead>
                   <TableHead>Customer Since</TableHead>
@@ -450,6 +480,8 @@ function Customers() {
               <tbody className="divide-y divide-gray-100">
                 {customers.map((customer) => {
                   const fullName = getCustomerName(customer);
+                  const email = getCustomerEmail(customer);
+                  const phone = getCustomerPhone(customer);
 
                   return (
                     <tr
@@ -471,10 +503,14 @@ function Customers() {
                               {fullName}
                             </p>
                             <p className="truncate text-xs text-gray-500">
-                              {customer.contact?.email || "No email"}
+                              {email || "No email"}
                             </p>
                           </div>
                         </div>
+                      </td>
+
+                      <td className="px-4 py-3.5 text-gray-700">
+                        <span className="text-xs">{phone || "—"}</span>
                       </td>
 
                       <td className="px-4 py-3.5 text-gray-700">
@@ -514,7 +550,7 @@ function Customers() {
                         >
                           <option value="Active">Active</option>
                           <option value="Inactive">Inactive</option>
-                          <option value="Churned">Churned</option>
+                          <option value="Potential">Potential</option>
                         </select>
                       </td>
 
@@ -556,6 +592,8 @@ function Customers() {
         ) : (
           customers.map((customer) => {
             const fullName = getCustomerName(customer);
+            const email = getCustomerEmail(customer);
+            const phone = getCustomerPhone(customer);
 
             return (
               <div
@@ -577,7 +615,7 @@ function Customers() {
                         {fullName}
                       </p>
                       <p className="truncate text-xs text-gray-500">
-                        {customer.contact?.email || "No email"}
+                        {email || "No email"}
                       </p>
                     </div>
                   </div>
@@ -593,7 +631,7 @@ function Customers() {
 
                 <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3">
                   <MobileInfo label="Company" value={customer.company?.name} />
-                  <MobileInfo label="Phone" value={customer.contact?.phone} />
+                  <MobileInfo label="Phone" value={phone} />
                   <MobileInfo label="Owner" value={customer.owner?.name} />
                   <MobileInfo
                     label="Customer Since"
@@ -669,6 +707,8 @@ function Customers() {
             onClose={() => setSelectedCustomer(null)}
             formatDate={formatDate}
             getCustomerName={getCustomerName}
+            getCustomerEmail={getCustomerEmail}
+            getCustomerPhone={getCustomerPhone}
             getInitials={getInitials}
             getAvatarColor={getAvatarColor}
             getStatusStyle={getStatusStyle}
@@ -765,12 +805,16 @@ function CustomerViewModal({
   onClose,
   formatDate,
   getCustomerName,
+  getCustomerEmail,
+  getCustomerPhone,
   getInitials,
   getAvatarColor,
   getStatusStyle,
 }) {
   const fullName = getCustomerName(customer);
   const initials = getInitials(fullName);
+  const email = getCustomerEmail(customer);
+  const phone = getCustomerPhone(customer);
 
   return (
     <div
@@ -820,7 +864,7 @@ function CustomerViewModal({
               </h3>
 
               <p className="mt-0.5 truncate text-xs text-gray-500">
-                {customer.contact?.email || "No email"}
+                {email || "No email"}
               </p>
 
               <div className="mt-2">
@@ -840,13 +884,13 @@ function CustomerViewModal({
             <div className="grid grid-cols-2 gap-3">
               <ReadOnlyField
                 label="First Name"
-                value={customer.contact?.firstName}
+                value={customer.firstName || customer.lead?.firstName}
                 icon={<FiUser size={13} />}
               />
 
               <ReadOnlyField
                 label="Last Name"
-                value={customer.contact?.lastName}
+                value={customer.lastName || customer.lead?.lastName}
                 icon={<FiUser size={13} />}
               />
             </div>
@@ -854,21 +898,39 @@ function CustomerViewModal({
             <div className="grid grid-cols-2 gap-3">
               <ReadOnlyField
                 label="Email"
-                value={customer.contact?.email}
+                value={email}
                 icon={<FiMail size={13} />}
               />
 
               <ReadOnlyField
                 label="Phone"
-                value={customer.contact?.phone}
+                value={phone}
                 icon={<FiPhone size={13} />}
               />
             </div>
 
             <ReadOnlyField
+              label="WhatsApp"
+              value={customer.whatsapp}
+              icon={<FiPhone size={13} />}
+            />
+
+            <ReadOnlyField
+              label="Alternate Phone"
+              value={customer.alternatePhone}
+              icon={<FiPhone size={13} />}
+            />
+
+            <ReadOnlyField
               label="Company"
               value={customer.company?.name}
               icon={<FiBriefcase size={13} />}
+            />
+
+            <ReadOnlyField
+              label="Customer Type"
+              value={customer.customerType || "Individual"}
+              icon={<FiUser size={13} />}
             />
 
             <div className="grid grid-cols-2 gap-3">
@@ -885,6 +947,29 @@ function CustomerViewModal({
               />
             </div>
 
+            {/* Address */}
+            {customer.address &&
+              (customer.address.street ||
+                customer.address.city ||
+                customer.address.state) && (
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600">
+                    Address
+                  </label>
+                  <div className="min-h-[60px] w-full whitespace-pre-wrap rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm leading-relaxed text-gray-800">
+                    {[
+                      customer.address.street,
+                      customer.address.city,
+                      customer.address.state,
+                      customer.address.country,
+                      customer.address.postalCode,
+                    ]
+                      .filter(Boolean)
+                      .join(", ")}
+                  </div>
+                </div>
+              )}
+
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">
                 Notes
@@ -892,7 +977,9 @@ function CustomerViewModal({
 
               <div className="min-h-[72px] w-full whitespace-pre-wrap rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm leading-relaxed text-gray-800">
                 {customer.notes || (
-                  <span className="italic text-gray-400">No notes available</span>
+                  <span className="italic text-gray-400">
+                    No notes available
+                  </span>
                 )}
               </div>
             </div>

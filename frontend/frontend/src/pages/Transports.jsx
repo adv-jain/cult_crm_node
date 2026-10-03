@@ -3,8 +3,6 @@ import {
   FiPlus,
   FiSearch,
   FiFilter,
-  FiEdit2,
-  FiTrash2,
   FiX,
   FiAlertCircle,
   FiTruck,
@@ -199,6 +197,7 @@ function Transports() {
 
     try {
       await api.delete(`/transports/${transport._id}`);
+      setViewingTransport(null);
       if (transports.length === 1 && page > 1) {
         setPage((prev) => prev - 1);
       } else {
@@ -450,9 +449,6 @@ function Transports() {
                   <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
                     Status
                   </th>
-                  <th className="text-right px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
-                    Actions
-                  </th>
                 </tr>
               </thead>
 
@@ -537,31 +533,6 @@ function Transports() {
                         {transport.status || "Inactive"}
                       </span>
                     </td>
-
-                    <td className="px-5 py-3.5">
-                      <div
-                        className="flex items-center justify-end gap-1.5"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => openEditForm(transport)}
-                          title="Edit"
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 bg-gray-50 hover:text-brand-gold-dark hover:bg-brand-gold-50 transition"
-                        >
-                          <FiEdit2 size={15} />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(transport)}
-                          title="Delete"
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 bg-gray-50 hover:text-red-600 hover:bg-red-50 transition"
-                        >
-                          <FiTrash2 size={15} />
-                        </button>
-                      </div>
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -632,6 +603,11 @@ function Transports() {
         <TransportView
           transport={viewingTransport}
           onClose={() => setViewingTransport(null)}
+          onEdit={(transport) => {
+            setViewingTransport(null);
+            openEditForm(transport);
+          }}
+          onDelete={(transport) => handleDelete(transport)}
         />
       )}
     </div>
