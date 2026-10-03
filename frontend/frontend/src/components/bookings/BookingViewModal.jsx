@@ -299,41 +299,48 @@ export default function BookingViewModal({
           )}
         </div>
 
-        {/* FOOTER — Close button hataya */}
+        {/* FOOTER — Cancel left, Edit/Confirm right */}
         {(canEdit(booking) || canConfirm(booking) || canCancel(booking)) && (
-          <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-gray-100 bg-gradient-to-r from-gray-50 to-brand-blue-50/30">
-            {canEdit(booking) && (
-              <button
-                type="button"
-                onClick={() => onEdit(booking)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition"
-              >
-                <FiEdit2 size={14} />
-                Edit
-              </button>
-            )}
-            {canConfirm(booking) && (
-              <button
-                type="button"
-                onClick={() => onConfirm(booking)}
-                disabled={actionLoading}
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-brand-blue rounded-lg hover:bg-brand-blue-dark transition disabled:opacity-50 shadow-brand"
-              >
-                <FiCheck size={14} />
-                Confirm
-              </button>
-            )}
-            {canCancel(booking) && (
-              <button
-                type="button"
-                onClick={() => onCancel(booking)}
-                disabled={actionLoading}
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition disabled:opacity-50"
-              >
-                <FiXCircle size={14} />
-                Cancel
-              </button>
-            )}
+          <div className="flex items-center justify-between gap-2 px-5 py-3.5 border-t border-gray-100 bg-gradient-to-r from-gray-50 to-brand-blue-50/30">
+            {/* LEFT — Cancel */}
+            <div>
+              {canCancel(booking) && (
+                <button
+                  type="button"
+                  onClick={() => onCancel(booking)}
+                  disabled={actionLoading}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition disabled:opacity-50"
+                >
+                  <FiXCircle size={14} />
+                  Cancel
+                </button>
+              )}
+            </div>
+
+            {/* RIGHT — Edit + Confirm */}
+            <div className="flex items-center gap-2">
+              {canEdit(booking) && (
+                <button
+                  type="button"
+                  onClick={() => onEdit(booking)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition"
+                >
+                  <FiEdit2 size={14} />
+                  Edit
+                </button>
+              )}
+              {canConfirm(booking) && (
+                <button
+                  type="button"
+                  onClick={() => onConfirm(booking)}
+                  disabled={actionLoading}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-brand-blue rounded-lg hover:bg-brand-blue-dark transition disabled:opacity-50 shadow-brand"
+                >
+                  <FiCheck size={14} />
+                  Confirm
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>

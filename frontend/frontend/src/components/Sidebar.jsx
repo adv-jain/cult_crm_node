@@ -27,232 +27,270 @@ import {
   FiX,
 } from "react-icons/fi";
 
+// =====================================================
+// CONSTANTS
+// =====================================================
+
+const STORAGE_KEY = "travelCRMOpenSections";
+
+const DEFAULT_OPEN_SECTIONS = {
+  sales: true,
+  trips: false,
+  customers: false,
+  operations: false,
+  finance: false,
+  work: false,
+  reports: false,
+  admin: false,
+};
+
+const safeParse = (value, fallback) => {
+  if (!value) return fallback;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+};
+
+// =====================================================
+// SUB-COMPONENTS
+// =====================================================
+
+function SectionHeader({ id, title, icon: Icon, paths, isOpen, onToggle, isSectionActive }) {
+  const active = isSectionActive(paths);
+
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(id)}
+      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+        active
+          ? "text-white bg-brand-sidebar-dark"
+          : "text-brand-sidebar-text-muted hover:bg-brand-sidebar-hover hover:text-white"
+      }`}
+    >
+      <span className="flex items-center gap-3">
+        <Icon size={18} className={active ? "text-brand-gold" : ""} />
+        <span>{title}</span>
+      </span>
+
+      {isOpen ? <FiChevronDown size={16} /> : <FiChevronRight size={16} />}
+    </button>
+  );
+}
+
+function NavItem({ to, icon: Icon, onClose, children }) {
+  const linkClasses = ({ isActive }) =>
+    `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+      isActive
+        ? "bg-brand-sidebar-active text-white shadow-md shadow-brand-blue/40"
+        : "text-brand-sidebar-text hover:bg-brand-sidebar-hover hover:text-white"
+    }`;
+
+  return (
+    <NavLink to={to} onClick={() => onClose?.()} className={linkClasses}>
+      {({ isActive }) => (
+        <>
+          <Icon size={17} className={isActive ? "text-brand-gold" : ""} />
+          <span>{children}</span>
+        </>
+      )}
+    </NavLink>
+  );
+}
+
+function SubMenu({ children }) {
+  return (
+    <div className="mt-1 ml-2 pl-3 border-l border-brand-sidebar-border space-y-1">
+      {children}
+    </div>
+  );
+}
+
+// =====================================================
+// MAIN SIDEBAR
+// =====================================================
+
 function Sidebar({ isOpen, onClose }) {
   const { user } = useAuth();
   const location = useLocation();
 
-  const [openSections, setOpenSections] = useState(() => {
-    const saved = localStorage.getItem("travelCRMOpenSections");
-    return saved
-      ? JSON.parse(saved)
-      : {
-          sales: true,
-          trips: false,
-          customers: false,
-          operations: false,
-          finance: false,
-          work: false,
-          reports: false,
-          admin: false,
-        };
-  });
+  // -------- Open sections state (persisted) --------
+  const [openSections, setOpenSections] = useState(() =>
+    safeParse(localStorage.getItem(STORAGE_KEY), DEFAULT_OPEN_SECTIONS)
+  );
 
   useEffect(() => {
-    localStorage.setItem(
-      "travelCRMOpenSections",
-      JSON.stringify(openSections)
-    );
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(openSections));
   }, [openSections]);
 
-  const toggleSection = (section) => {
+  // -------- Close sidebar on route change --------
+  useEffect(() => {
+    onClose?.();
+  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // -------- Close on desktop resize --------
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) onClose?.();
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [onClose]);
+
+  // -------- Lock body scroll on mobile when open --------
+  useEffect(() => {
+    if (!isOpen) {
+      document.body.style.overflow = "";
+      return;
+    }
+
+    if (window.innerWidth < 768) {
+      document.body.style.overflow = "hidden";
+    }
+
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isOpen]);
+
+  // -------- Close on Escape --------
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") onClose?.();
+    };
+
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [isOpen, onClose]);
+
+  // -------- Helpers --------
+  const toggleSection = (section) =>
     setOpenSections((prev) => ({ ...prev, [section]: !prev[section] }));
-  };
 
   const hasRole = (...roles) => roles.includes(user?.role);
 
   const isSectionActive = (paths) =>
     paths.some((path) => location.pathname.startsWith(path));
 
-  /* =========================================================
-     LINK CLASSES — Dark blue sidebar
-  ========================================================= */
-  const linkClasses = ({ isActive }) =>
-    `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200
-    ${
-      isActive
-        ? "bg-brand-sidebar-active text-white shadow-md shadow-brand-blue/40"
-        : "text-brand-sidebar-text hover:bg-brand-sidebar-hover hover:text-white"
-    }`;
-
-  /* =========================================================
-     SECTION HEADER CLASSES
-  ========================================================= */
-  const sectionButtonClasses = (active) =>
-    `w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold transition-all
-    ${
-      active
-        ? "text-white bg-brand-sidebar-dark"
-        : "text-brand-sidebar-text-muted hover:bg-brand-sidebar-hover hover:text-white"
-    }`;
-
-  const SectionHeader = ({ id, title, icon: Icon, paths }) => {
-    const active = isSectionActive(paths);
-
-    return (
-      <button
-        type="button"
-        onClick={() => toggleSection(id)}
-        className={sectionButtonClasses(active)}
-      >
-        <span className="flex items-center gap-3">
-          <Icon
-            size={18}
-            className={active ? "text-brand-gold" : ""}
-          />
-          <span>{title}</span>
-        </span>
-
-        {openSections[id] ? (
-          <FiChevronDown size={16} />
-        ) : (
-          <FiChevronRight size={16} />
-        )}
-      </button>
-    );
-  };
-
-  const NavItem = ({ to, icon: Icon, children }) => (
-    <NavLink to={to} onClick={onClose} className={linkClasses}>
-      {({ isActive }) => (
-        <>
-          <Icon
-            size={17}
-            className={isActive ? "text-brand-gold" : ""}
-          />
-          <span>{children}</span>
-        </>
-      )}
-    </NavLink>
-  );
+  // =====================================================
+  // RENDER
+  // =====================================================
 
   return (
     <>
-      {/* MOBILE OVERLAY */}
+      {/* Mobile backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/60 z-40 md:hidden"
-          onClick={onClose}
+          className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-[1px]"
+          onClick={() => onClose?.()}
+          aria-hidden="true"
         />
       )}
 
-      {/* =========================================================
-          SIDEBAR — DARK BLUE
-      ========================================================= */}
       <aside
-        className={`
-          fixed top-0 left-0 z-50
-          h-screen w-64
-          bg-brand-sidebar
-          border-r border-brand-sidebar-border
-          flex flex-col
-          transition-transform duration-300
-          ${
-            isOpen
-              ? "translate-x-0"
-              : "-translate-x-full md:translate-x-0"
-          }
-        `}
+        className={`fixed top-0 left-0 z-50 h-screen w-64 bg-brand-sidebar border-r border-brand-sidebar-border flex flex-col transform-gpu transition-transform duration-300 ease-in-out shadow-2xl md:shadow-none ${
+          isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        }`}
       >
-        {/* =================================================
-            LOGO — White card wrapper
-        ================================================= */}
-        <div className="h-20 px-4 flex items-center justify-between border-b border-brand-sidebar-border">
+        {/* HEADER / LOGO */}
+        <div className="h-20 min-h-20 px-4 flex items-center justify-between border-b border-brand-sidebar-border">
           <div className="flex items-center min-w-0">
-            <div className="bg-white rounded-xl px-4 py-2 shadow-md">
+            <div className="bg-white rounded-xl px-4 py-2 shadow-md max-w-[180px]">
               <img
                 src="/images/cult-holidays-logo.webp"
-                alt="ULT Holidays"
-                className="h-10 w-auto object-contain shrink-0"
+                alt="CULT Holidays"
+                className="h-10 w-auto max-w-full object-contain shrink-0"
               />
             </div>
           </div>
 
           <button
-            onClick={onClose}
-            className="md:hidden text-brand-sidebar-text hover:text-brand-gold transition"
+            type="button"
+            onClick={() => onClose?.()}
+            className="md:hidden flex items-center justify-center w-9 h-9 rounded-lg text-brand-sidebar-text hover:text-white hover:bg-brand-sidebar-hover transition"
+            aria-label="Close sidebar"
           >
             <FiX size={20} />
           </button>
         </div>
 
-        {/* =================================================
-            NAVIGATION
-        ================================================= */}
-        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1 sidebar-scroll">
-          {/* DASHBOARD */}
-          <NavItem to="/" icon={FiHome}>
+        {/* NAVIGATION */}
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-1 sidebar-scroll overscroll-contain">
+          {/* Dashboard */}
+          <NavItem to="/" icon={FiHome} onClose={onClose}>
             Dashboard
           </NavItem>
 
-          {/* SALES */}
+          {/* Sales */}
           {hasRole("admin", "manager", "sales") && (
             <div className="pt-2">
               <SectionHeader
                 id="sales"
                 title="Sales"
                 icon={FiUsers}
-                paths={[
-                  "/leads",
-                  "/enquiries",
-                  "/quotations",
-                  "/bookings",
-                ]}
+                paths={["/leads", "/enquiries", "/quotations", "/bookings"]}
+                isOpen={openSections.sales}
+                onToggle={toggleSection}
+                isSectionActive={isSectionActive}
               />
 
               {openSections.sales && (
-                <div className="mt-1 ml-2 pl-3 border-l border-brand-sidebar-border space-y-1">
-                  <NavItem to="/leads" icon={FiUser}>
+                <SubMenu>
+                  <NavItem to="/leads" icon={FiUser} onClose={onClose}>
                     Leads
                   </NavItem>
-                  <NavItem to="/enquiries" icon={FiFileText}>
+                  <NavItem to="/enquiries" icon={FiFileText} onClose={onClose}>
                     Enquiries
                   </NavItem>
-                  <NavItem to="/quotations" icon={FiFileText}>
+                  <NavItem to="/quotations" icon={FiFileText} onClose={onClose}>
                     Quotations
                   </NavItem>
-                  <NavItem to="/bookings" icon={FiBriefcase}>
+                  <NavItem to="/bookings" icon={FiBriefcase} onClose={onClose}>
                     Bookings
                   </NavItem>
-                </div>
+                </SubMenu>
               )}
             </div>
           )}
 
-          {/* TRIPS */}
+          {/* Trips */}
           {hasRole("admin", "manager", "sales", "operations") && (
             <div className="pt-1">
               <SectionHeader
                 id="trips"
                 title="Trips"
                 icon={FiMap}
-                paths={[
-                  "/trips",
-                  "/travellers",
-                  "/itineraries",
-                  "/packages",
-                ]}
+                paths={["/trips", "/travellers", "/itineraries", "/packages"]}
+                isOpen={openSections.trips}
+                onToggle={toggleSection}
+                isSectionActive={isSectionActive}
               />
 
               {openSections.trips && (
-                <div className="mt-1 ml-2 pl-3 border-l border-brand-sidebar-border space-y-1">
-                  <NavItem to="/trips" icon={FiMapPin}>
+                <SubMenu>
+                  <NavItem to="/trips" icon={FiMapPin} onClose={onClose}>
                     All Trips
                   </NavItem>
-                  <NavItem to="/travellers" icon={FiUserCheck}>
+                  <NavItem to="/travellers" icon={FiUserCheck} onClose={onClose}>
                     Travellers
                   </NavItem>
-                  <NavItem to="/itineraries" icon={FiMap}>
+                  <NavItem to="/itineraries" icon={FiMap} onClose={onClose}>
                     Itineraries
                   </NavItem>
-                  <NavItem to="/packages" icon={FiPackage}>
+                  <NavItem to="/packages" icon={FiPackage} onClose={onClose}>
                     Packages
                   </NavItem>
-                </div>
+                </SubMenu>
               )}
             </div>
           )}
 
-          {/* CUSTOMERS */}
+          {/* Customers */}
           {hasRole("admin", "manager", "sales") && (
             <div className="pt-1">
               <SectionHeader
@@ -260,19 +298,22 @@ function Sidebar({ isOpen, onClose }) {
                 title="Customers"
                 icon={FiUsers}
                 paths={["/customers"]}
+                isOpen={openSections.customers}
+                onToggle={toggleSection}
+                isSectionActive={isSectionActive}
               />
 
               {openSections.customers && (
-                <div className="mt-1 ml-2 pl-3 border-l border-brand-sidebar-border space-y-1">
-                  <NavItem to="/customers" icon={FiUser}>
+                <SubMenu>
+                  <NavItem to="/customers" icon={FiUser} onClose={onClose}>
                     Customers
                   </NavItem>
-                </div>
+                </SubMenu>
               )}
             </div>
           )}
 
-          {/* OPERATIONS */}
+          {/* Operations */}
           {hasRole("admin", "manager", "operations") && (
             <div className="pt-1">
               <SectionHeader
@@ -280,25 +321,28 @@ function Sidebar({ isOpen, onClose }) {
                 title="Operations"
                 icon={FiTruck}
                 paths={["/hotels", "/transports", "/suppliers"]}
+                isOpen={openSections.operations}
+                onToggle={toggleSection}
+                isSectionActive={isSectionActive}
               />
 
               {openSections.operations && (
-                <div className="mt-1 ml-2 pl-3 border-l border-brand-sidebar-border space-y-1">
-                  <NavItem to="/hotels" icon={FiBriefcase}>
+                <SubMenu>
+                  <NavItem to="/hotels" icon={FiBriefcase} onClose={onClose}>
                     Hotels
                   </NavItem>
-                  <NavItem to="/transports" icon={FiTruck}>
+                  <NavItem to="/transports" icon={FiTruck} onClose={onClose}>
                     Transport
                   </NavItem>
-                  <NavItem to="/suppliers" icon={FiUsers}>
+                  <NavItem to="/suppliers" icon={FiUsers} onClose={onClose}>
                     Suppliers
                   </NavItem>
-                </div>
+                </SubMenu>
               )}
             </div>
           )}
 
-          {/* FINANCE */}
+          {/* Finance */}
           {hasRole("admin", "manager", "accounts") && (
             <div className="pt-1">
               <SectionHeader
@@ -312,31 +356,34 @@ function Sidebar({ isOpen, onClose }) {
                   "/invoices",
                   "/commissions",
                 ]}
+                isOpen={openSections.finance}
+                onToggle={toggleSection}
+                isSectionActive={isSectionActive}
               />
 
               {openSections.finance && (
-                <div className="mt-1 ml-2 pl-3 border-l border-brand-sidebar-border space-y-1">
-                  <NavItem to="/payments" icon={FiCreditCard}>
+                <SubMenu>
+                  <NavItem to="/payments" icon={FiCreditCard} onClose={onClose}>
                     Payments
                   </NavItem>
-                  <NavItem to="/expenses" icon={FiDollarSign}>
+                  <NavItem to="/expenses" icon={FiDollarSign} onClose={onClose}>
                     Expenses
                   </NavItem>
-                  <NavItem to="/refunds" icon={FiRefreshCcw}>
+                  <NavItem to="/refunds" icon={FiRefreshCcw} onClose={onClose}>
                     Refunds
                   </NavItem>
-                  <NavItem to="/invoices" icon={FiFileText}>
+                  <NavItem to="/invoices" icon={FiFileText} onClose={onClose}>
                     Invoices
                   </NavItem>
-                  <NavItem to="/commissions" icon={FiDollarSign}>
+                  <NavItem to="/commissions" icon={FiDollarSign} onClose={onClose}>
                     Commission
                   </NavItem>
-                </div>
+                </SubMenu>
               )}
             </div>
           )}
 
-          {/* WORK */}
+          {/* Work */}
           {hasRole("admin", "manager", "sales", "operations") && (
             <div className="pt-1">
               <SectionHeader
@@ -344,32 +391,29 @@ function Sidebar({ isOpen, onClose }) {
                 title="Work"
                 icon={FiClipboard}
                 paths={["/tasks", "/activities", "/calendar"]}
+                isOpen={openSections.work}
+                onToggle={toggleSection}
+                isSectionActive={isSectionActive}
               />
 
               {openSections.work && (
-                <div className="mt-1 ml-2 pl-3 border-l border-brand-sidebar-border space-y-1">
-                  <NavItem to="/tasks" icon={FiClipboard}>
+                <SubMenu>
+                  <NavItem to="/tasks" icon={FiClipboard} onClose={onClose}>
                     Tasks
                   </NavItem>
-                  <NavItem to="/activities" icon={FiActivity}>
+                  <NavItem to="/activities" icon={FiActivity} onClose={onClose}>
                     Activities
                   </NavItem>
-                  <NavItem to="/calendar" icon={FiCalendar}>
+                  <NavItem to="/calendar" icon={FiCalendar} onClose={onClose}>
                     Calendar
                   </NavItem>
-                </div>
+                </SubMenu>
               )}
             </div>
           )}
 
-          {/* REPORTS */}
-          {hasRole(
-            "admin",
-            "manager",
-            "sales",
-            "operations",
-            "accounts"
-          ) && (
+          {/* Reports */}
+          {hasRole("admin", "manager", "sales", "operations", "accounts") && (
             <div className="pt-1">
               <SectionHeader
                 id="reports"
@@ -383,34 +427,34 @@ function Sidebar({ isOpen, onClose }) {
                   "/reports/profit-loss",
                   "/reports/agent-performance",
                 ]}
+                isOpen={openSections.reports}
+                onToggle={toggleSection}
+                isSectionActive={isSectionActive}
               />
 
               {openSections.reports && (
-                <div className="mt-1 ml-2 pl-3 border-l border-brand-sidebar-border space-y-1">
-                  <NavItem to="/reports/sales" icon={FiBarChart2}>
+                <SubMenu>
+                  <NavItem to="/reports/sales" icon={FiBarChart2} onClose={onClose}>
                     Sales Reports
                   </NavItem>
-                  <NavItem to="/reports/bookings" icon={FiBriefcase}>
+                  <NavItem to="/reports/bookings" icon={FiBriefcase} onClose={onClose}>
                     Booking Reports
                   </NavItem>
-                  <NavItem to="/reports/revenue" icon={FiDollarSign}>
+                  <NavItem to="/reports/revenue" icon={FiDollarSign} onClose={onClose}>
                     Revenue
                   </NavItem>
-                  <NavItem to="/reports/profit-loss" icon={FiBarChart2}>
+                  <NavItem to="/reports/profit-loss" icon={FiBarChart2} onClose={onClose}>
                     Profit & Loss
                   </NavItem>
-                  <NavItem
-                    to="/reports/agent-performance"
-                    icon={FiUsers}
-                  >
+                  <NavItem to="/reports/agent-performance" icon={FiUsers} onClose={onClose}>
                     Agent Performance
                   </NavItem>
-                </div>
+                </SubMenu>
               )}
             </div>
           )}
 
-          {/* ADMIN */}
+          {/* Admin */}
           {hasRole("admin") && (
             <div className="pt-1">
               <SectionHeader
@@ -418,29 +462,30 @@ function Sidebar({ isOpen, onClose }) {
                 title="Admin"
                 icon={FiShield}
                 paths={["/users", "/roles-permissions", "/settings"]}
+                isOpen={openSections.admin}
+                onToggle={toggleSection}
+                isSectionActive={isSectionActive}
               />
 
               {openSections.admin && (
-                <div className="mt-1 ml-2 pl-3 border-l border-brand-sidebar-border space-y-1">
-                  <NavItem to="/users" icon={FiUsers}>
+                <SubMenu>
+                  <NavItem to="/users" icon={FiUsers} onClose={onClose}>
                     Users
                   </NavItem>
-                  <NavItem to="/roles-permissions" icon={FiShield}>
+                  <NavItem to="/roles-permissions" icon={FiShield} onClose={onClose}>
                     Roles & Permissions
                   </NavItem>
-                  <NavItem to="/settings" icon={FiSettings}>
+                  <NavItem to="/settings" icon={FiSettings} onClose={onClose}>
                     Settings
                   </NavItem>
-                </div>
+                </SubMenu>
               )}
             </div>
           )}
         </div>
 
-        {/* =================================================
-            FOOTER — Brand accent
-        ================================================= */}
-        <div className="border-t border-brand-sidebar-border px-4 py-3">
+        {/* FOOTER */}
+        <div className="border-t border-brand-sidebar-border px-4 py-3 shrink-0">
           <div className="flex items-center gap-2 text-[10px] text-brand-sidebar-text-muted">
             <span className="h-1.5 w-1.5 rounded-full bg-brand-gold animate-pulse" />
             <span>CULT Holidays</span>

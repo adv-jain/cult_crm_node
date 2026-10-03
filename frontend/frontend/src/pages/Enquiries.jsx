@@ -8,6 +8,7 @@ import {
   FiFileText,
   FiCheckCircle,
   FiAlertCircle,
+  FiRefreshCw,
 } from "react-icons/fi";
 
 import api from "../api";
@@ -74,7 +75,10 @@ function Enquiries() {
   const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
   const user = storedUser?.user || storedUser;
 
-  /* FETCH */
+  /* ======================================================
+     FETCH
+  ====================================================== */
+
   const fetchEnquiries = async () => {
     try {
       setLoading(true);
@@ -115,7 +119,10 @@ function Enquiries() {
     fetchAssignableUsers();
   }, []);
 
-  /* AUTO DISMISS */
+  /* ======================================================
+     AUTO DISMISS
+  ====================================================== */
+
   useEffect(() => {
     if (!message) return;
     const t = setTimeout(() => setMessage(""), 3000);
@@ -128,7 +135,10 @@ function Enquiries() {
     return () => clearTimeout(t);
   }, [error, showForm]);
 
-  /* OUTSIDE CLICK */
+  /* ======================================================
+     OUTSIDE CLICK
+  ====================================================== */
+
   useEffect(() => {
     const handle = (e) => {
       if (filterRef.current && !filterRef.current.contains(e.target)) {
@@ -139,7 +149,10 @@ function Enquiries() {
     return () => document.removeEventListener("mousedown", handle);
   }, []);
 
-  /* HANDLERS */
+  /* ======================================================
+     HANDLERS
+  ====================================================== */
+
   const openCreateForm = () => {
     setEditingEnquiry(null);
     setMessage("");
@@ -251,7 +264,10 @@ function Enquiries() {
     }
   };
 
-  /* HELPERS */
+  /* ======================================================
+     HELPERS
+  ====================================================== */
+
   const getDisplayName = (enquiry) => {
     const customer = enquiry?.customer;
     if (customer) {
@@ -274,7 +290,10 @@ function Enquiries() {
     return enquiry?.title || "Travel Enquiry";
   };
 
-  /* FILTERED */
+  /* ======================================================
+     FILTERED
+  ====================================================== */
+
   const filteredEnquiries = useMemo(() => {
     return enquiries.filter((e) => {
       const s = search.toLowerCase().trim();
@@ -310,7 +329,10 @@ function Enquiries() {
     });
   }, [enquiries, search, statusFilter, priorityFilter, travelTypeFilter]);
 
-  /* FORMAT */
+  /* ======================================================
+     FORMAT
+  ====================================================== */
+
   const formatShortDate = (date) => {
     if (!date) return null;
     const p = new Date(date);
@@ -348,9 +370,9 @@ function Enquiries() {
     return parts.join(" · ") || null;
   };
 
-  /* ====================================================
-     STATUS & PRIORITY (brand matched)
-  ==================================================== */
+  /* ======================================================
+     STATUS & PRIORITY
+  ====================================================== */
 
   const getStatusDot = (status) => {
     const map = {
@@ -394,7 +416,6 @@ function Enquiries() {
   };
 
   const activeFilterCount = [
-    search,
     statusFilter,
     priorityFilter,
     travelTypeFilter,
@@ -403,156 +424,16 @@ function Enquiries() {
   const hasFilters = activeFilterCount > 0;
   const canDelete = user?.role === "admin";
 
-  /* ====================================================
+  /* ======================================================
      RENDER
-  ==================================================== */
+  ====================================================== */
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto space-y-4">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto space-y-5">
+      {/* MESSAGES */}
 
-      {/* HEADER */}
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Enquiries</h1>
-        </div>
-
-        <button
-          type="button"
-          onClick={openCreateForm}
-          className="inline-flex items-center gap-1.5 h-9 rounded-lg bg-brand-blue px-4 text-sm font-medium text-white transition hover:bg-brand-blue-dark active:scale-[0.98] shadow-brand"
-        >
-          <FiPlus size={15} />
-          New Enquiry
-        </button>
-      </div>
-
-      {/* SEARCH + FILTER */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="relative flex-1 min-w-[240px] max-w-md">
-          <FiSearch
-            size={15}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-          />
-          <input
-            type="text"
-            placeholder="Search enquiries..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-9 w-full rounded-lg border border-gray-200 bg-white pl-9 pr-9 text-sm text-gray-800 outline-none placeholder:text-gray-400 focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/10 transition"
-          />
-          {search && (
-            <button
-              type="button"
-              onClick={() => setSearch("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-700"
-            >
-              <FiX size={12} />
-            </button>
-          )}
-        </div>
-
-        <div className="relative" ref={filterRef}>
-          <button
-            type="button"
-            onClick={() => setShowFilters((p) => !p)}
-            className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition ${
-              hasFilters
-                ? "border-brand-blue/30 bg-brand-blue-50 text-brand-blue-dark"
-                : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-            }`}
-          >
-            <FiFilter size={13} />
-            Filters
-            {hasFilters && (
-              <span className="ml-0.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-brand-blue text-[10px] font-semibold text-white">
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
-
-          {showFilters && (
-            <div className="absolute right-0 top-11 z-30 w-64 rounded-lg border border-gray-200 bg-white shadow-lg">
-              <div className="p-4 space-y-3">
-                <div>
-                  <label className="block text-[11px] font-medium text-gray-600 mb-1">
-                    Status
-                  </label>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/10 transition"
-                  >
-                    <option value="">All statuses</option>
-                    {STATUS_OPTIONS.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-medium text-gray-600 mb-1">
-                    Priority
-                  </label>
-                  <select
-                    value={priorityFilter}
-                    onChange={(e) => setPriorityFilter(e.target.value)}
-                    className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/10 transition"
-                  >
-                    <option value="">All priorities</option>
-                    {PRIORITY_OPTIONS.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-medium text-gray-600 mb-1">
-                    Travel Type
-                  </label>
-                  <select
-                    value={travelTypeFilter}
-                    onChange={(e) => setTravelTypeFilter(e.target.value)}
-                    className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/10 transition"
-                  >
-                    <option value="">All types</option>
-                    {TRAVEL_TYPES.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between gap-2 px-4 py-2.5 bg-gray-50 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={clearFilters}
-                  disabled={!hasFilters}
-                  className="text-xs font-medium text-gray-600 hover:text-gray-900 disabled:opacity-40"
-                >
-                  Clear
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowFilters(false)}
-                  className="rounded-md bg-brand-blue px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-blue-dark transition"
-                >
-                  Done
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* SUCCESS */}
       {message && (
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
           <FiCheckCircle size={15} />
           <span className="flex-1">{message}</span>
           <button
@@ -560,14 +441,13 @@ function Enquiries() {
             onClick={() => setMessage("")}
             className="text-emerald-600 hover:text-emerald-800"
           >
-            <FiX size={13} />
+            <FiX size={14} />
           </button>
         </div>
       )}
 
-      {/* ERROR */}
       {error && !showForm && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           <FiAlertCircle size={15} />
           <span className="flex-1">{error}</span>
           <button
@@ -575,39 +455,206 @@ function Enquiries() {
             onClick={() => setError("")}
             className="text-red-600 hover:text-red-800"
           >
-            <FiX size={13} />
+            <FiX size={14} />
           </button>
         </div>
       )}
 
+      {/* TOOLBAR */}
+
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+        {/* SEARCH */}
+
+        <div className="relative w-full sm:w-72">
+          <FiSearch
+            size={16}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+          />
+
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search enquiries..."
+            className="w-full h-10 pl-9 pr-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition"
+          />
+
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <FiX size={15} />
+            </button>
+          )}
+        </div>
+
+        {/* FILTER BUTTON */}
+
+        <div className="relative" ref={filterRef}>
+          <button
+            type="button"
+            onClick={() => setShowFilters((p) => !p)}
+            className={`inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg border text-sm font-medium transition whitespace-nowrap ${
+              showFilters || hasFilters
+                ? "border-blue-300 bg-blue-50 text-blue-700"
+                : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            <FiFilter size={15} />
+            <span>Filters</span>
+
+            {hasFilters && (
+              <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-semibold">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+
+          {/* FILTER DROPDOWN */}
+
+          {showFilters && (
+            <div className="absolute left-0 top-12 z-30 w-72 bg-white border border-gray-200 rounded-xl shadow-xl shadow-gray-900/10 p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-800">
+                  Filters
+                </h3>
+
+                {hasFilters && (
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    Clear all
+                  </button>
+                )}
+              </div>
+
+              {/* STATUS */}
+
+              <div className="mb-3">
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  Status
+                </label>
+
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-full h-9 px-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                >
+                  <option value="">All statuses</option>
+                  {STATUS_OPTIONS.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* PRIORITY */}
+
+              <div className="mb-3">
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  Priority
+                </label>
+
+                <select
+                  value={priorityFilter}
+                  onChange={(e) => setPriorityFilter(e.target.value)}
+                  className="w-full h-9 px-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                >
+                  <option value="">All priorities</option>
+                  {PRIORITY_OPTIONS.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* TRAVEL TYPE */}
+
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  Travel Type
+                </label>
+
+                <select
+                  value={travelTypeFilter}
+                  onChange={(e) => setTravelTypeFilter(e.target.value)}
+                  className="w-full h-9 px-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                >
+                  <option value="">All types</option>
+                  {TRAVEL_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* SPACER */}
+
+        <div className="hidden sm:block flex-1" />
+
+        {/* REFRESH */}
+
+        <button
+          type="button"
+          onClick={fetchEnquiries}
+          disabled={loading}
+          title="Refresh"
+          className="hidden sm:inline-flex items-center justify-center w-10 h-10 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50 transition"
+        >
+          <FiRefreshCw size={15} className={loading ? "animate-spin" : ""} />
+        </button>
+
+        {/* NEW ENQUIRY */}
+
+        <button
+          type="button"
+          onClick={openCreateForm}
+          className="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition shadow-sm whitespace-nowrap"
+        >
+          <FiPlus size={16} />
+          <span>New Enquiry</span>
+        </button>
+      </div>
+
       {/* TABLE */}
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+              <tr className="border-b border-gray-200 bg-gray-50/60">
+                <th className="text-left px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
                   Customer
                 </th>
-                <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                <th className="text-left px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
                   Destination
                 </th>
-                <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                <th className="text-left px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
                   Travel Dates
                 </th>
-                <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                <th className="text-left px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
                   Travellers
                 </th>
-                <th className="text-right px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                <th className="text-right px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
                   Budget
                 </th>
-                <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                <th className="text-left px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
                   Status
                 </th>
-                <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                <th className="text-left px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
                   Priority
                 </th>
-                <th className="text-right px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                <th className="text-right px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
                   Action
                 </th>
               </tr>
@@ -616,17 +663,19 @@ function Enquiries() {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan="8" className="px-4 py-16 text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-200 border-t-brand-blue" />
-                      <span className="text-sm text-gray-500">Loading...</span>
+                  <td colSpan="8" className="px-5 py-16 text-center">
+                    <div className="flex flex-col items-center justify-center gap-3">
+                      <div className="w-7 h-7 border-2 border-gray-200 border-t-blue-600 rounded-full animate-spin" />
+                      <span className="text-xs text-gray-500">
+                        Loading enquiries...
+                      </span>
                     </div>
                   </td>
                 </tr>
               ) : filteredEnquiries.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="px-4 py-16 text-center">
-                    <p className="text-sm font-medium text-gray-700">
+                  <td colSpan="8" className="px-5 py-16 text-center">
+                    <p className="text-sm font-semibold text-gray-800">
                       No enquiries found
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
@@ -647,54 +696,59 @@ function Enquiries() {
                     <tr
                       key={enquiry._id}
                       onClick={() => handleRowClick(enquiry)}
-                      className="cursor-pointer transition-colors hover:bg-brand-blue-50/40 group"
+                      className="cursor-pointer transition-colors hover:bg-blue-50/40 group"
                     >
                       {/* CUSTOMER */}
-                      <td className="px-4 py-3.5">
-                        <p className="text-sm font-medium text-gray-900 truncate max-w-[220px]">
+
+                      <td className="px-5 py-3.5">
+                        <p className="text-sm font-semibold text-gray-800 truncate max-w-[220px]">
                           {displayName}
                         </p>
                         {enquiry.enquiryNumber && (
-                          <p className="text-[10px] text-gray-400 mt-0.5 font-mono">
+                          <p className="text-[11px] text-gray-400 mt-0.5 font-mono">
                             {enquiry.enquiryNumber}
                           </p>
                         )}
                       </td>
 
                       {/* DESTINATION */}
-                      <td className="px-4 py-3.5">
-                        <p className="text-sm text-gray-800">
+
+                      <td className="px-5 py-3.5">
+                        <p className="text-xs text-gray-700">
                           {enquiry.destination || "—"}
                         </p>
                       </td>
 
                       {/* TRAVEL DATES */}
-                      <td className="px-4 py-3.5">
+
+                      <td className="px-5 py-3.5">
                         {travelDate ? (
-                          <p className="text-sm text-gray-800">
+                          <p className="text-xs text-gray-700">
                             {travelDate}
                             {returnDate ? ` → ${returnDate}` : ""}
                           </p>
                         ) : (
-                          <p className="text-sm text-gray-400">—</p>
+                          <p className="text-xs text-gray-400">—</p>
                         )}
                       </td>
 
                       {/* TRAVELLERS */}
-                      <td className="px-4 py-3.5">
-                        <p className="text-sm text-gray-800">
+
+                      <td className="px-5 py-3.5">
+                        <p className="text-xs text-gray-700">
                           {getTravellerCount(enquiry)}
                         </p>
                         {travellerLabel && (
-                          <p className="text-[11px] text-gray-400 mt-0.5">
+                          <p className="text-[10px] text-gray-400 mt-0.5">
                             {travellerLabel}
                           </p>
                         )}
                       </td>
 
                       {/* BUDGET */}
-                      <td className="px-4 py-3.5 text-right">
-                        <p className="text-sm text-gray-800 font-medium">
+
+                      <td className="px-5 py-3.5 text-right">
+                        <p className="text-xs font-semibold text-gray-800">
                           {formatCurrency(
                             enquiry.budgetMax || enquiry.budgetMin,
                             enquiry.currency
@@ -703,7 +757,8 @@ function Enquiries() {
                       </td>
 
                       {/* STATUS */}
-                      <td className="px-4 py-3.5">
+
+                      <td className="px-5 py-3.5">
                         <span
                           className={`inline-flex items-center gap-1.5 text-xs font-medium ${getStatusText(
                             enquiry.status
@@ -719,7 +774,8 @@ function Enquiries() {
                       </td>
 
                       {/* PRIORITY */}
-                      <td className="px-4 py-3.5">
+
+                      <td className="px-5 py-3.5">
                         <span
                           className={`text-xs font-medium ${getPriorityText(
                             enquiry.priority
@@ -729,15 +785,16 @@ function Enquiries() {
                         </span>
                       </td>
 
-                      {/* ACTION — Clean text button */}
-                      <td className="px-4 py-3.5 text-right">
+                      {/* ACTION */}
+
+                      <td className="px-5 py-3.5 text-right">
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleCreateQuotation(enquiry);
                           }}
-                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-blue hover:text-brand-blue-dark transition-colors"
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors"
                         >
                           <FiFileText size={13} />
                           Create Quote
@@ -752,13 +809,14 @@ function Enquiries() {
         </div>
 
         {!loading && filteredEnquiries.length > 0 && (
-          <div className="border-t border-gray-100 px-4 py-2.5 text-xs text-gray-500">
+          <div className="border-t border-gray-100 px-5 py-2.5 text-xs text-gray-500">
             {filteredEnquiries.length} of {enquiries.length} enquiries
           </div>
         )}
       </div>
 
       {/* FORM */}
+
       <EnquiryForm
         isOpen={showForm}
         onClose={closeForm}
@@ -770,6 +828,7 @@ function Enquiries() {
       />
 
       {/* VIEW MODAL */}
+
       <ViewEnquiry
         enquiry={viewEnquiry}
         onClose={() => setViewEnquiry(null)}

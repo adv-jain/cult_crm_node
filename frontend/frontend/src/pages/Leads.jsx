@@ -5,7 +5,6 @@ import LeadForm from "../components/LeadForm";
 import ViewLead from "../components/ViewLead";
 import { useAuth } from "../context/AuthContext";
 
-
 import {
   FiPlus,
   FiSearch,
@@ -15,8 +14,6 @@ import {
   FiChevronRight,
   FiRefreshCw,
 } from "react-icons/fi";
-
-
 
 function Leads() {
   const { user } = useAuth();
@@ -98,27 +95,17 @@ function Leads() {
 
       const data = response.data;
 
-      setLeads(
-        data?.leads ||
-          data?.data ||
-          []
-      );
+      setLeads(data?.leads || data?.data || []);
 
       setPagination({
         page: data?.pagination?.page || page,
         limit: data?.pagination?.limit || 50,
         total: data?.pagination?.total || 0,
-        totalPages:
-          data?.pagination?.totalPages || 1,
+        totalPages: data?.pagination?.totalPages || 1,
       });
     } catch (err) {
       console.error("Fetch leads error:", err);
-
-      setError(
-        err?.response?.data?.message ||
-          "Unable to load leads."
-      );
-
+      setError(err?.response?.data?.message || "Unable to load leads.");
       setLeads([]);
     } finally {
       setLoading(false);
@@ -130,110 +117,63 @@ function Leads() {
   // =====================================================
 
   const fetchAssignableUsers = async () => {
-    if (
-      user?.role !== "admin" &&
-      user?.role !== "manager"
-    ) {
-      return;
-    }
+    if (user?.role !== "admin" && user?.role !== "manager") return;
 
     try {
-      const response = await api.get(
-        "/leads/assignable-users"
-      );
-
-      setAssignableUsers(
-        response.data?.users ||
-          response.data?.data ||
-          []
-      );
+      const response = await api.get("/leads/assignable-users");
+      setAssignableUsers(response.data?.users || response.data?.data || []);
     } catch (err) {
-      console.error(
-        "Fetch assignable users error:",
-        err
-      );
-
+      console.error("Fetch assignable users error:", err);
       setAssignableUsers([]);
     }
   };
 
   // =====================================================
-  // INITIAL LOAD
+  // EFFECTS
   // =====================================================
 
   useEffect(() => {
     fetchAssignableUsers();
   }, [user?.role]);
 
-  // =====================================================
-  // FETCH WHEN FILTER / PAGE CHANGES
-  // =====================================================
-
   useEffect(() => {
     fetchLeads();
-  }, [
-    page,
-    status,
-    source,
-    priority,
-  ]);
+  }, [page, status, source, priority]);
 
-  // =====================================================
-  // SEARCH DEBOUNCE
-  // =====================================================
-
+  // Search debounce
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (page !== 1) {
-        setPage(1);
-      } else {
-        fetchLeads();
-      }
+      if (page !== 1) setPage(1);
+      else fetchLeads();
     }, 350);
 
     return () => clearTimeout(timer);
   }, [search]);
 
-  // =====================================================
-  // SUCCESS AUTO DISMISS
-  // =====================================================
-
+  // Auto dismiss success
   useEffect(() => {
     if (!success) return;
-
-    const timer = setTimeout(() => {
-      setSuccess("");
-    }, 3000);
-
+    const timer = setTimeout(() => setSuccess(""), 3000);
     return () => clearTimeout(timer);
   }, [success]);
 
-  // =====================================================
-  // ERROR AUTO DISMISS
-  // =====================================================
-
+  // Auto dismiss error
   useEffect(() => {
     if (!error) return;
-
-    const timer = setTimeout(() => {
-      setError("");
-    }, 4000);
-
+    const timer = setTimeout(() => setError(""), 4000);
     return () => clearTimeout(timer);
   }, [error]);
 
   // =====================================================
-  // FILTER COUNT
+  // DERIVED
   // =====================================================
 
-  const activeFilterCount = [
-    status,
-    source,
-    priority,
-  ].filter(Boolean).length;
+  const activeFilterCount = [status, source, priority].filter(Boolean).length;
+  const canGoPrevious = page > 1;
+  const canGoNext = page < (pagination.totalPages || 1);
 
   // =====================================================
-  // CREATE LEAD
+  // ACTIONS
   // =====================================================
 
   const handleAddLead = () => {
@@ -241,193 +181,93 @@ function Leads() {
     setFormOpen(true);
   };
 
-  // =====================================================
-  // EDIT LEAD
-  // =====================================================
-
   const handleEditLead = (lead) => {
     setEditingLead(lead);
     setFormOpen(true);
   };
 
-  // =====================================================
-  // VIEW LEAD
-  // =====================================================
-
   const handleViewLead = async (lead) => {
     try {
-      const response = await api.get(
-        `/leads/${lead._id}`
-      );
-
+      const response = await api.get(`/leads/${lead._id}`);
       setSelectedLead(
-        response.data?.lead ||
-          response.data?.data ||
-          response.data
+        response.data?.lead || response.data?.data || response.data
       );
-
       setViewOpen(true);
     } catch (err) {
-      console.error(
-        "View lead error:",
-        err
-      );
-
-      setError(
-        err?.response?.data?.message ||
-          "Unable to load lead details."
-      );
+      console.error("View lead error:", err);
+      setError(err?.response?.data?.message || "Unable to load lead details.");
     }
   };
-
-  // =====================================================
-  // SUBMIT LEAD
-  // =====================================================
 
   const handleSubmitLead = async (formData) => {
     try {
       setError("");
 
       if (editingLead?._id) {
-        await api.put(
-          `/leads/${editingLead._id}`,
-          formData
-        );
-
-        setSuccess(
-          "Lead updated successfully."
-        );
+        await api.put(`/leads/${editingLead._id}`, formData);
+        setSuccess("Lead updated successfully.");
       } else {
-        await api.post(
-          "/leads",
-          formData
-        );
-
-        setSuccess(
-          "Lead created successfully."
-        );
+        await api.post("/leads", formData);
+        setSuccess("Lead created successfully.");
       }
 
       setFormOpen(false);
       setEditingLead(null);
-
       await fetchLeads();
     } catch (err) {
-      console.error(
-        "Submit lead error:",
-        err
-      );
-
-      setError(
-        err?.response?.data?.message ||
-          "Unable to save lead."
-      );
+      console.error("Submit lead error:", err);
+      setError(err?.response?.data?.message || "Unable to save lead.");
     }
   };
 
-  // =====================================================
-  // DELETE LEAD
-  // =====================================================
-
   const handleDeleteLead = async (lead) => {
     const fullName =
-      [lead.firstName, lead.lastName]
-        .filter(Boolean)
-        .join(" ") ||
+      [lead.firstName, lead.lastName].filter(Boolean).join(" ") ||
       "this lead";
 
-    const confirmed = window.confirm(
-      `Delete "${fullName}"?`
-    );
-
-    if (!confirmed) return;
+    if (!window.confirm(`Delete "${fullName}"?`)) return;
 
     try {
       setDeletingId(lead._id);
       setError("");
 
-      await api.delete(
-        `/leads/${lead._id}`
-      );
+      await api.delete(`/leads/${lead._id}`);
+      setSuccess("Lead deleted successfully.");
 
-      setSuccess(
-        "Lead deleted successfully."
-      );
-
-      // If last item of current page
-      // and not first page, go previous page
-      if (
-        leads.length === 1 &&
-        page > 1
-      ) {
+      if (leads.length === 1 && page > 1) {
         setPage((current) => current - 1);
       } else {
         await fetchLeads();
       }
     } catch (err) {
-      console.error(
-        "Delete lead error:",
-        err
-      );
-
-      setError(
-        err?.response?.data?.message ||
-          "Unable to delete lead."
-      );
+      console.error("Delete lead error:", err);
+      setError(err?.response?.data?.message || "Unable to delete lead.");
     } finally {
       setDeletingId(null);
     }
   };
 
-  // =====================================================
-  // CREATE ENQUIRY
-  // =====================================================
-
   const handleConvertLead = async (lead) => {
     const fullName =
-      [lead.firstName, lead.lastName]
-        .filter(Boolean)
-        .join(" ") ||
+      [lead.firstName, lead.lastName].filter(Boolean).join(" ") ||
       "this lead";
 
-    const confirmed = window.confirm(
-      `Create an enquiry from "${fullName}"?`
-    );
-
-    if (!confirmed) return;
+    if (!window.confirm(`Create an enquiry from "${fullName}"?`)) return;
 
     try {
       setConvertingId(lead._id);
       setError("");
 
-      const response = await api.post(
-        `/leads/${lead._id}/convert`
-      );
-
-      setSuccess(
-        response.data?.message ||
-          "Enquiry created successfully."
-      );
-
+      const response = await api.post(`/leads/${lead._id}/convert`);
+      setSuccess(response.data?.message || "Enquiry created successfully.");
       await fetchLeads();
     } catch (err) {
-      console.error(
-        "Create enquiry error:",
-        err
-      );
-
-      setError(
-        err?.response?.data?.message ||
-          "Unable to create enquiry."
-      );
+      console.error("Create enquiry error:", err);
+      setError(err?.response?.data?.message || "Unable to create enquiry.");
     } finally {
       setConvertingId(null);
     }
   };
-
-  // =====================================================
-  // CLEAR FILTERS
-  // =====================================================
 
   const handleClearFilters = () => {
     setStatus("");
@@ -437,43 +277,22 @@ function Leads() {
     setShowFilters(false);
   };
 
-  // =====================================================
-  // FORM CLOSE
-  // =====================================================
-
   const handleCloseForm = () => {
     setFormOpen(false);
     setEditingLead(null);
   };
-
-  // =====================================================
-  // VIEW CLOSE
-  // =====================================================
 
   const handleCloseView = () => {
     setViewOpen(false);
     setSelectedLead(null);
   };
 
-  // =====================================================
-  // PAGINATION
-  // =====================================================
-
-  const canGoPrevious = page > 1;
-
-  const canGoNext =
-    page < (pagination.totalPages || 1);
-
   const handlePreviousPage = () => {
-    if (!canGoPrevious) return;
-
-    setPage((current) => current - 1);
+    if (canGoPrevious) setPage((current) => current - 1);
   };
 
   const handleNextPage = () => {
-    if (!canGoNext) return;
-
-    setPage((current) => current + 1);
+    if (canGoNext) setPage((current) => current + 1);
   };
 
   // =====================================================
@@ -482,46 +301,11 @@ function Leads() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-5 max-w-[1600px] mx-auto">
-
-      {/* =================================================
-          HEADER
-      ================================================= */}
-
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">
-            Leads
-          </h1>
-
-          <p className="text-sm text-gray-500 mt-1">
-            Manage your travel enquiries and potential customers.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={handleAddLead}
-          className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition"
-        >
-          <FiPlus size={16} />
-
-          Add Lead
-        </button>
-
-      </div>
-
-      {/* =================================================
-          SUCCESS
-      ================================================= */}
+      {/* MESSAGES */}
 
       {success && (
-        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-lg">
-
-          <p className="text-sm text-green-700">
-            {success}
-          </p>
-
+        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-xl">
+          <p className="text-sm text-green-700">{success}</p>
           <button
             type="button"
             onClick={() => setSuccess("")}
@@ -529,21 +313,12 @@ function Leads() {
           >
             <FiX size={16} />
           </button>
-
         </div>
       )}
 
-      {/* =================================================
-          ERROR
-      ================================================= */}
-
       {error && (
-        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-lg">
-
-          <p className="text-sm text-red-700">
-            {error}
-          </p>
-
+        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
+          <p className="text-sm text-red-700">{error}</p>
           <button
             type="button"
             onClick={() => setError("")}
@@ -551,20 +326,15 @@ function Leads() {
           >
             <FiX size={16} />
           </button>
-
         </div>
       )}
 
-      {/* =================================================
-          SEARCH + FILTER
-      ================================================= */}
+      {/* TOOLBAR — Search + Filters + Refresh + Add Lead */}
 
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
         {/* SEARCH */}
 
-        <div className="relative flex-1 max-w-xl">
-
+        <div className="relative w-full sm:w-72">
           <FiSearch
             size={16}
             className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
@@ -573,10 +343,8 @@ function Leads() {
           <input
             type="text"
             value={search}
-            onChange={(e) =>
-              setSearch(e.target.value)
-            }
-            placeholder="Search by name, email, phone or destination..."
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search leads..."
             className="w-full h-10 pl-9 pr-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition"
           />
 
@@ -589,30 +357,25 @@ function Leads() {
               <FiX size={15} />
             </button>
           )}
-
         </div>
 
         {/* FILTER BUTTON */}
 
         <div className="relative">
-
           <button
             type="button"
-            onClick={() =>
-              setShowFilters((value) => !value)
-            }
-            className={`inline-flex items-center justify-center gap-2 h-10 px-3 rounded-lg border text-sm font-medium transition ${
+            onClick={() => setShowFilters((value) => !value)}
+            className={`inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg border text-sm font-medium transition whitespace-nowrap ${
               showFilters || activeFilterCount > 0
                 ? "border-blue-300 bg-blue-50 text-blue-700"
                 : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
             }`}
           >
             <FiFilter size={15} />
-
-            Filters
+            <span>Filters</span>
 
             {activeFilterCount > 0 && (
-              <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center">
+              <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-semibold">
                 {activeFilterCount}
               </span>
             )}
@@ -621,10 +384,8 @@ function Leads() {
           {/* FILTER DROPDOWN */}
 
           {showFilters && (
-            <div className="absolute right-0 top-12 z-30 w-72 bg-white border border-gray-200 rounded-xl shadow-xl shadow-gray-900/10 p-4">
-
+            <div className="absolute left-0 top-12 z-30 w-72 bg-white border border-gray-200 rounded-xl shadow-xl shadow-gray-900/10 p-4">
               <div className="flex items-center justify-between mb-4">
-
                 <h3 className="text-sm font-semibold text-gray-800">
                   Filters
                 </h3>
@@ -638,13 +399,11 @@ function Leads() {
                     Clear all
                   </button>
                 )}
-
               </div>
 
               {/* STATUS */}
 
               <div className="mb-3">
-
                 <label className="block text-xs font-medium text-gray-600 mb-1.5">
                   Status
                 </label>
@@ -657,45 +416,20 @@ function Leads() {
                   }}
                   className="w-full h-9 px-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                 >
-                  <option value="">
-                    All Statuses
-                  </option>
-
-                  <option value="New">
-                    New
-                  </option>
-
-                  <option value="Contacted">
-                    Contacted
-                  </option>
-
-                  <option value="Qualified">
-                    Qualified
-                  </option>
-
-                  <option value="Proposal">
-                    Proposal
-                  </option>
-
-                  <option value="Negotiation">
-                    Negotiation
-                  </option>
-
-                  <option value="Won">
-                    Won
-                  </option>
-
-                  <option value="Lost">
-                    Lost
-                  </option>
+                  <option value="">All Statuses</option>
+                  <option value="New">New</option>
+                  <option value="Contacted">Contacted</option>
+                  <option value="Qualified">Qualified</option>
+                  <option value="Proposal">Proposal</option>
+                  <option value="Negotiation">Negotiation</option>
+                  <option value="Won">Won</option>
+                  <option value="Lost">Lost</option>
                 </select>
-
               </div>
 
               {/* SOURCE */}
 
               <div className="mb-3">
-
                 <label className="block text-xs font-medium text-gray-600 mb-1.5">
                   Source
                 </label>
@@ -708,61 +442,24 @@ function Leads() {
                   }}
                   className="w-full h-9 px-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                 >
-                  <option value="">
-                    All Sources
-                  </option>
-
-                  <option value="Website">
-                    Website
-                  </option>
-
-                  <option value="Facebook">
-                    Facebook
-                  </option>
-
-                  <option value="Instagram">
-                    Instagram
-                  </option>
-
-                  <option value="Google Ads">
-                    Google Ads
-                  </option>
-
-                  <option value="LinkedIn">
-                    LinkedIn
-                  </option>
-
-                  <option value="Referral">
-                    Referral
-                  </option>
-
-                  <option value="Cold Call">
-                    Cold Call
-                  </option>
-
-                  <option value="Email Campaign">
-                    Email Campaign
-                  </option>
-
-                  <option value="WhatsApp">
-                    WhatsApp
-                  </option>
-
-                  <option value="Walk In">
-                    Walk In
-                  </option>
-
-                  <option value="Other">
-                    Other
-                  </option>
+                  <option value="">All Sources</option>
+                  <option value="Website">Website</option>
+                  <option value="Facebook">Facebook</option>
+                  <option value="Instagram">Instagram</option>
+                  <option value="Google Ads">Google Ads</option>
+                  <option value="LinkedIn">LinkedIn</option>
+                  <option value="Referral">Referral</option>
+                  <option value="Cold Call">Cold Call</option>
+                  <option value="Email Campaign">Email Campaign</option>
+                  <option value="WhatsApp">WhatsApp</option>
+                  <option value="Walk In">Walk In</option>
+                  <option value="Other">Other</option>
                 </select>
-
               </div>
 
               {/* PRIORITY */}
 
               <div>
-
                 <label className="block text-xs font-medium text-gray-600 mb-1.5">
                   Priority
                 </label>
@@ -775,29 +472,19 @@ function Leads() {
                   }}
                   className="w-full h-9 px-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                 >
-                  <option value="">
-                    All Priorities
-                  </option>
-
-                  <option value="Low">
-                    Low
-                  </option>
-
-                  <option value="Medium">
-                    Medium
-                  </option>
-
-                  <option value="High">
-                    High
-                  </option>
+                  <option value="">All Priorities</option>
+                  <option value="Low">Low</option>
+                  <option value="Medium">Medium</option>
+                  <option value="High">High</option>
                 </select>
-
               </div>
-
             </div>
           )}
-
         </div>
+
+        {/* SPACER */}
+
+        <div className="hidden sm:block flex-1" />
 
         {/* REFRESH */}
 
@@ -806,37 +493,31 @@ function Leads() {
           onClick={fetchLeads}
           disabled={loading}
           title="Refresh"
-          className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50 transition"
+          className="hidden sm:inline-flex items-center justify-center w-10 h-10 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50 transition"
         >
-          <FiRefreshCw
-            size={15}
-            className={
-              loading
-                ? "animate-spin"
-                : ""
-            }
-          />
+          <FiRefreshCw size={15} className={loading ? "animate-spin" : ""} />
         </button>
 
+        {/* ADD LEAD */}
+
+        <button
+          type="button"
+          onClick={handleAddLead}
+          className="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition shadow-sm whitespace-nowrap"
+        >
+          <FiPlus size={16} />
+          <span>Add Lead</span>
+        </button>
       </div>
 
-      {/* =================================================
-          TABLE
-      ================================================= */}
+      {/* TABLE */}
 
       {loading ? (
         <div className="bg-white border border-gray-200 rounded-xl">
-
           <div className="flex flex-col items-center justify-center py-16">
-
             <div className="w-7 h-7 border-2 border-gray-200 border-t-blue-600 rounded-full animate-spin" />
-
-            <p className="text-xs text-gray-500 mt-3">
-              Loading leads...
-            </p>
-
+            <p className="text-xs text-gray-500 mt-3">Loading leads...</p>
           </div>
-
         </div>
       ) : (
         <LeadTable
@@ -851,27 +532,18 @@ function Leads() {
         />
       )}
 
-      {/* =================================================
-          PAGINATION
-      ================================================= */}
+      {/* PAGINATION */}
 
       {!loading && pagination.total > 0 && (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-
           <p className="text-xs text-gray-500">
             Showing{" "}
             <span className="font-medium text-gray-700">
-              {Math.min(
-                (page - 1) * pagination.limit + 1,
-                pagination.total
-              )}
+              {Math.min((page - 1) * pagination.limit + 1, pagination.total)}
             </span>{" "}
             to{" "}
             <span className="font-medium text-gray-700">
-              {Math.min(
-                page * pagination.limit,
-                pagination.total
-              )}
+              {Math.min(page * pagination.limit, pagination.total)}
             </span>{" "}
             of{" "}
             <span className="font-medium text-gray-700">
@@ -881,24 +553,18 @@ function Leads() {
           </p>
 
           <div className="flex items-center gap-2">
-
             <button
               type="button"
               onClick={handlePreviousPage}
               disabled={!canGoPrevious}
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
             >
               <FiChevronLeft size={14} />
-
               Previous
             </button>
 
             <span className="text-xs text-gray-500 px-2">
-              Page{" "}
-              <span className="font-medium text-gray-700">
-                {page}
-              </span>{" "}
-              of{" "}
+              Page <span className="font-medium text-gray-700">{page}</span> of{" "}
               <span className="font-medium text-gray-700">
                 {pagination.totalPages || 1}
               </span>
@@ -908,21 +574,16 @@ function Leads() {
               type="button"
               onClick={handleNextPage}
               disabled={!canGoNext}
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
             >
               Next
-
               <FiChevronRight size={14} />
             </button>
-
           </div>
-
         </div>
       )}
 
-      {/* =================================================
-          LEAD FORM
-      ================================================= */}
+      {/* LEAD FORM */}
 
       <LeadForm
         isOpen={formOpen}
@@ -934,16 +595,13 @@ function Leads() {
         assignableUsers={assignableUsers}
       />
 
-      {/* =================================================
-          VIEW LEAD
-      ================================================= */}
+      {/* VIEW LEAD */}
 
       <ViewLead
         isOpen={viewOpen}
         onClose={handleCloseView}
         lead={selectedLead}
       />
-
     </div>
   );
 }
