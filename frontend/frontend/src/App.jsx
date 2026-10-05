@@ -1,11 +1,17 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
-// Public Pages
+// =====================================================
+// PUBLIC PAGES
+// =====================================================
+
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 
-// Pages
+// =====================================================
+// PAGES
+// =====================================================
+
 import Dashboard from "./pages/Dashboard";
 import Calendar from "./pages/Calendar";
 import Leads from "./pages/Leads";
@@ -25,13 +31,20 @@ import Suppliers from "./pages/Supplier";
 import Tasks from "./pages/Tasks";
 import Activities from "./pages/Activities";
 import Users from "./pages/Users";
+import Payment from "./pages/Payment";
+import Invoice from "./pages/Invoice";
+// =====================================================
+// COMPONENTS
+// =====================================================
 
-// Components
 import Notifications from "./components/Notifications";
 import ProtectedRoute from "./components/ProtectedRoute";
 import RoleRoute from "./components/RoleRoute";
 
-// Layout
+// =====================================================
+// LAYOUT
+// =====================================================
+
 import DashboardLayout from "./layouts/DashboardLayout";
 
 // =====================================================
@@ -59,7 +72,15 @@ const OPS_ROLES = [
   "operations",
 ];
 
-const ADMIN_ONLY = ["admin"];
+const FINANCE_ROLES = [
+  "admin",
+  "manager",
+  "accounts",
+];
+
+const ADMIN_ONLY = [
+  "admin",
+];
 
 // =====================================================
 // PROTECTED ROUTES CONFIG
@@ -67,7 +88,7 @@ const ADMIN_ONLY = ["admin"];
 
 const protectedRoutes = [
   // ===================================================
-  // Dashboard
+  // DASHBOARD
   // ===================================================
 
   {
@@ -77,7 +98,7 @@ const protectedRoutes = [
   },
 
   // ===================================================
-  // Calendar
+  // CALENDAR
   // ===================================================
 
   {
@@ -87,7 +108,7 @@ const protectedRoutes = [
   },
 
   // ===================================================
-  // Sales
+  // SALES
   // ===================================================
 
   {
@@ -145,7 +166,22 @@ const protectedRoutes = [
   },
 
   // ===================================================
-  // Operations
+  // FINANCE
+  // ===================================================
+{
+  path: "/invoices",
+  element: <Invoice />,
+  roles: FINANCE_ROLES,
+},
+
+  {
+    path: "/payments",
+    element: <Payment />,
+    roles: FINANCE_ROLES,
+  },
+
+  // ===================================================
+  // OPERATIONS
   // ===================================================
 
   {
@@ -191,7 +227,7 @@ const protectedRoutes = [
   },
 
   // ===================================================
-  // Admin
+  // ADMIN
   // ===================================================
 
   {
@@ -201,7 +237,7 @@ const protectedRoutes = [
   },
 
   // ===================================================
-  // Notifications
+  // NOTIFICATIONS
   // ===================================================
 
   {
@@ -220,9 +256,9 @@ function App() {
     <BrowserRouter>
       <Routes>
 
-        {/* ============================================
+        {/* =================================================
             PUBLIC ROUTES
-        ============================================ */}
+        ================================================= */}
 
         <Route
           path="/login"
@@ -239,9 +275,9 @@ function App() {
           element={<ForgotPasswordPage />}
         />
 
-        {/* ============================================
+        {/* =================================================
             PROTECTED ROUTES
-        ============================================ */}
+        ================================================= */}
 
         {protectedRoutes.map(
           ({ path, element, roles }) => (

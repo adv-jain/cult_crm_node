@@ -5,80 +5,418 @@ const Refund = require("../models/Refund");
 const Booking = require("../models/Booking");
 const Payment = require("../models/Payment");
 const Customer = require("../models/Customer");
-const Deal = require("../models/Trip");
+const Trip = require("../models/Trip");
 const Invoice = require("../models/Invoice");
 
-// ----------------------------------------------------
+// =====================================================
+// CONSTANTS
+// =====================================================
+
+const REFUND_STATUSES = {
+  REQUESTED: "Requested",
+  UNDER_REVIEW: "Under Review",
+  APPROVED: "Approved",
+  PROCESSING: "Processing",
+  COMPLETED: "Completed",
+  REJECTED: "Rejected",
+  CANCELLED: "Cancelled",
+};
+
+const ACTIVE_REFUND_STATUSES = [
+  REFUND_STATUSES.REQUESTED,
+  REFUND_STATUSES.UNDER_REVIEW,
+  REFUND_STATUSES.APPROVED,
+  REFUND_STATUSES.PROCESSING,
+  REFUND_STATUSES.COMPLETED,
+];
+
+const COMPLETED_REFUND_STATUS = REFUND_STATUSES.COMPLETED;
+
+const PAYMENT_STATUSES = {
+  PENDING: "Pending",
+  COMPLETED: "Completed",
+  FAILED: "Failed",
+  PARTIALLY_REFUNDED: "Partially Refunded",
+  REFUNDED: "Refunded",
+};
+
+const INVOICE_PAYMENT_STATUSES = {
+  PENDING: "Pending",
+  PARTIALLY_PAID: "Partially Paid",
+  PAID: "Paid",
+  OVERDUE: "Overdue",
+  CANCELLED: "Cancelled",
+};
+
+const INVOICE_STATUSES = {
+  DRAFT: "Draft",
+  ISSUED: "Issued",
+  SENT: "Sent",
+  VIEWED: "Viewed",
+  PARTIALLY_PAID: "Partially Paid",
+  PAID: "Paid",
+  OVERDUE: "Overdue",
+  CANCELLED: "Cancelled",
+};
+
+// =====================================================
 // HELPERS
-// ----------------------------------------------------
+// =====================================================
 
 const isValidObjectId = (id) => {
   return mongoose.Types.ObjectId.isValid(id);
 };
 
-// ----------------------------------------------------
-// GENERATE REFUND NUMBER
-// ----------------------------------------------------
+const toObjectId = (id) => {
+  return new mongoose.Types.ObjectId(id);
+};
 
-const generateRefundNumber = async (session) => {
+const roundMoney = (value) => {
+  return Number(Number(value || 0).toFixed(2));
+};
+
+const isPositiveNumber = (value) => {
+  return Number.isFinite(Number(value)) && Number(value) > 0;
+};
+
+const normalizeString = (value) => {
+  if (value === undefined || value === null) return null;
+
+  const normalized = String(value).trim();
+
+  return normalized.length ? normalized : null;
+};
+
+const escapeRegex = (value) => {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+};
+
+// =====================================================
+// REFUND NUMBER GENERATOR
+// =====================================================
+
+const generateRefundNumber = async (session = null) => {
   const year = new Date().getFullYear();
   const prefix = `REF-${year}-`;
 
-  const lastRefund = await Refund.findOne({
-    refundNumber: new RegExp(`^${prefix}`),
-  })
-    .sort({ refundNumber: -1 })
-    .select("refundNumber")
-    .session(session)
-    .lean();
+  const query = Refund.findOne({
+    refundNumber: new RegExp(`^${prefix}\\d+$`, "i"),
+  }).sort({ refundNumber: -1 });
+
+  if (session) {
+    query.session(session);
+  }
+
+  const latestRefund = await query.lean();
 
   let nextNumber = 1;
 
-  if (lastRefund?.refundNumber) {
-    const lastNumber = parseInt(
-      lastRefund.refundNumber.replace(prefix, ""),
-      10
-    );
+  if (latestRefund?.refundNumber) {
+    const match = latestRefund.refundNumber.match(/(\d+)$/);
 
-    if (!Number.isNaN(lastNumber)) {
-      nextNumber = lastNumber + 1;
+    if (match) {
+      nextNumber = Number(match[1]) + 1;
     }
   }
 
   return `${prefix}${String(nextNumber).padStart(4, "0")}`;
 };
 
-// ----------------------------------------------------
+// =====================================================
 // POPULATE REFUND
-// ----------------------------------------------------
+// =====================================================
 
 const populateRefund = (query) => {
   return query
-    .populate("booking")
-    .populate("payment")
-    .populate("invoice")
-    .populate("customer")
-    .populate("trip")
-    .populate("requestedBy", "name email role")
-    .populate("approvedBy", "name email role")
-    .populate("processedBy", "name email role");
+    .populate({
+      path: "booking",
+      select:
+        "bookingNumber destination departureCity travelDate returnDate adults children infants travelType totalAmount amountPaid amountDue paymentStatus status customer",
+    })
+    .populate({
+      path: "payment",
+      select:
+        "paymentNumber booking invoice customer amount currency paymentMethod transactionId paymentDate status notes receivedBy",
+    })
+    .populate({
+      path: "invoice",
+      select:
+        "invoiceNumber booking customer totalAmount amountPaid amountDue paymentStatus status invoiceDate dueDate currency",
+    })
+    .populate({
+      path: "customer",
+      select:
+        "firstName lastName email phone address city state country postalCode",
+    })
+    .populate({
+      path: "trip",
+      select:
+        "tripCode title name destination departureCity travelDate returnDate status",
+    })
+    .populate({
+      path: "requestedBy",
+      select: "name firstName lastName email role",
+    })
+    .populate({
+      path: "approvedBy",
+      select: "name firstName lastName email role",
+    })
+    .populate({
+      path: "processedBy",
+      select: "name firstName lastName email role",
+    });
 };
 
-// ----------------------------------------------------
-// COMMON REFUND STATUSES
-// ----------------------------------------------------
+// =====================================================
+// CALCULATE COMPLETED REFUNDS
+// =====================================================
 
-const refundableStatuses = [
-  "Requested",
-  "Under Review",
-  "Approved",
-  "Processing",
-  "Completed",
-];
+const getCompletedRefundAmount = async ({
+  booking = null,
+  payment = null,
+  invoice = null,
+  excludeRefundId = null,
+  session = null,
+}) => {
+  const match = {
+    status: COMPLETED_REFUND_STATUS,
+  };
 
-// ----------------------------------------------------
-// CREATE REFUND REQUEST
-// ----------------------------------------------------
+  if (booking) {
+    match.booking = booking;
+  }
+
+  if (payment) {
+    match.payment = payment;
+  }
+
+  if (invoice) {
+    match.invoice = invoice;
+  }
+
+  if (excludeRefundId && isValidObjectId(excludeRefundId)) {
+    match._id = {
+      $ne: toObjectId(excludeRefundId),
+    };
+  }
+
+  const aggregate = Refund.aggregate([
+    {
+      $match: match,
+    },
+    {
+      $group: {
+        _id: null,
+        total: {
+          $sum: "$amount",
+        },
+      },
+    },
+  ]);
+
+  if (session) {
+    aggregate.session(session);
+  }
+
+  const result = await aggregate;
+
+  return roundMoney(result[0]?.total || 0);
+};
+
+// =====================================================
+// GET TOTAL REFUNDS FOR BOOKING
+// =====================================================
+
+const getBookingRefundSummary = async (bookingId, session = null) => {
+  const aggregate = Refund.aggregate([
+    {
+      $match: {
+        booking: toObjectId(bookingId),
+        status: COMPLETED_REFUND_STATUS,
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        total: {
+          $sum: "$amount",
+        },
+      },
+    },
+  ]);
+
+  if (session) {
+    aggregate.session(session);
+  }
+
+  const result = await aggregate;
+
+  return roundMoney(result[0]?.total || 0);
+};
+
+// =====================================================
+// UPDATE BOOKING FINANCIAL STATE
+// =====================================================
+
+const syncBookingFinancialState = async (booking, session = null) => {
+  const grossPaid = roundMoney(booking.amountPaid || 0);
+
+  const completedRefundAmount = await getBookingRefundSummary(
+    booking._id,
+    session
+  );
+
+  // amountPaid in Booking represents net money currently retained.
+  const netPaid = roundMoney(Math.max(0, grossPaid - completedRefundAmount));
+
+  const totalAmount = roundMoney(booking.totalAmount || 0);
+
+  const amountDue = roundMoney(
+    Math.max(0, totalAmount - netPaid)
+  );
+
+  booking.amountPaid = netPaid;
+  booking.amountDue = amountDue;
+
+  if (booking.status !== "Cancelled") {
+    if (netPaid <= 0) {
+      booking.paymentStatus = "Pending";
+    } else if (netPaid < totalAmount) {
+      booking.paymentStatus = "Partially Paid";
+    } else {
+      booking.paymentStatus = "Paid";
+    }
+  }
+
+  if (booking.refundAmount !== undefined) {
+    booking.refundAmount = completedRefundAmount;
+  }
+
+  if (booking.refundStatus !== undefined) {
+    if (completedRefundAmount <= 0) {
+      booking.refundStatus = "None";
+    } else if (completedRefundAmount < totalAmount) {
+      booking.refundStatus = "Partially Refunded";
+    } else {
+      booking.refundStatus = "Refunded";
+    }
+  }
+
+  await booking.save({
+    session,
+    validateBeforeSave: false,
+  });
+
+  return {
+    grossPaid,
+    refundedAmount: completedRefundAmount,
+    netPaid,
+    amountDue,
+  };
+};
+
+// =====================================================
+// UPDATE PAYMENT FINANCIAL STATE
+// =====================================================
+
+const syncPaymentFinancialState = async (payment, session = null) => {
+  const totalRefunded = await getCompletedRefundAmount({
+    payment: payment._id,
+    session,
+  });
+
+  const originalAmount = roundMoney(payment.amount);
+
+  if (totalRefunded >= originalAmount) {
+    payment.status = PAYMENT_STATUSES.REFUNDED;
+  } else if (totalRefunded > 0) {
+    payment.status = PAYMENT_STATUSES.PARTIALLY_REFUNDED;
+  } else {
+    payment.status = PAYMENT_STATUSES.COMPLETED;
+  }
+
+  await payment.save({
+    session,
+    validateBeforeSave: false,
+  });
+
+  return {
+    originalAmount,
+    refundedAmount: totalRefunded,
+    remainingAmount: roundMoney(
+      Math.max(0, originalAmount - totalRefunded)
+    ),
+    status: payment.status,
+  };
+};
+
+// =====================================================
+// UPDATE INVOICE FINANCIAL STATE
+// =====================================================
+
+const syncInvoiceFinancialState = async (invoice, session = null) => {
+  const originalPaid = roundMoney(invoice.amountPaid || 0);
+
+  const totalRefunded = await getCompletedRefundAmount({
+    invoice: invoice._id,
+    session,
+  });
+
+  const totalAmount = roundMoney(invoice.totalAmount || 0);
+
+  const netPaid = roundMoney(
+    Math.max(0, originalPaid - totalRefunded)
+  );
+
+  const amountDue = roundMoney(
+    Math.max(0, totalAmount - netPaid)
+  );
+
+  invoice.amountPaid = netPaid;
+  invoice.amountDue = amountDue;
+
+  if (invoice.status !== INVOICE_STATUSES.CANCELLED) {
+    if (netPaid <= 0) {
+      invoice.paymentStatus = INVOICE_PAYMENT_STATUSES.PENDING;
+
+      // Do not destroy invoice history.
+      if (
+        invoice.status === INVOICE_STATUSES.PAID ||
+        invoice.status === INVOICE_STATUSES.PARTIALLY_PAID
+      ) {
+        invoice.status = INVOICE_STATUSES.ISSUED;
+      }
+    } else if (netPaid < totalAmount) {
+      invoice.paymentStatus =
+        INVOICE_PAYMENT_STATUSES.PARTIALLY_PAID;
+
+      invoice.status = INVOICE_STATUSES.PARTIALLY_PAID;
+    } else {
+      invoice.paymentStatus = INVOICE_PAYMENT_STATUSES.PAID;
+
+      invoice.status = INVOICE_STATUSES.PAID;
+    }
+  }
+
+  await invoice.save({
+    session,
+    validateBeforeSave: false,
+  });
+
+  return {
+    totalAmount,
+    originalPaid,
+    refundedAmount: totalRefunded,
+    netPaid,
+    amountDue,
+    paymentStatus: invoice.paymentStatus,
+    status: invoice.status,
+  };
+};
+
+// =====================================================
+// CREATE REFUND
+// =====================================================
 
 const createRefund = async (req, res) => {
   const session = await mongoose.startSession();
@@ -86,437 +424,418 @@ const createRefund = async (req, res) => {
   try {
     const {
       booking,
-      payment,
-      invoice,
+      payment = null,
+      invoice = null,
       customer,
-      trip,
+      trip = null,
       amount,
-      currency,
-      refundDate,
+      currency = "INR",
+      refundDate = null,
       reason,
-      refundMethod,
-      transactionId,
-      referenceNumber,
-      notes,
+      refundMethod = "Original Payment Method",
+      transactionId = null,
+      referenceNumber = null,
+      notes = "",
     } = req.body;
 
     // ---------------------------------------------
     // BASIC VALIDATION
     // ---------------------------------------------
 
-    if (!booking) {
+    if (!booking || !isValidObjectId(booking)) {
       return res.status(400).json({
-        message: "Booking is required",
+        success: false,
+        message: "Valid booking is required.",
       });
     }
 
-    if (!customer) {
+    if (!customer || !isValidObjectId(customer)) {
       return res.status(400).json({
-        message: "Customer is required",
+        success: false,
+        message: "Valid customer is required.",
       });
     }
 
-    if (amount === undefined || amount === null) {
+    if (!isPositiveNumber(amount)) {
       return res.status(400).json({
-        message: "Refund amount is required",
+        success: false,
+        message: "Refund amount must be greater than 0.",
       });
     }
 
-    const refundAmount = Number(amount);
-
-    if (!Number.isFinite(refundAmount) || refundAmount <= 0) {
+    if (!reason || !String(reason).trim()) {
       return res.status(400).json({
-        message: "Refund amount must be greater than 0",
-      });
-    }
-
-    if (!reason?.trim()) {
-      return res.status(400).json({
-        message: "Refund reason is required",
-      });
-    }
-
-    // ---------------------------------------------
-    // OBJECT ID VALIDATION
-    // ---------------------------------------------
-
-    if (!isValidObjectId(booking)) {
-      return res.status(400).json({
-        message: "Invalid booking ID",
-      });
-    }
-
-    if (!isValidObjectId(customer)) {
-      return res.status(400).json({
-        message: "Invalid customer ID",
+        success: false,
+        message: "Refund reason is required.",
       });
     }
 
     if (payment && !isValidObjectId(payment)) {
       return res.status(400).json({
-        message: "Invalid payment ID",
+        success: false,
+        message: "Invalid payment ID.",
       });
     }
 
     if (invoice && !isValidObjectId(invoice)) {
       return res.status(400).json({
-        message: "Invalid invoice ID",
+        success: false,
+        message: "Invalid invoice ID.",
       });
     }
 
     if (trip && !isValidObjectId(trip)) {
       return res.status(400).json({
-        message: "Invalid trip ID",
+        success: false,
+        message: "Invalid trip ID.",
       });
     }
+
+    const refundAmount = roundMoney(amount);
 
     // ---------------------------------------------
     // START TRANSACTION
     // ---------------------------------------------
 
-    let createdRefund;
+    session.startTransaction();
 
-    await session.withTransaction(async () => {
-      // -------------------------------------------
-      // BOOKING
-      // -------------------------------------------
+    // ---------------------------------------------
+    // LOAD BOOKING
+    // ---------------------------------------------
 
-      const bookingData = await Booking.findById(booking).session(
-        session
-      );
+    const bookingDoc = await Booking.findById(booking).session(session);
 
-      if (!bookingData) {
-        throw new Error("Booking not found");
+    if (!bookingDoc) {
+      await session.abortTransaction();
+
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found.",
+      });
+    }
+
+    if (bookingDoc.status === "Cancelled") {
+      await session.abortTransaction();
+
+      return res.status(400).json({
+        success: false,
+        message: "Refund cannot be created for a cancelled booking.",
+      });
+    }
+
+    // ---------------------------------------------
+    // CUSTOMER VALIDATION
+    // ---------------------------------------------
+
+    const customerDoc = await Customer.findById(customer).session(session);
+
+    if (!customerDoc) {
+      await session.abortTransaction();
+
+      return res.status(404).json({
+        success: false,
+        message: "Customer not found.",
+      });
+    }
+
+    if (
+      bookingDoc.customer &&
+      String(bookingDoc.customer) !== String(customer)
+    ) {
+      await session.abortTransaction();
+
+      return res.status(400).json({
+        success: false,
+        message: "Customer does not belong to this booking.",
+      });
+    }
+
+    // ---------------------------------------------
+    // PAYMENT VALIDATION
+    // ---------------------------------------------
+
+    let paymentDoc = null;
+
+    if (payment) {
+      paymentDoc = await Payment.findById(payment).session(session);
+
+      if (!paymentDoc) {
+        await session.abortTransaction();
+
+        return res.status(404).json({
+          success: false,
+          message: "Payment not found.",
+        });
       }
 
-      if (bookingData.status === "Cancelled") {
-        throw new Error(
-          "Cancelled booking cannot be refunded"
-        );
-      }
+      if (String(paymentDoc.booking) !== String(booking)) {
+        await session.abortTransaction();
 
-      // -------------------------------------------
-      // CUSTOMER
-      // -------------------------------------------
-
-      const customerData = await Customer.findById(
-        customer
-      ).session(session);
-
-      if (!customerData) {
-        throw new Error("Customer not found");
+        return res.status(400).json({
+          success: false,
+          message: "Payment does not belong to this booking.",
+        });
       }
 
       if (
-        bookingData.customer &&
-        bookingData.customer.toString() !== customer.toString()
+        paymentDoc.customer &&
+        String(paymentDoc.customer) !== String(customer)
       ) {
-        throw new Error(
-          "Customer does not belong to this booking"
-        );
+        await session.abortTransaction();
+
+        return res.status(400).json({
+          success: false,
+          message: "Payment does not belong to this customer.",
+        });
       }
 
-      // -------------------------------------------
-      // PAYMENT
-      // -------------------------------------------
+      if (paymentDoc.status === PAYMENT_STATUSES.FAILED) {
+        await session.abortTransaction();
 
-      let paymentData = null;
-
-      if (payment) {
-        paymentData = await Payment.findById(payment).session(
-          session
-        );
-
-        if (!paymentData) {
-          throw new Error("Payment not found");
-        }
-
-        if (
-          paymentData.booking &&
-          paymentData.booking.toString() !== booking.toString()
-        ) {
-          throw new Error(
-            "Payment does not belong to this booking"
-          );
-        }
-
-        if (paymentData.status !== "Completed") {
-          throw new Error(
-            "Only completed payments can be refunded"
-          );
-        }
-
-        // -----------------------------------------
-        // EXISTING REFUNDS AGAINST PAYMENT
-        // -----------------------------------------
-
-        const existingRefunds = await Refund.aggregate([
-          {
-            $match: {
-              payment: paymentData._id,
-              status: {
-                $in: refundableStatuses,
-              },
-            },
-          },
-          {
-            $group: {
-              _id: null,
-              total: {
-                $sum: "$amount",
-              },
-            },
-          },
-        ]).session(session);
-
-        const alreadyRefunded =
-          existingRefunds.length > 0
-            ? existingRefunds[0].total
-            : 0;
-
-        const refundablePaymentAmount =
-          Number(paymentData.amount || 0) -
-          Number(alreadyRefunded || 0);
-
-        if (refundAmount > refundablePaymentAmount) {
-          throw new Error(
-            `Refund amount cannot exceed refundable payment amount of ${refundablePaymentAmount}`
-          );
-        }
-      } else {
-        // -----------------------------------------
-        // BOOKING LEVEL REFUND
-        // -----------------------------------------
-
-        const existingBookingRefunds =
-          await Refund.aggregate([
-            {
-              $match: {
-                booking: bookingData._id,
-                status: {
-                  $in: refundableStatuses,
-                },
-              },
-            },
-            {
-              $group: {
-                _id: null,
-                total: {
-                  $sum: "$amount",
-                },
-              },
-            },
-          ]).session(session);
-
-        const alreadyRefunded =
-          existingBookingRefunds.length > 0
-            ? existingBookingRefunds[0].total
-            : 0;
-
-        const refundableBookingAmount =
-          Number(bookingData.amountPaid || 0) -
-          Number(alreadyRefunded || 0);
-
-        if (refundAmount > refundableBookingAmount) {
-          throw new Error(
-            `Refund amount cannot exceed refundable booking amount of ${refundableBookingAmount}`
-          );
-        }
+        return res.status(400).json({
+          success: false,
+          message: "Failed payments cannot be refunded.",
+        });
       }
 
-      // -------------------------------------------
-      // INVOICE
-      // -------------------------------------------
+      if (paymentDoc.status === PAYMENT_STATUSES.PENDING) {
+        await session.abortTransaction();
 
-      let invoiceData = null;
-
-      if (invoice) {
-        invoiceData = await Invoice.findById(invoice).session(
-          session
-        );
-
-        if (!invoiceData) {
-          throw new Error("Invoice not found");
-        }
-
-        if (
-          invoiceData.booking &&
-          invoiceData.booking.toString() !== booking.toString()
-        ) {
-          throw new Error(
-            "Invoice does not belong to this booking"
-          );
-        }
-
-        if (
-          invoiceData.customer &&
-          invoiceData.customer.toString() !== customer.toString()
-        ) {
-          throw new Error(
-            "Invoice does not belong to this customer"
-          );
-        }
-
-        if (invoiceData.status === "Cancelled") {
-          throw new Error(
-            "Cancelled invoice cannot be refunded"
-          );
-        }
-
-        // Refund cannot exceed invoice amount already paid
-        const existingInvoiceRefunds =
-          await Refund.aggregate([
-            {
-              $match: {
-                invoice: invoiceData._id,
-                status: {
-                  $in: refundableStatuses,
-                },
-              },
-            },
-            {
-              $group: {
-                _id: null,
-                total: {
-                  $sum: "$amount",
-                },
-              },
-            },
-          ]).session(session);
-
-        const alreadyRefunded =
-          existingInvoiceRefunds.length > 0
-            ? existingInvoiceRefunds[0].total
-            : 0;
-
-        const refundableInvoiceAmount =
-          Number(invoiceData.amountPaid || 0) -
-          Number(alreadyRefunded || 0);
-
-        if (refundAmount > refundableInvoiceAmount) {
-          throw new Error(
-            `Refund amount cannot exceed refundable invoice amount of ${refundableInvoiceAmount}`
-          );
-        }
+        return res.status(400).json({
+          success: false,
+          message: "Pending payments cannot be refunded.",
+        });
       }
 
-      // -------------------------------------------
-      // TRIP
-      // -------------------------------------------
+      const paymentRefunded = await getCompletedRefundAmount({
+        payment: paymentDoc._id,
+        session,
+      });
 
-      if (trip) {
-        const tripData = await Deal.findById(trip).session(
-          session
-        );
-
-        if (!tripData) {
-          throw new Error("Trip not found");
-        }
-      }
-
-      // -------------------------------------------
-      // DUPLICATE TRANSACTION CHECK
-      // -------------------------------------------
-
-      if (transactionId?.trim()) {
-        const existingTransaction =
-          await Refund.findOne({
-            transactionId: transactionId.trim(),
-          }).session(session);
-
-        if (existingTransaction) {
-          throw new Error(
-            "Refund with this transaction ID already exists"
-          );
-        }
-      }
-
-      // -------------------------------------------
-      // GENERATE REFUND NUMBER
-      // -------------------------------------------
-
-      const refundNumber =
-        await generateRefundNumber(session);
-
-      // -------------------------------------------
-      // CREATE REFUND
-      // -------------------------------------------
-
-      const refundDocs = await Refund.create(
-        [
-          {
-            refundNumber,
-            booking,
-            payment: payment || null,
-            invoice: invoice || null,
-            customer,
-            trip: trip || null,
-            amount: refundAmount,
-            currency: currency || "INR",
-            refundDate: refundDate || new Date(),
-            reason: reason.trim(),
-            refundMethod:
-              refundMethod || "Original Payment Method",
-            transactionId: transactionId?.trim() || null,
-            referenceNumber:
-              referenceNumber?.trim() || null,
-            notes: notes?.trim() || "",
-            status: "Requested",
-            requestedBy: req.user.id,
-          },
-        ],
-        { session }
+      const paymentRemaining = roundMoney(
+        Math.max(0, paymentDoc.amount - paymentRefunded)
       );
 
-      createdRefund = refundDocs[0];
-    });
+      if (refundAmount > paymentRemaining) {
+        await session.abortTransaction();
+
+        return res.status(400).json({
+          success: false,
+          message: `Refund amount cannot exceed remaining refundable payment amount of ${paymentRemaining}.`,
+        });
+      }
+    }
 
     // ---------------------------------------------
-    // GET POPULATED REFUND
+    // BOOKING REFUND LIMIT
+    // ---------------------------------------------
+
+    const bookingRefunded = await getBookingRefundSummary(
+      bookingDoc._id,
+      session
+    );
+
+    const bookingPaid = roundMoney(bookingDoc.amountPaid || 0);
+
+    const bookingRefundableAmount = roundMoney(
+      Math.max(0, bookingPaid - bookingRefunded)
+    );
+
+    if (refundAmount > bookingRefundableAmount) {
+      await session.abortTransaction();
+
+      return res.status(400).json({
+        success: false,
+        message: `Refund amount cannot exceed remaining refundable booking amount of ${bookingRefundableAmount}.`,
+      });
+    }
+
+    // ---------------------------------------------
+    // INVOICE VALIDATION
+    // ---------------------------------------------
+
+    let invoiceDoc = null;
+
+    if (invoice) {
+      invoiceDoc = await Invoice.findById(invoice).session(session);
+
+      if (!invoiceDoc) {
+        await session.abortTransaction();
+
+        return res.status(404).json({
+          success: false,
+          message: "Invoice not found.",
+        });
+      }
+
+      if (String(invoiceDoc.booking) !== String(booking)) {
+        await session.abortTransaction();
+
+        return res.status(400).json({
+          success: false,
+          message: "Invoice does not belong to this booking.",
+        });
+      }
+
+      if (
+        invoiceDoc.customer &&
+        String(invoiceDoc.customer) !== String(customer)
+      ) {
+        await session.abortTransaction();
+
+        return res.status(400).json({
+          success: false,
+          message: "Invoice does not belong to this customer.",
+        });
+      }
+
+      if (invoiceDoc.status === INVOICE_STATUSES.CANCELLED) {
+        await session.abortTransaction();
+
+        return res.status(400).json({
+          success: false,
+          message: "Cancelled invoice cannot be refunded.",
+        });
+      }
+
+      const invoiceRefunded = await getCompletedRefundAmount({
+        invoice: invoiceDoc._id,
+        session,
+      });
+
+      const invoicePaid = roundMoney(invoiceDoc.amountPaid || 0);
+
+      const invoiceRefundableAmount = roundMoney(
+        Math.max(0, invoicePaid - invoiceRefunded)
+      );
+
+      if (refundAmount > invoiceRefundableAmount) {
+        await session.abortTransaction();
+
+        return res.status(400).json({
+          success: false,
+          message: `Refund amount cannot exceed remaining refundable invoice amount of ${invoiceRefundableAmount}.`,
+        });
+      }
+    }
+
+    // ---------------------------------------------
+    // TRIP VALIDATION
+    // ---------------------------------------------
+
+    if (trip) {
+      const tripDoc = await Trip.findById(trip).session(session);
+
+      if (!tripDoc) {
+        await session.abortTransaction();
+
+        return res.status(404).json({
+          success: false,
+          message: "Trip not found.",
+        });
+      }
+    }
+
+    // ---------------------------------------------
+    // TRANSACTION ID DUPLICATE CHECK
+    // ---------------------------------------------
+
+    const normalizedTransactionId =
+      normalizeString(transactionId);
+
+    if (normalizedTransactionId) {
+      const existingRefund = await Refund.findOne({
+        transactionId: normalizedTransactionId,
+      }).session(session);
+
+      if (existingRefund) {
+        await session.abortTransaction();
+
+        return res.status(409).json({
+          success: false,
+          message: "A refund with this transaction ID already exists.",
+        });
+      }
+    }
+
+    // ---------------------------------------------
+    // GENERATE REFUND NUMBER
+    // ---------------------------------------------
+
+    const refundNumber = await generateRefundNumber(session);
+
+    // ---------------------------------------------
+    // CREATE REFUND
+    // ---------------------------------------------
+
+    const refund = new Refund({
+      refundNumber,
+      booking: bookingDoc._id,
+      payment: paymentDoc?._id || null,
+      invoice: invoiceDoc?._id || null,
+      customer: customerDoc._id,
+      trip: trip || null,
+
+      amount: refundAmount,
+
+      currency: String(
+        currency || paymentDoc?.currency || invoiceDoc?.currency || "INR"
+      ).toUpperCase(),
+
+      refundDate: refundDate
+        ? new Date(refundDate)
+        : new Date(),
+
+      reason: String(reason).trim(),
+
+      refundMethod,
+
+      transactionId: normalizedTransactionId,
+
+      referenceNumber: normalizeString(referenceNumber),
+
+      status: REFUND_STATUSES.REQUESTED,
+
+      requestedBy: req.user._id,
+
+      notes: String(notes || "").trim(),
+    });
+
+    await refund.save({ session });
+
+    await session.commitTransaction();
+
+    // ---------------------------------------------
+    // RESPONSE
     // ---------------------------------------------
 
     const populatedRefund = await populateRefund(
-      Refund.findById(createdRefund._id)
+      Refund.findById(refund._id)
     );
 
     return res.status(201).json({
-      message: "Refund request created successfully",
-      refund: populatedRefund,
+      success: true,
+      message: "Refund request created successfully.",
+      data: populatedRefund,
     });
   } catch (error) {
+    await session.abortTransaction();
+
     console.error("Create refund error:", error);
 
-    if (
-      error.code === 11000 &&
-      error.keyPattern?.transactionId
-    ) {
-      return res.status(409).json({
-        message:
-          "Refund with this transaction ID already exists",
-      });
-    }
-
-    if (
-      error.code === 11000 &&
-      error.keyPattern?.refundNumber
-    ) {
-      return res.status(409).json({
-        message:
-          "Refund number already exists. Please try again.",
-      });
-    }
-
-    return res.status(400).json({
-      message: error.message || "Failed to create refund",
+    return res.status(500).json({
+      success: false,
+      message: "Failed to create refund request.",
+      error: error.message,
     });
   } finally {
     await session.endSession();
   }
 };
 
-// ----------------------------------------------------
-// GET ALL REFUNDS
-// ----------------------------------------------------
+// =====================================================
+// GET REFUNDS
+// =====================================================
 
 const getRefunds = async (req, res) => {
   try {
@@ -532,38 +851,65 @@ const getRefunds = async (req, res) => {
       endDate,
       search,
       page = 1,
-      limit = 50,
+      limit = 10,
     } = req.query;
 
     const filter = {};
 
-    // ---------------------------------------------
-    // ID FILTERS
-    // ---------------------------------------------
-
-    const idFilters = [
-      ["booking", booking],
-      ["payment", payment],
-      ["invoice", invoice],
-      ["customer", customer],
-      ["trip", trip],
-    ];
-
-    for (const [field, value] of idFilters) {
-      if (value) {
-        if (!isValidObjectId(value)) {
-          return res.status(400).json({
-            message: `Invalid ${field} ID`,
-          });
-        }
-
-        filter[field] = value;
+    if (booking) {
+      if (!isValidObjectId(booking)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid booking ID.",
+        });
       }
+
+      filter.booking = booking;
     }
 
-    // ---------------------------------------------
-    // OTHER FILTERS
-    // ---------------------------------------------
+    if (payment) {
+      if (!isValidObjectId(payment)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid payment ID.",
+        });
+      }
+
+      filter.payment = payment;
+    }
+
+    if (invoice) {
+      if (!isValidObjectId(invoice)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid invoice ID.",
+        });
+      }
+
+      filter.invoice = invoice;
+    }
+
+    if (customer) {
+      if (!isValidObjectId(customer)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid customer ID.",
+        });
+      }
+
+      filter.customer = customer;
+    }
+
+    if (trip) {
+      if (!isValidObjectId(trip)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid trip ID.",
+        });
+      }
+
+      filter.trip = trip;
+    }
 
     if (status) {
       filter.status = status;
@@ -573,10 +919,6 @@ const getRefunds = async (req, res) => {
       filter.refundMethod = refundMethod;
     }
 
-    // ---------------------------------------------
-    // DATE FILTER
-    // ---------------------------------------------
-
     if (startDate || endDate) {
       filter.refundDate = {};
 
@@ -585,10 +927,12 @@ const getRefunds = async (req, res) => {
 
         if (Number.isNaN(start.getTime())) {
           return res.status(400).json({
-            message: "Invalid start date",
+            success: false,
+            message: "Invalid startDate.",
           });
         }
 
+        start.setHours(0, 0, 0, 0);
         filter.refundDate.$gte = start;
       }
 
@@ -597,173 +941,148 @@ const getRefunds = async (req, res) => {
 
         if (Number.isNaN(end.getTime())) {
           return res.status(400).json({
-            message: "Invalid end date",
+            success: false,
+            message: "Invalid endDate.",
           });
         }
 
         end.setHours(23, 59, 59, 999);
-
         filter.refundDate.$lte = end;
       }
     }
 
-    // ---------------------------------------------
-    // SEARCH
-    // ---------------------------------------------
-
-    if (search?.trim()) {
-      const searchRegex = {
-        $regex: search.trim(),
-        $options: "i",
-      };
+    if (search) {
+      const searchRegex = new RegExp(
+        escapeRegex(search.trim()),
+        "i"
+      );
 
       filter.$or = [
         {
           refundNumber: searchRegex,
         },
         {
-          reason: searchRegex,
+          transactionId: searchRegex,
         },
         {
           referenceNumber: searchRegex,
         },
         {
-          transactionId: searchRegex,
+          reason: searchRegex,
         },
       ];
     }
 
-    // ---------------------------------------------
-    // PAGINATION
-    // ---------------------------------------------
-
-    const pageNumber = Math.max(
-      Number(page) || 1,
-      1
+    const currentPage = Math.max(1, Number(page) || 1);
+    const currentLimit = Math.min(
+      100,
+      Math.max(1, Number(limit) || 10)
     );
 
-    const limitNumber = Math.min(
-      Math.max(Number(limit) || 50, 1),
-      100
-    );
+    const skip = (currentPage - 1) * currentLimit;
 
-    const skip =
-      (pageNumber - 1) * limitNumber;
+    const [refunds, total, summary] = await Promise.all([
+      populateRefund(
+        Refund.find(filter)
+          .sort({ refundDate: -1, createdAt: -1 })
+          .skip(skip)
+          .limit(currentLimit)
+      ),
 
-    // ---------------------------------------------
-    // DATA
-    // ---------------------------------------------
+      Refund.countDocuments(filter),
 
-    const [refunds, total, summary] =
-      await Promise.all([
-        populateRefund(
-          Refund.find(filter)
-            .sort({
-              refundDate: -1,
-              createdAt: -1,
-            })
-            .skip(skip)
-            .limit(limitNumber)
-        ),
+      Refund.aggregate([
+        {
+          $match: filter,
+        },
+        {
+          $group: {
+            _id: null,
 
-        Refund.countDocuments(filter),
+            totalRefundAmount: {
+              $sum: "$amount",
+            },
 
-        Refund.aggregate([
-          {
-            $match: filter,
-          },
-          {
-            $group: {
-              _id: null,
-              totalRefundAmount: {
-                $sum: "$amount",
+            completedRefundAmount: {
+              $sum: {
+                $cond: [
+                  {
+                    $eq: [
+                      "$status",
+                      REFUND_STATUSES.COMPLETED,
+                    ],
+                  },
+                  "$amount",
+                  0,
+                ],
               },
-              completedRefundAmount: {
-                $sum: {
-                  $cond: [
-                    {
-                      $eq: [
-                        "$status",
-                        "Completed",
+            },
+
+            pendingRefundAmount: {
+              $sum: {
+                $cond: [
+                  {
+                    $in: [
+                      "$status",
+                      [
+                        REFUND_STATUSES.REQUESTED,
+                        REFUND_STATUSES.UNDER_REVIEW,
+                        REFUND_STATUSES.APPROVED,
+                        REFUND_STATUSES.PROCESSING,
                       ],
-                    },
-                    "$amount",
-                    0,
-                  ],
-                },
-              },
-              pendingRefundAmount: {
-                $sum: {
-                  $cond: [
-                    {
-                      $in: [
-                        "$status",
-                        [
-                          "Requested",
-                          "Under Review",
-                          "Approved",
-                          "Processing",
-                        ],
-                      ],
-                    },
-                    "$amount",
-                    0,
-                  ],
-                },
+                    ],
+                  },
+                  "$amount",
+                  0,
+                ],
               },
             },
           },
-        ]),
-      ]);
+        },
+      ]),
+    ]);
 
-    const totalRefundAmount =
-      summary.length > 0
-        ? summary[0].totalRefundAmount
-        : 0;
-
-    const completedRefundAmount =
-      summary.length > 0
-        ? summary[0].completedRefundAmount
-        : 0;
-
-    const pendingRefundAmount =
-      summary.length > 0
-        ? summary[0].pendingRefundAmount
-        : 0;
-
-    const totalPages = Math.ceil(
-      total / limitNumber
-    );
+    const summaryData = summary[0] || {
+      totalRefundAmount: 0,
+      completedRefundAmount: 0,
+      pendingRefundAmount: 0,
+    };
 
     return res.status(200).json({
-      message: "Refunds fetched successfully",
-      count: refunds.length,
-      total,
-      page: pageNumber,
-      limit: limitNumber,
-      totalPages,
-      hasNextPage:
-        pageNumber < totalPages,
-      hasPreviousPage:
-        pageNumber > 1,
-      totalRefundAmount,
-      completedRefundAmount,
-      pendingRefundAmount,
-      refunds,
+      success: true,
+      data: refunds,
+      pagination: {
+        page: currentPage,
+        limit: currentLimit,
+        total,
+        totalPages: Math.ceil(total / currentLimit),
+      },
+      summary: {
+        totalRefundAmount: roundMoney(
+          summaryData.totalRefundAmount
+        ),
+        completedRefundAmount: roundMoney(
+          summaryData.completedRefundAmount
+        ),
+        pendingRefundAmount: roundMoney(
+          summaryData.pendingRefundAmount
+        ),
+      },
     });
   } catch (error) {
     console.error("Get refunds error:", error);
 
     return res.status(500).json({
-      message: "Failed to fetch refunds",
+      success: false,
+      message: "Failed to fetch refunds.",
       error: error.message,
     });
   }
 };
 
-// ----------------------------------------------------
+// =====================================================
 // GET REFUND BY ID
-// ----------------------------------------------------
+// =====================================================
 
 const getRefundById = async (req, res) => {
   try {
@@ -771,7 +1090,8 @@ const getRefundById = async (req, res) => {
 
     if (!isValidObjectId(id)) {
       return res.status(400).json({
-        message: "Invalid refund ID",
+        success: false,
+        message: "Invalid refund ID.",
       });
     }
 
@@ -781,27 +1101,29 @@ const getRefundById = async (req, res) => {
 
     if (!refund) {
       return res.status(404).json({
-        message: "Refund not found",
+        success: false,
+        message: "Refund not found.",
       });
     }
 
     return res.status(200).json({
-      message: "Refund fetched successfully",
-      refund,
+      success: true,
+      data: refund,
     });
   } catch (error) {
     console.error("Get refund error:", error);
 
     return res.status(500).json({
-      message: "Failed to fetch refund",
+      success: false,
+      message: "Failed to fetch refund.",
       error: error.message,
     });
   }
 };
 
-// ----------------------------------------------------
+// =====================================================
 // UPDATE REFUND
-// ----------------------------------------------------
+// =====================================================
 
 const updateRefund = async (req, res) => {
   try {
@@ -809,7 +1131,8 @@ const updateRefund = async (req, res) => {
 
     if (!isValidObjectId(id)) {
       return res.status(400).json({
-        message: "Invalid refund ID",
+        success: false,
+        message: "Invalid refund ID.",
       });
     }
 
@@ -817,25 +1140,21 @@ const updateRefund = async (req, res) => {
 
     if (!refund) {
       return res.status(404).json({
-        message: "Refund not found",
+        success: false,
+        message: "Refund not found.",
       });
     }
 
-    // ---------------------------------------------
-    // LOCK FINANCIAL RECORD AFTER APPROVAL
-    // ---------------------------------------------
-
     if (
-      [
-        "Approved",
-        "Processing",
-        "Completed",
-        "Rejected",
-        "Cancelled",
+      ![
+        REFUND_STATUSES.REQUESTED,
+        REFUND_STATUSES.UNDER_REVIEW,
       ].includes(refund.status)
     ) {
       return res.status(400).json({
-        message: `Refund cannot be updated when status is ${refund.status}`,
+        success: false,
+        message:
+          "Only Requested or Under Review refunds can be edited.",
       });
     }
 
@@ -850,64 +1169,168 @@ const updateRefund = async (req, res) => {
       "notes",
     ];
 
-    allowedFields.forEach((field) => {
+    for (const field of allowedFields) {
       if (req.body[field] !== undefined) {
         refund[field] = req.body[field];
       }
-    });
+    }
 
-    if (
-      !Number.isFinite(Number(refund.amount)) ||
-      Number(refund.amount) <= 0
-    ) {
+    // ---------------------------------------------
+    // VALIDATE AMOUNT
+    // ---------------------------------------------
+
+    if (!isPositiveNumber(refund.amount)) {
       return res.status(400).json({
-        message: "Refund amount must be greater than 0",
+        success: false,
+        message: "Refund amount must be greater than 0.",
       });
     }
 
-    if (!refund.reason?.trim()) {
-      return res.status(400).json({
-        message: "Refund reason is required",
-      });
-    }
+    refund.amount = roundMoney(refund.amount);
 
-    if (refund.transactionId?.trim()) {
+    // ---------------------------------------------
+    // TRANSACTION ID
+    // ---------------------------------------------
+
+    if (refund.transactionId) {
+      refund.transactionId =
+        String(refund.transactionId).trim();
+
       const duplicate = await Refund.findOne({
-        transactionId:
-          refund.transactionId.trim(),
-        _id: { $ne: refund._id },
+        transactionId: refund.transactionId,
+        _id: {
+          $ne: refund._id,
+        },
       });
 
       if (duplicate) {
         return res.status(409).json({
+          success: false,
           message:
-            "Refund with this transaction ID already exists",
+            "A refund with this transaction ID already exists.",
         });
       }
     }
 
+    // ---------------------------------------------
+    // RECHECK REFUND LIMIT
+    // ---------------------------------------------
+
+    const payment = refund.payment
+      ? await Payment.findById(refund.payment)
+      : null;
+
+    if (payment) {
+      const refundedAmount = await getCompletedRefundAmount({
+        payment: payment._id,
+        excludeRefundId: refund._id,
+      });
+
+      const remaining = roundMoney(
+        Math.max(0, payment.amount - refundedAmount)
+      );
+
+      if (refund.amount > remaining) {
+        return res.status(400).json({
+          success: false,
+          message: `Refund amount cannot exceed remaining refundable payment amount of ${remaining}.`,
+        });
+      }
+    }
+
+    const booking = await Booking.findById(refund.booking);
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: "Associated booking not found.",
+      });
+    }
+
+    const bookingRefunded = await getCompletedRefundAmount({
+      booking: booking._id,
+      excludeRefundId: refund._id,
+    });
+
+    const bookingPaid = roundMoney(
+      booking.amountPaid || 0
+    );
+
+    const bookingRemaining = roundMoney(
+      Math.max(0, bookingPaid - bookingRefunded)
+    );
+
+    if (refund.amount > bookingRemaining) {
+      return res.status(400).json({
+        success: false,
+        message: `Refund amount cannot exceed remaining refundable booking amount of ${bookingRemaining}.`,
+      });
+    }
+
+    const invoice = refund.invoice
+      ? await Invoice.findById(refund.invoice)
+      : null;
+
+    if (invoice) {
+      const invoiceRefunded =
+        await getCompletedRefundAmount({
+          invoice: invoice._id,
+          excludeRefundId: refund._id,
+        });
+
+      const invoicePaid = roundMoney(
+        invoice.amountPaid || 0
+      );
+
+      const invoiceRemaining = roundMoney(
+        Math.max(0, invoicePaid - invoiceRefunded)
+      );
+
+      if (refund.amount > invoiceRemaining) {
+        return res.status(400).json({
+          success: false,
+          message: `Refund amount cannot exceed remaining refundable invoice amount of ${invoiceRemaining}.`,
+        });
+      }
+    }
+
+    refund.currency = String(
+      refund.currency || "INR"
+    ).toUpperCase();
+
+    refund.reason = String(
+      refund.reason || ""
+    ).trim();
+
+    refund.notes = String(
+      refund.notes || ""
+    ).trim();
+
     await refund.save();
 
-    const updatedRefund = await populateRefund(
+    const populatedRefund = await populateRefund(
       Refund.findById(refund._id)
     );
 
     return res.status(200).json({
-      message: "Refund updated successfully",
-      refund: updatedRefund,
+      success: true,
+      message: "Refund updated successfully.",
+      data: populatedRefund,
     });
   } catch (error) {
     console.error("Update refund error:", error);
 
-    return res.status(400).json({
-      message: error.message || "Failed to update refund",
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update refund.",
+      error: error.message,
     });
   }
 };
 
-// ----------------------------------------------------
+// =====================================================
 // REVIEW REFUND
-// ----------------------------------------------------
+// =====================================================
 
 const reviewRefund = async (req, res) => {
   try {
@@ -915,7 +1338,8 @@ const reviewRefund = async (req, res) => {
 
     if (!isValidObjectId(id)) {
       return res.status(400).json({
-        message: "Invalid refund ID",
+        success: false,
+        message: "Invalid refund ID.",
       });
     }
 
@@ -923,43 +1347,46 @@ const reviewRefund = async (req, res) => {
 
     if (!refund) {
       return res.status(404).json({
-        message: "Refund not found",
+        success: false,
+        message: "Refund not found.",
       });
     }
 
-    if (refund.status !== "Requested") {
+    if (refund.status !== REFUND_STATUSES.REQUESTED) {
       return res.status(400).json({
+        success: false,
         message:
-          `Only Requested refunds can be moved to Under Review. Current status: ${refund.status}`,
+          "Only Requested refunds can be moved to Under Review.",
       });
     }
 
-    refund.status = "Under Review";
+    refund.status = REFUND_STATUSES.UNDER_REVIEW;
 
     await refund.save();
 
-    const updatedRefund = await populateRefund(
+    const populatedRefund = await populateRefund(
       Refund.findById(refund._id)
     );
 
     return res.status(200).json({
-      message:
-        "Refund moved to review successfully",
-      refund: updatedRefund,
+      success: true,
+      message: "Refund moved to Under Review.",
+      data: populatedRefund,
     });
   } catch (error) {
     console.error("Review refund error:", error);
 
-    return res.status(400).json({
-      message:
-        error.message || "Failed to review refund",
+    return res.status(500).json({
+      success: false,
+      message: "Failed to review refund.",
+      error: error.message,
     });
   }
 };
 
-// ----------------------------------------------------
+// =====================================================
 // APPROVE REFUND
-// ----------------------------------------------------
+// =====================================================
 
 const approveRefund = async (req, res) => {
   try {
@@ -967,7 +1394,8 @@ const approveRefund = async (req, res) => {
 
     if (!isValidObjectId(id)) {
       return res.status(400).json({
-        message: "Invalid refund ID",
+        success: false,
+        message: "Invalid refund ID.",
       });
     }
 
@@ -975,57 +1403,75 @@ const approveRefund = async (req, res) => {
 
     if (!refund) {
       return res.status(404).json({
-        message: "Refund not found",
+        success: false,
+        message: "Refund not found.",
       });
     }
 
     if (
-      !["Requested", "Under Review"].includes(
-        refund.status
-      )
+      ![
+        REFUND_STATUSES.REQUESTED,
+        REFUND_STATUSES.UNDER_REVIEW,
+      ].includes(refund.status)
     ) {
       return res.status(400).json({
+        success: false,
         message:
-          `Refund cannot be approved when status is ${refund.status}`,
+          "Only Requested or Under Review refunds can be approved.",
       });
     }
 
-    refund.status = "Approved";
-    refund.approvedBy = req.user.id;
+    refund.status = REFUND_STATUSES.APPROVED;
+    refund.approvedBy = req.user._id;
     refund.approvedAt = new Date();
+    refund.rejectionReason = null;
 
     await refund.save();
 
-    const updatedRefund = await populateRefund(
+    const populatedRefund = await populateRefund(
       Refund.findById(refund._id)
     );
 
     return res.status(200).json({
-      message: "Refund approved successfully",
-      refund: updatedRefund,
+      success: true,
+      message: "Refund approved successfully.",
+      data: populatedRefund,
     });
   } catch (error) {
     console.error("Approve refund error:", error);
 
-    return res.status(400).json({
-      message:
-        error.message || "Failed to approve refund",
+    return res.status(500).json({
+      success: false,
+      message: "Failed to approve refund.",
+      error: error.message,
     });
   }
 };
 
-// ----------------------------------------------------
+// =====================================================
 // REJECT REFUND
-// ----------------------------------------------------
+// =====================================================
 
 const rejectRefund = async (req, res) => {
   try {
     const { id } = req.params;
+
     const { rejectionReason } = req.body;
 
     if (!isValidObjectId(id)) {
       return res.status(400).json({
-        message: "Invalid refund ID",
+        success: false,
+        message: "Invalid refund ID.",
+      });
+    }
+
+    if (
+      !rejectionReason ||
+      !String(rejectionReason).trim()
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Rejection reason is required.",
       });
     }
 
@@ -1033,56 +1479,55 @@ const rejectRefund = async (req, res) => {
 
     if (!refund) {
       return res.status(404).json({
-        message: "Refund not found",
+        success: false,
+        message: "Refund not found.",
       });
     }
 
     if (
-      !["Requested", "Under Review"].includes(
-        refund.status
-      )
+      ![
+        REFUND_STATUSES.REQUESTED,
+        REFUND_STATUSES.UNDER_REVIEW,
+      ].includes(refund.status)
     ) {
       return res.status(400).json({
+        success: false,
         message:
-          `Refund cannot be rejected when status is ${refund.status}`,
+          "Only Requested or Under Review refunds can be rejected.",
       });
     }
 
-    if (!rejectionReason?.trim()) {
-      return res.status(400).json({
-        message: "Rejection reason is required",
-      });
-    }
-
-    refund.status = "Rejected";
-    refund.rejectionReason =
-      rejectionReason.trim();
-    refund.approvedBy = req.user.id;
+    refund.status = REFUND_STATUSES.REJECTED;
+    refund.approvedBy = req.user._id;
     refund.approvedAt = new Date();
+    refund.rejectionReason =
+      String(rejectionReason).trim();
 
     await refund.save();
 
-    const updatedRefund = await populateRefund(
+    const populatedRefund = await populateRefund(
       Refund.findById(refund._id)
     );
 
     return res.status(200).json({
-      message: "Refund rejected successfully",
-      refund: updatedRefund,
+      success: true,
+      message: "Refund rejected successfully.",
+      data: populatedRefund,
     });
   } catch (error) {
     console.error("Reject refund error:", error);
 
-    return res.status(400).json({
-      message:
-        error.message || "Failed to reject refund",
+    return res.status(500).json({
+      success: false,
+      message: "Failed to reject refund.",
+      error: error.message,
     });
   }
 };
 
-// ----------------------------------------------------
-// START PROCESSING REFUND
-// ----------------------------------------------------
+// =====================================================
+// PROCESS REFUND
+// =====================================================
 
 const processRefund = async (req, res) => {
   try {
@@ -1090,7 +1535,8 @@ const processRefund = async (req, res) => {
 
     if (!isValidObjectId(id)) {
       return res.status(400).json({
-        message: "Invalid refund ID",
+        success: false,
+        message: "Invalid refund ID.",
       });
     }
 
@@ -1098,43 +1544,46 @@ const processRefund = async (req, res) => {
 
     if (!refund) {
       return res.status(404).json({
-        message: "Refund not found",
+        success: false,
+        message: "Refund not found.",
       });
     }
 
-    if (refund.status !== "Approved") {
+    if (refund.status !== REFUND_STATUSES.APPROVED) {
       return res.status(400).json({
+        success: false,
         message:
-          `Only Approved refunds can be processed. Current status: ${refund.status}`,
+          "Only Approved refunds can move to Processing.",
       });
     }
 
-    refund.status = "Processing";
+    refund.status = REFUND_STATUSES.PROCESSING;
 
     await refund.save();
 
-    const updatedRefund = await populateRefund(
+    const populatedRefund = await populateRefund(
       Refund.findById(refund._id)
     );
 
     return res.status(200).json({
-      message:
-        "Refund processing started successfully",
-      refund: updatedRefund,
+      success: true,
+      message: "Refund moved to Processing.",
+      data: populatedRefund,
     });
   } catch (error) {
     console.error("Process refund error:", error);
 
-    return res.status(400).json({
-      message:
-        error.message || "Failed to process refund",
+    return res.status(500).json({
+      success: false,
+      message: "Failed to process refund.",
+      error: error.message,
     });
   }
 };
 
-// ----------------------------------------------------
+// =====================================================
 // COMPLETE REFUND
-// ----------------------------------------------------
+// =====================================================
 
 const completeRefund = async (req, res) => {
   const session = await mongoose.startSession();
@@ -1150,401 +1599,280 @@ const completeRefund = async (req, res) => {
 
     if (!isValidObjectId(id)) {
       return res.status(400).json({
-        message: "Invalid refund ID",
+        success: false,
+        message: "Invalid refund ID.",
       });
     }
 
-    let completedRefundId;
+    session.startTransaction();
 
-    await session.withTransaction(async () => {
-      // -------------------------------------------
-      // FIND REFUND
-      // -------------------------------------------
+    // ---------------------------------------------
+    // LOAD REFUND
+    // ---------------------------------------------
 
-      const refund = await Refund.findById(id).session(
+    const refund = await Refund.findById(id).session(session);
+
+    if (!refund) {
+      await session.abortTransaction();
+
+      return res.status(404).json({
+        success: false,
+        message: "Refund not found.",
+      });
+    }
+
+    if (refund.status !== REFUND_STATUSES.PROCESSING) {
+      await session.abortTransaction();
+
+      return res.status(400).json({
+        success: false,
+        message:
+          "Only Processing refunds can be marked as Completed.",
+      });
+    }
+
+    // ---------------------------------------------
+    // DUPLICATE TRANSACTION CHECK
+    // ---------------------------------------------
+
+    const normalizedTransactionId =
+      normalizeString(transactionId);
+
+    if (normalizedTransactionId) {
+      const existingRefund = await Refund.findOne({
+        transactionId: normalizedTransactionId,
+        _id: {
+          $ne: refund._id,
+        },
+      }).session(session);
+
+      if (existingRefund) {
+        await session.abortTransaction();
+
+        return res.status(409).json({
+          success: false,
+          message:
+            "A refund with this transaction ID already exists.",
+        });
+      }
+    }
+
+    // ---------------------------------------------
+    // RELOAD BOOKING
+    // ---------------------------------------------
+
+    const booking = await Booking.findById(
+      refund.booking
+    ).session(session);
+
+    if (!booking) {
+      await session.abortTransaction();
+
+      return res.status(404).json({
+        success: false,
+        message: "Associated booking not found.",
+      });
+    }
+
+    // ---------------------------------------------
+    // RELOAD PAYMENT
+    // ---------------------------------------------
+
+    let payment = null;
+
+    if (refund.payment) {
+      payment = await Payment.findById(
+        refund.payment
+      ).session(session);
+
+      if (!payment) {
+        await session.abortTransaction();
+
+        return res.status(404).json({
+          success: false,
+          message: "Associated payment not found.",
+        });
+      }
+
+      if (String(payment.booking) !== String(booking._id)) {
+        await session.abortTransaction();
+
+        return res.status(400).json({
+          success: false,
+          message:
+            "Payment does not belong to the refund booking.",
+        });
+      }
+    }
+
+    // ---------------------------------------------
+    // RELOAD INVOICE
+    // ---------------------------------------------
+
+    let invoice = null;
+
+    if (refund.invoice) {
+      invoice = await Invoice.findById(
+        refund.invoice
+      ).session(session);
+
+      if (!invoice) {
+        await session.abortTransaction();
+
+        return res.status(404).json({
+          success: false,
+          message: "Associated invoice not found.",
+        });
+      }
+
+      if (String(invoice.booking) !== String(booking._id)) {
+        await session.abortTransaction();
+
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invoice does not belong to the refund booking.",
+        });
+      }
+    }
+
+    // ---------------------------------------------
+    // FINAL REFUND LIMIT CHECK
+    // ---------------------------------------------
+
+    if (payment) {
+      const paymentRefunded =
+        await getCompletedRefundAmount({
+          payment: payment._id,
+          excludeRefundId: refund._id,
+          session,
+        });
+
+      const paymentRemaining = roundMoney(
+        Math.max(0, payment.amount - paymentRefunded)
+      );
+
+      if (refund.amount > paymentRemaining) {
+        await session.abortTransaction();
+
+        return res.status(400).json({
+          success: false,
+          message: `Refund amount exceeds remaining payment refundable amount of ${paymentRemaining}.`,
+        });
+      }
+    }
+
+    // ---------------------------------------------
+    // COMPLETE REFUND
+    // ---------------------------------------------
+
+    refund.status = REFUND_STATUSES.COMPLETED;
+
+    refund.transactionId =
+      normalizedTransactionId ||
+      refund.transactionId ||
+      null;
+
+    if (referenceNumber !== undefined) {
+      refund.referenceNumber =
+        normalizeString(referenceNumber);
+    }
+
+    if (notes !== undefined) {
+      refund.notes = String(notes || "").trim();
+    }
+
+    refund.processedBy = req.user._id;
+    refund.processedAt = new Date();
+
+    await refund.save({ session });
+
+    // ---------------------------------------------
+    // SYNC PAYMENT
+    // ---------------------------------------------
+
+    let paymentSummary = null;
+
+    if (payment) {
+      paymentSummary =
+        await syncPaymentFinancialState(
+          payment,
+          session
+        );
+    }
+
+    // ---------------------------------------------
+    // SYNC BOOKING
+    // ---------------------------------------------
+
+    const bookingSummary =
+      await syncBookingFinancialState(
+        booking,
         session
       );
 
-      if (!refund) {
-        throw new Error("Refund not found");
-      }
-
-      if (refund.status !== "Processing") {
-        throw new Error(
-          `Only Processing refunds can be completed. Current status: ${refund.status}`
-        );
-      }
-
-      // -------------------------------------------
-      // DUPLICATE TRANSACTION CHECK
-      // -------------------------------------------
-
-      if (transactionId?.trim()) {
-        const existingTransaction =
-          await Refund.findOne({
-            transactionId:
-              transactionId.trim(),
-            _id: { $ne: refund._id },
-          }).session(session);
-
-        if (existingTransaction) {
-          throw new Error(
-            "Refund with this transaction ID already exists"
-          );
-        }
-
-        refund.transactionId =
-          transactionId.trim();
-      }
-
-      if (referenceNumber !== undefined) {
-        refund.referenceNumber =
-          referenceNumber?.trim() || null;
-      }
-
-      if (notes !== undefined) {
-        refund.notes = notes?.trim() || "";
-      }
-
-      // -------------------------------------------
-      // MARK REFUND COMPLETED
-      // -------------------------------------------
-
-      refund.status = "Completed";
-      refund.processedBy = req.user.id;
-      refund.processedAt = new Date();
-
-      await refund.save({ session });
-
-      // -------------------------------------------
-      // BOOKING
-      // -------------------------------------------
-
-      const booking = await Booking.findById(
-        refund.booking
-      ).session(session);
-
-      if (!booking) {
-        throw new Error(
-          "Booking associated with refund not found"
-        );
-      }
-
-      // -------------------------------------------
-      // TOTAL COMPLETED REFUNDS FOR BOOKING
-      // -------------------------------------------
-
-      const bookingRefundSummary =
-        await Refund.aggregate([
-          {
-            $match: {
-              booking: booking._id,
-              status: "Completed",
-            },
-          },
-          {
-            $group: {
-              _id: null,
-              total: {
-                $sum: "$amount",
-              },
-            },
-          },
-        ]).session(session);
-
-      const totalRefundedForBooking =
-        bookingRefundSummary.length > 0
-          ? Number(
-              bookingRefundSummary[0].total
-            )
-          : 0;
-
-      // -------------------------------------------
-      // UPDATE BOOKING FINANCIAL VALUES
-      // -------------------------------------------
-
-      const originalBookingAmount =
-        Number(booking.totalAmount || 0);
-
-      const currentBookingPaid =
-        Number(booking.amountPaid || 0);
-
-      const newBookingPaid = Math.max(
-        currentBookingPaid -
-          Number(refund.amount),
-        0
-      );
-
-      const newBookingDue = Math.max(
-        originalBookingAmount -
-          newBookingPaid,
-        0
-      );
-
-      booking.amountPaid =
-        newBookingPaid;
-
-      booking.amountDue =
-        newBookingDue;
-
-      if (newBookingDue === 0) {
-        booking.paymentStatus = "Paid";
-      } else if (newBookingPaid > 0) {
-        booking.paymentStatus =
-          "Partially Paid";
-      } else {
-        booking.paymentStatus =
-          "Pending";
-      }
-
-      // -------------------------------------------
-      // OPTIONAL REFUND FIELDS
-      // -------------------------------------------
-      // These are assigned only if the Booking
-      // schema supports them.
-
-      if (
-        Object.prototype.hasOwnProperty.call(
-          booking.schema.paths,
-          "refundAmount"
-        )
-      ) {
-        booking.refundAmount =
-          totalRefundedForBooking;
-      }
-
-      if (
-        Object.prototype.hasOwnProperty.call(
-          booking.schema.paths,
-          "refundStatus"
-        )
-      ) {
-        if (
-          totalRefundedForBooking >=
-          originalBookingAmount
-        ) {
-          booking.refundStatus =
-            "Fully Refunded";
-        } else if (
-          totalRefundedForBooking > 0
-        ) {
-          booking.refundStatus =
-            "Partially Refunded";
-        } else {
-          booking.refundStatus =
-            "Not Applicable";
-        }
-      }
-
-      if (
-        Object.prototype.hasOwnProperty.call(
-          booking.schema.paths,
-          "refundProcessedAt"
-        )
-      ) {
-        booking.refundProcessedAt =
-          new Date();
-      }
-
-      if (
-        Object.prototype.hasOwnProperty.call(
-          booking.schema.paths,
-          "refundProcessedBy"
-        )
-      ) {
-        booking.refundProcessedBy =
-          req.user.id;
-      }
-
-      await booking.save({ session });
-
-      // -------------------------------------------
-      // PAYMENT
-      // -------------------------------------------
-
-      if (refund.payment) {
-        const payment =
-          await Payment.findById(
-            refund.payment
-          ).session(session);
-
-        if (!payment) {
-          throw new Error(
-            "Payment associated with refund not found"
-          );
-        }
-
-        const paymentRefundSummary =
-          await Refund.aggregate([
-            {
-              $match: {
-                payment: payment._id,
-                status: "Completed",
-              },
-            },
-            {
-              $group: {
-                _id: null,
-                total: {
-                  $sum: "$amount",
-                },
-              },
-            },
-          ]).session(session);
-
-        const totalRefundedForPayment =
-          paymentRefundSummary.length > 0
-            ? Number(
-                paymentRefundSummary[0].total
-              )
-            : 0;
-
-        if (
-          totalRefundedForPayment >=
-          Number(payment.amount || 0)
-        ) {
-          payment.status = "Refunded";
-        }
-
-        await payment.save({ session });
-      }
-
-      // -------------------------------------------
-      // INVOICE
-      // -------------------------------------------
-
-      if (refund.invoice) {
-        const invoice =
-          await Invoice.findById(
-            refund.invoice
-          ).session(session);
-
-        if (!invoice) {
-          throw new Error(
-            "Invoice associated with refund not found"
-          );
-        }
-
-        const invoiceRefundSummary =
-          await Refund.aggregate([
-            {
-              $match: {
-                invoice: invoice._id,
-                status: "Completed",
-              },
-            },
-            {
-              $group: {
-                _id: null,
-                total: {
-                  $sum: "$amount",
-                },
-              },
-            },
-          ]).session(session);
-
-        const totalRefundedForInvoice =
-          invoiceRefundSummary.length > 0
-            ? Number(
-                invoiceRefundSummary[0].total
-              )
-            : 0;
-
-        // -----------------------------------------
-        // REDUCE AMOUNT PAID
-        // -----------------------------------------
-
-        invoice.amountPaid =
-          Math.max(
-            Number(invoice.amountPaid || 0) -
-              Number(refund.amount),
-            0
-          );
-
-        invoice.amountDue =
-          Math.max(
-            Number(invoice.totalAmount || 0) -
-              Number(invoice.amountPaid || 0),
-            0
-          );
-
-        // -----------------------------------------
-        // PAYMENT STATUS
-        // -----------------------------------------
-
-        if (invoice.amountDue === 0) {
-          invoice.paymentStatus = "Paid";
-        } else if (
-          invoice.amountPaid > 0
-        ) {
-          invoice.paymentStatus =
-            "Partially Paid";
-        } else {
-          invoice.paymentStatus =
-            "Pending";
-        }
-
-        // -----------------------------------------
-        // INVOICE STATUS
-        // -----------------------------------------
-
-        if (
-          totalRefundedForInvoice >=
-          Number(invoice.totalAmount || 0)
-        ) {
-          invoice.status = "Cancelled";
-        } else if (
-          invoice.amountPaid > 0
-        ) {
-          invoice.status =
-            "Partially Paid";
-        } else {
-          invoice.status = "Issued";
-        }
-
-        await invoice.save({ session });
-      }
-
-      completedRefundId = refund._id;
-    });
-
     // ---------------------------------------------
-    // GET UPDATED REFUND
+    // SYNC INVOICE
     // ---------------------------------------------
 
-    const updatedRefund = await populateRefund(
-      Refund.findById(completedRefundId)
+    let invoiceSummary = null;
+
+    if (invoice) {
+      invoiceSummary =
+        await syncInvoiceFinancialState(
+          invoice,
+          session
+        );
+    }
+
+    // ---------------------------------------------
+    // COMMIT
+    // ---------------------------------------------
+
+    await session.commitTransaction();
+
+    // ---------------------------------------------
+    // POPULATED RESPONSE
+    // ---------------------------------------------
+
+    const populatedRefund = await populateRefund(
+      Refund.findById(refund._id)
     );
 
     return res.status(200).json({
-      message: "Refund completed successfully",
-      refund: updatedRefund,
+      success: true,
+      message:
+        "Refund completed successfully and financial records updated.",
+      data: populatedRefund,
+
+      financialSummary: {
+        refundAmount: refund.amount,
+
+        booking: bookingSummary,
+
+        payment: paymentSummary,
+
+        invoice: invoiceSummary,
+      },
     });
   } catch (error) {
+    await session.abortTransaction();
+
     console.error("Complete refund error:", error);
 
-    if (
-      error.code === 11000 &&
-      error.keyPattern?.transactionId
-    ) {
-      return res.status(409).json({
-        message:
-          "Refund with this transaction ID already exists",
-      });
-    }
-
-    return res.status(400).json({
-      message:
-        error.message || "Failed to complete refund",
+    return res.status(500).json({
+      success: false,
+      message: "Failed to complete refund.",
+      error: error.message,
     });
   } finally {
     await session.endSession();
   }
 };
 
-// ----------------------------------------------------
+// =====================================================
 // CANCEL REFUND
-// ----------------------------------------------------
+// =====================================================
 
 const cancelRefund = async (req, res) => {
   try {
@@ -1552,7 +1880,8 @@ const cancelRefund = async (req, res) => {
 
     if (!isValidObjectId(id)) {
       return res.status(400).json({
-        message: "Invalid refund ID",
+        success: false,
+        message: "Invalid refund ID.",
       });
     }
 
@@ -1560,48 +1889,52 @@ const cancelRefund = async (req, res) => {
 
     if (!refund) {
       return res.status(404).json({
-        message: "Refund not found",
+        success: false,
+        message: "Refund not found.",
       });
     }
 
     if (
       [
-        "Completed",
-        "Rejected",
-        "Cancelled",
+        REFUND_STATUSES.COMPLETED,
+        REFUND_STATUSES.REJECTED,
+        REFUND_STATUSES.CANCELLED,
       ].includes(refund.status)
     ) {
       return res.status(400).json({
+        success: false,
         message:
-          `Refund cannot be cancelled when status is ${refund.status}`,
+          "This refund cannot be cancelled in its current status.",
       });
     }
 
-    refund.status = "Cancelled";
+    refund.status = REFUND_STATUSES.CANCELLED;
 
     await refund.save();
 
-    const updatedRefund = await populateRefund(
+    const populatedRefund = await populateRefund(
       Refund.findById(refund._id)
     );
 
     return res.status(200).json({
-      message: "Refund cancelled successfully",
-      refund: updatedRefund,
+      success: true,
+      message: "Refund cancelled successfully.",
+      data: populatedRefund,
     });
   } catch (error) {
     console.error("Cancel refund error:", error);
 
-    return res.status(400).json({
-      message:
-        error.message || "Failed to cancel refund",
+    return res.status(500).json({
+      success: false,
+      message: "Failed to cancel refund.",
+      error: error.message,
     });
   }
 };
 
-// ----------------------------------------------------
+// =====================================================
 // DELETE REFUND
-// ----------------------------------------------------
+// =====================================================
 
 const deleteRefund = async (req, res) => {
   try {
@@ -1609,7 +1942,8 @@ const deleteRefund = async (req, res) => {
 
     if (!isValidObjectId(id)) {
       return res.status(400).json({
-        message: "Invalid refund ID",
+        success: false,
+        message: "Invalid refund ID.",
       });
     }
 
@@ -1617,41 +1951,45 @@ const deleteRefund = async (req, res) => {
 
     if (!refund) {
       return res.status(404).json({
-        message: "Refund not found",
+        success: false,
+        message: "Refund not found.",
       });
     }
 
     if (
       [
-        "Approved",
-        "Processing",
-        "Completed",
+        REFUND_STATUSES.APPROVED,
+        REFUND_STATUSES.PROCESSING,
+        REFUND_STATUSES.COMPLETED,
       ].includes(refund.status)
     ) {
       return res.status(400).json({
+        success: false,
         message:
-          `Refund cannot be deleted when status is ${refund.status}`,
+          "Approved, Processing or Completed refunds cannot be deleted.",
       });
     }
 
     await Refund.findByIdAndDelete(id);
 
     return res.status(200).json({
-      message: "Refund deleted successfully",
+      success: true,
+      message: "Refund deleted successfully.",
     });
   } catch (error) {
     console.error("Delete refund error:", error);
 
     return res.status(500).json({
-      message:
-        error.message || "Failed to delete refund",
+      success: false,
+      message: "Failed to delete refund.",
+      error: error.message,
     });
   }
 };
 
-// ----------------------------------------------------
+// =====================================================
 // EXPORTS
-// ----------------------------------------------------
+// =====================================================
 
 module.exports = {
   createRefund,

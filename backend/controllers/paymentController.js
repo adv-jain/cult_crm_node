@@ -1,81 +1,12 @@
-
 const mongoose = require("mongoose");
 
 const Payment = require("../models/Payment");
 const Booking = require("../models/Booking");
 const Invoice = require("../models/Invoice");
-const User = require("../models/User");
 
-const createNotification = require("../services/notificationService");
-
-// =====================================================
-// CONSTANTS
-// =====================================================
-
-const PAYMENT_STATUSES = [
-  "Pending",
-  "Completed",
-  "Failed",
-  "Refunded",
-];
-
-const CREATABLE_PAYMENT_STATUSES = [
-  "Pending",
-  "Completed",
-  "Failed",
-];
-
-const PAYMENT_METHODS = [
-  "Cash",
-  "UPI",
-  "Card",
-  "Bank Transfer",
-  "Cheque",
-  "Online",
-];
-
-const ACTIVE_SALES_ROLES = ["sales"];
-
-
-// =====================================================
-// HELPERS
-// =====================================================
-
-const isValidObjectId = (id) => {
-  return mongoose.isValidObjectId(id);
-};
-
-
-const toObjectId = (id) => {
-  return new mongoose.Types.ObjectId(id);
-};
-
-
-const isValidDate = (value) => {
-  if (!value) {
-    return false;
-  }
-
-  const date = new Date(value);
-
-  return !Number.isNaN(date.getTime());
-};
-
-
-const isFutureDate = (value) => {
-  if (!value) {
-    return false;
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return false;
-  }
-
-  return date.getTime() > Date.now();
-};
-
+const {
+  createNotification,
+} = require("../services/notificationService");
 
 // =====================================================
 // GENERATE PAYMENT NUMBER
@@ -108,589 +39,617 @@ const generatePaymentNumber = async (session) => {
   return `PAY-${year}-${String(nextNumber).padStart(4, "0")}`;
 };
 
-
 // =====================================================
-// GET ACTIVE SALES USERS
+// GET COMPLETED PAYMENT TOTAL FOR BOOKING
 // =====================================================
 
-const getActiveSalesUserIds = async (session = null) => {
-  const query = User.find({
-    role: { $in: ACTIVE_SALES_ROLES },
-    isActive: true,
-  }).select("_id");
+const getCompletedBookingPaymentsTotal = async (
+  bookingId,
+  session
+) => {
+  const result = await Payment.aggregate([
+    {
+      $match: {
+        booking: new mongoose.Types.ObjectId(bookingId),
+        status: "Completed",
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        totalPaid: {
+          $sum: "$amount",
+        },
+      },
+    },
+  ]).session(session);
 
-  if (session) {
-    query.session(session);
-  }
-
-  const users = await query;
-
-  return users.map((user) => user._id);
+  return Number(result[0]?.totalPaid || 0);
 };
 
-
 // =====================================================
-// CHECK BOOKING ACCESS
+// GET COMPLETED PAYMENT TOTAL FOR INVOICE
 // =====================================================
 
-const canAccessBooking = async (bookingData, user) => {
-  if (!bookingData || !user) {
-    return false;
-  }
+const getCompletedInvoicePaymentsTotal = async (
+  invoiceId,
+  session
+) => {
+  const result = await Payment.aggregate([
+    {
+      $match: {
+        invoice: new mongoose.Types.ObjectId(invoiceId),
+        status: "Completed",
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        totalPaid: {
+          $sum: "$amount",
+        },
+      },
+    },
+  ]).session(session);
 
-  // Admin → everything
-  if (user.role === "admin") {
-    return true;
-  }
-
-  // Accounts → finance/payment visibility
-  if (user.role === "accounts") {
-    return true;
-  }
-
-  // Operations → booking visibility
-  if (user.role === "operations") {
-    return true;
-  }
-
-  // Sales → only own bookings
-  if (user.role === "sales") {
-    return (
-      bookingData.salesOwner &&
-      bookingData.salesOwner.toString() === user.id.toString()
-    );
-  }
-
-  // Manager → bookings belonging to active sales team
-  if (user.role === "manager") {
-    if (!bookingData.salesOwner) {
-      return false;
-    }
-
-    const salesUser = await User.findOne({
-      _id: bookingData.salesOwner,
-      role: "sales",
-      isActive: true,
-    }).select("_id");
-
-    return Boolean(salesUser);
-  }
-
-  return false;
+  return Number(result[0]?.totalPaid || 0);
 };
 
-
 // =====================================================
-// VALIDATE PAYMENT STATUS
-// =====================================================
-
-const validatePaymentStatus = (status) => {
-  if (status === undefined || status === null || status === "") {
-    return "Completed";
-  }
-
-  if (!PAYMENT_STATUSES.includes(status)) {
-    throw new Error(
-      `Invalid payment status. Allowed values: ${PAYMENT_STATUSES.join(", ")}`
-    );
-  }
-
-  // Refunded payments must be handled by refund workflow.
-  if (status === "Refunded") {
-    throw new Error(
-      "Refunded payment status cannot be created directly. Use the refund workflow."
-    );
-  }
-
-  if (!CREATABLE_PAYMENT_STATUSES.includes(status)) {
-    throw new Error(
-      `Payment status ${status} cannot be created directly`
-    );
-  }
-
-  return status;
-};
-
-
-// =====================================================
-// VALIDATE PAYMENT METHOD
+// UPDATE BOOKING PAYMENT SUMMARY
 // =====================================================
 
-const validatePaymentMethod = (paymentMethod) => {
-  if (!PAYMENT_METHODS.includes(paymentMethod)) {
-    throw new Error(
-      `Invalid payment method. Allowed values: ${PAYMENT_METHODS.join(", ")}`
-    );
-  }
-};
-
-
-// =====================================================
-// VALIDATE PAYMENT DATE
-// =====================================================
-
-const validatePaymentDate = (paymentDate) => {
-  if (paymentDate === undefined || paymentDate === null || paymentDate === "") {
-    return new Date();
-  }
-
-  if (!isValidDate(paymentDate)) {
-    throw new Error("Payment date must be a valid date");
-  }
-
-  if (isFutureDate(paymentDate)) {
-    throw new Error("Payment date cannot be in the future");
-  }
-
-  return new Date(paymentDate);
-};
-
-
-// =====================================================
-// UPDATE BOOKING PAYMENT TOTALS
-// ONLY COMPLETED PAYMENTS REACH HERE
-// =====================================================
-
-const updateBookingPaymentTotals = (bookingData, paymentAmount) => {
-  const currentAmountPaid = Number(
-    bookingData.amountPaid || 0
-  );
-
+const updateBookingPaymentSummary = async (
+  bookingData,
+  paidAmount
+) => {
   const totalBookingAmount = Number(
     bookingData.totalAmount || 0
   );
 
-  const newAmountPaid = Number(
-    (currentAmountPaid + paymentAmount).toFixed(2)
+  const normalizedPaid = Number(
+    Math.min(
+      Math.max(paidAmount, 0),
+      totalBookingAmount
+    ).toFixed(2)
   );
 
-  if (newAmountPaid > totalBookingAmount) {
-    throw new Error(
-      `Payment amount cannot exceed booking due amount`
-    );
-  }
-
-  bookingData.amountPaid = newAmountPaid;
+  bookingData.amountPaid = normalizedPaid;
 
   bookingData.amountDue = Number(
     Math.max(
       0,
-      totalBookingAmount - newAmountPaid
+      totalBookingAmount - normalizedPaid
     ).toFixed(2)
   );
 
-  if (newAmountPaid <= 0) {
+  if (normalizedPaid <= 0) {
     bookingData.paymentStatus = "Pending";
-  } else if (newAmountPaid < totalBookingAmount) {
+  } else if (
+    normalizedPaid < totalBookingAmount
+  ) {
     bookingData.paymentStatus = "Partially Paid";
   } else {
-    bookingData.amountPaid = totalBookingAmount;
+    bookingData.amountPaid =
+      totalBookingAmount;
+
     bookingData.amountDue = 0;
+
     bookingData.paymentStatus = "Paid";
   }
+
+  return bookingData;
 };
 
-
 // =====================================================
-// UPDATE INVOICE PAYMENT TOTALS
-// ONLY COMPLETED PAYMENTS REACH HERE
+// UPDATE INVOICE PAYMENT SUMMARY
 // =====================================================
 
-const updateInvoicePaymentTotals = (
+const updateInvoicePaymentSummary = async (
   invoiceData,
-  paymentAmount
+  paidAmount
 ) => {
-  const currentAmountPaid = Number(
-    invoiceData.amountPaid || 0
-  );
-
   const totalInvoiceAmount = Number(
     invoiceData.totalAmount || 0
   );
 
-  const newAmountPaid = Number(
-    (currentAmountPaid + paymentAmount).toFixed(2)
+  const normalizedPaid = Number(
+    Math.min(
+      Math.max(paidAmount, 0),
+      totalInvoiceAmount
+    ).toFixed(2)
   );
 
-  if (newAmountPaid > totalInvoiceAmount) {
-    throw new Error(
-      "Payment amount cannot exceed invoice due amount"
-    );
-  }
-
-  invoiceData.amountPaid = newAmountPaid;
+  invoiceData.amountPaid =
+    normalizedPaid;
 
   invoiceData.amountDue = Number(
     Math.max(
       0,
-      totalInvoiceAmount - newAmountPaid
+      totalInvoiceAmount - normalizedPaid
     ).toFixed(2)
   );
 
-  if (newAmountPaid <= 0) {
-    invoiceData.paymentStatus = "Pending";
-  } else if (newAmountPaid < totalInvoiceAmount) {
-    invoiceData.paymentStatus = "Partially Paid";
+  if (
+    invoiceData.status === "Cancelled"
+  ) {
+    invoiceData.paymentStatus =
+      "Cancelled";
 
-    invoiceData.status = "Partially Paid";
+    return invoiceData;
+  }
+
+  if (normalizedPaid <= 0) {
+    invoiceData.paymentStatus =
+      "Pending";
+
+    if (
+      ![
+        "Draft",
+        "Issued",
+        "Sent",
+        "Viewed",
+      ].includes(invoiceData.status)
+    ) {
+      invoiceData.status = "Issued";
+    }
+  } else if (
+    normalizedPaid < totalInvoiceAmount
+  ) {
+    invoiceData.paymentStatus =
+      "Partially Paid";
+
+    invoiceData.status =
+      "Partially Paid";
   } else {
-    invoiceData.amountPaid = totalInvoiceAmount;
+    invoiceData.amountPaid =
+      totalInvoiceAmount;
+
     invoiceData.amountDue = 0;
 
-    invoiceData.paymentStatus = "Paid";
-    invoiceData.status = "Paid";
-  }
-};
+    invoiceData.paymentStatus =
+      "Paid";
 
+    invoiceData.status =
+      "Paid";
+  }
+
+  return invoiceData;
+};
 
 // =====================================================
 // CREATE PAYMENT
 // =====================================================
 
 const createPayment = async (req, res) => {
-  const session = await mongoose.startSession();
+  const session =
+    await mongoose.startSession();
 
-  const bookingId = req.body.booking;
+  const bookingId =
+    req.body.booking;
 
   try {
     let paymentId = null;
     let bookingSummary = null;
     let invoiceSummary = null;
 
-    await session.withTransaction(async () => {
-      const {
-        booking,
-        invoice,
-        amount,
-        paymentMethod,
-        transactionId,
-        paymentDate,
-        status,
-        notes,
-      } = req.body;
-
-      // =================================================
-      // BASIC VALIDATION
-      // =================================================
-
-      if (
-        !booking ||
-        amount === undefined ||
-        amount === null ||
-        !paymentMethod
-      ) {
-        throw new Error(
-          "Booking, amount and payment method are required"
-        );
-      }
-
-      if (!isValidObjectId(booking)) {
-        throw new Error("Invalid booking ID");
-      }
-
-      if (invoice && !isValidObjectId(invoice)) {
-        throw new Error("Invalid invoice ID");
-      }
-
-      const paymentAmount = Number(amount);
-
-      if (
-        !Number.isFinite(paymentAmount) ||
-        paymentAmount <= 0
-      ) {
-        throw new Error(
-          "Payment amount must be a valid number greater than 0"
-        );
-      }
-
-      validatePaymentMethod(paymentMethod);
-
-      const paymentStatus = validatePaymentStatus(status);
-
-      const finalPaymentDate =
-        validatePaymentDate(paymentDate);
-
-      // =================================================
-      // FIND BOOKING
-      // =================================================
-
-      const bookingData = await Booking.findById(
-        booking
-      ).session(session);
-
-      if (!bookingData) {
-        throw new Error("Booking not found");
-      }
-
-      // =================================================
-      // ACCESS CONTROL
-      // =================================================
-
-      const hasBookingAccess =
-        await canAccessBooking(
-          bookingData,
-          req.user
-        );
-
-      if (!hasBookingAccess) {
-        throw new Error(
-          "Access denied for this booking"
-        );
-      }
-
-      // =================================================
-      // PREVENT PAYMENT ON CANCELLED / REFUNDED BOOKING
-      // =================================================
-
-      if (
-        bookingData.status === "Cancelled" ||
-        bookingData.status === "Refunded"
-      ) {
-        throw new Error(
-          `Payment cannot be added to a ${bookingData.status.toLowerCase()} booking`
-        );
-      }
-
-      // =================================================
-      // DUPLICATE TRANSACTION CHECK
-      // =================================================
-
-      const cleanTransactionId =
-        transactionId &&
-        String(transactionId).trim()
-          ? String(transactionId).trim()
-          : null;
-
-      if (cleanTransactionId) {
-        const existingPayment =
-          await Payment.findOne({
-            transactionId: cleanTransactionId,
-          }).session(session);
-
-        if (existingPayment) {
-          throw new Error(
-            "Payment with this transaction ID already exists"
-          );
-        }
-      }
-
-      // =================================================
-      // CHECK BOOKING DUE AMOUNT
-      // =================================================
-
-      const bookingAmountDue = Number(
-        bookingData.amountDue || 0
-      );
-
-      if (paymentAmount > bookingAmountDue) {
-        throw new Error(
-          `Payment amount cannot exceed booking due amount of ${bookingAmountDue}`
-        );
-      }
-
-      // =================================================
-      // FIND INVOICE
-      // =================================================
-
-      let invoiceData = null;
-
-      if (invoice) {
-        invoiceData = await Invoice.findById(
-          invoice
-        ).session(session);
-
-        if (!invoiceData) {
-          throw new Error("Invoice not found");
-        }
+    await session.withTransaction(
+      async () => {
+        const {
+          booking,
+          invoice,
+          amount,
+          paymentMethod,
+          transactionId,
+          paymentDate,
+          status,
+          notes,
+        } = req.body;
 
         // =================================================
-        // INVOICE → BOOKING RELATION
+        // BASIC VALIDATION
         // =================================================
 
         if (
-          invoiceData.booking &&
-          invoiceData.booking.toString() !==
-            bookingData._id.toString()
+          !booking ||
+          amount === undefined ||
+          !paymentMethod
         ) {
           throw new Error(
-            "Invoice does not belong to the selected booking"
+            "Booking, amount and payment method are required"
+          );
+        }
+
+        if (
+          !mongoose.Types.ObjectId.isValid(
+            booking
+          )
+        ) {
+          throw new Error(
+            "Invalid booking ID"
+          );
+        }
+
+        if (
+          invoice &&
+          !mongoose.Types.ObjectId.isValid(
+            invoice
+          )
+        ) {
+          throw new Error(
+            "Invalid invoice ID"
+          );
+        }
+
+        const paymentAmount =
+          Number(amount);
+
+        if (
+          !Number.isFinite(
+            paymentAmount
+          ) ||
+          paymentAmount <= 0
+        ) {
+          throw new Error(
+            "Payment amount must be a valid number greater than 0"
+          );
+        }
+
+        const paymentStatus =
+          status || "Completed";
+
+        const allowedStatuses = [
+          "Pending",
+          "Completed",
+          "Failed",
+          "Refunded",
+        ];
+
+        if (
+          !allowedStatuses.includes(
+            paymentStatus
+          )
+        ) {
+          throw new Error(
+            `Invalid payment status. Allowed statuses: ${allowedStatuses.join(
+              ", "
+            )}`
           );
         }
 
         // =================================================
-        // INVOICE → CUSTOMER RELATION
+        // FIND BOOKING
+        // =================================================
+
+        const bookingData =
+          await Booking.findById(
+            booking
+          ).session(session);
+
+        if (!bookingData) {
+          throw new Error(
+            "Booking not found"
+          );
+        }
+
+        // =================================================
+        // DUPLICATE TRANSACTION CHECK
+        // =================================================
+
+        if (transactionId) {
+          const existingPayment =
+            await Payment.findOne({
+              transactionId:
+                transactionId.trim(),
+            }).session(session);
+
+          if (existingPayment) {
+            throw new Error(
+              "Payment with this transaction ID already exists"
+            );
+          }
+        }
+
+        // =================================================
+        // PREVENT PAYMENT ON CANCELLED / REFUNDED BOOKING
         // =================================================
 
         if (
-          invoiceData.customer &&
-          bookingData.customer &&
-          invoiceData.customer.toString() !==
-            bookingData.customer.toString()
+          bookingData.status ===
+            "Cancelled" ||
+          bookingData.status ===
+            "Refunded"
         ) {
           throw new Error(
-            "Invoice customer does not match booking customer"
+            `Payment cannot be added to a ${bookingData.status.toLowerCase()} booking`
           );
         }
 
         // =================================================
-        // CANCELLED INVOICE
+        // FIND INVOICE
         // =================================================
 
-        if (invoiceData.status === "Cancelled") {
-          throw new Error(
-            "Payment cannot be added to a cancelled invoice"
-          );
+        let invoiceData = null;
+
+        if (invoice) {
+          invoiceData =
+            await Invoice.findById(
+              invoice
+            ).session(session);
+
+          if (!invoiceData) {
+            throw new Error(
+              "Invoice not found"
+            );
+          }
+
+          // =================================================
+          // CHECK INVOICE-BOOKING RELATION
+          // =================================================
+
+          if (
+            invoiceData.booking &&
+            invoiceData.booking.toString() !==
+              bookingData._id.toString()
+          ) {
+            throw new Error(
+              "Invoice does not belong to the selected booking"
+            );
+          }
+
+          // =================================================
+          // CHECK INVOICE CUSTOMER
+          // =================================================
+
+          if (
+            invoiceData.customer &&
+            bookingData.customer &&
+            invoiceData.customer.toString() !==
+              bookingData.customer.toString()
+          ) {
+            throw new Error(
+              "Invoice customer does not match booking customer"
+            );
+          }
+
+          // =================================================
+          // PREVENT PAYMENT ON CANCELLED INVOICE
+          // =================================================
+
+          if (
+            invoiceData.status ===
+            "Cancelled"
+          ) {
+            throw new Error(
+              "Payment cannot be added to a cancelled invoice"
+            );
+          }
+
+          // =================================================
+          // INVOICE IS PRIMARY PAYMENT LIMIT
+          // =================================================
+
+          const invoiceAmountDue =
+            Number(
+              invoiceData.amountDue ||
+                0
+            );
+
+          if (
+            paymentAmount >
+            invoiceAmountDue
+          ) {
+            throw new Error(
+              `Payment amount cannot exceed invoice due amount of ${invoiceAmountDue}`
+            );
+          }
+        } else {
+          // =================================================
+          // NO INVOICE → BOOKING IS PRIMARY LIMIT
+          // =================================================
+
+          const bookingAmountDue =
+            Number(
+              bookingData.amountDue ||
+                0
+            );
+
+          if (
+            paymentAmount >
+            bookingAmountDue
+          ) {
+            throw new Error(
+              `Payment amount cannot exceed booking due amount of ${bookingAmountDue}`
+            );
+          }
         }
 
         // =================================================
-        // INVOICE DUE AMOUNT
+        // GENERATE PAYMENT NUMBER
         // =================================================
 
-        const invoiceAmountDue = Number(
-          invoiceData.amountDue || 0
-        );
-
-        if (paymentAmount > invoiceAmountDue) {
-          throw new Error(
-            `Payment amount cannot exceed invoice due amount of ${invoiceAmountDue}`
+        const paymentNumber =
+          await generatePaymentNumber(
+            session
           );
-        }
-      }
 
-      // =================================================
-      // GENERATE PAYMENT NUMBER
-      // =================================================
-
-      const paymentNumber =
-        await generatePaymentNumber(session);
-
-      // =================================================
-      // CREATE PAYMENT
-      // =================================================
-
-      const payment = new Payment({
-        booking: bookingData._id,
-
-        invoice: invoiceData
-          ? invoiceData._id
-          : null,
-
-        customer: bookingData.customer,
-
-        enquiry:
-          bookingData.enquiry || null,
-
-        quotation:
-          bookingData.quotation || null,
-
-        paymentNumber,
-
-        amount: paymentAmount,
-
-        currency:
-          bookingData.currency || "INR",
-
-        paymentMethod,
-
-        transactionId:
-          cleanTransactionId,
-
-        paymentDate:
-          finalPaymentDate,
-
-        status:
-          paymentStatus,
-
-        notes:
-          notes
-            ? String(notes).trim()
-            : "",
-
-        receivedBy:
-          req.user.id,
-      });
-
-      await payment.save({
-        session,
-      });
-
-      paymentId = payment._id;
-
-      // =================================================
-      // IMPORTANT:
-      // ONLY COMPLETED PAYMENT AFFECTS FINANCIAL TOTALS
-      // =================================================
-
-      if (paymentStatus === "Completed") {
         // =================================================
-        // UPDATE BOOKING PAYMENT
+        // CREATE PAYMENT
         // =================================================
 
-        updateBookingPaymentTotals(
-          bookingData,
-          paymentAmount
-        );
+        const payment =
+          new Payment({
+            booking:
+              bookingData._id,
 
-        await bookingData.save({
+            invoice: invoiceData
+              ? invoiceData._id
+              : null,
+
+            customer:
+              bookingData.customer,
+
+            enquiry:
+              bookingData.enquiry ||
+              null,
+
+            quotation:
+              bookingData.quotation ||
+              null,
+
+            paymentNumber,
+
+            amount:
+              paymentAmount,
+
+            currency:
+              bookingData.currency ||
+              "INR",
+
+            paymentMethod,
+
+            transactionId:
+              transactionId
+                ? transactionId.trim()
+                : null,
+
+            paymentDate:
+              paymentDate ||
+              new Date(),
+
+            status:
+              paymentStatus,
+
+            notes:
+              notes || "",
+
+            receivedBy:
+              req.user.id,
+          });
+
+        await payment.save({
           session,
         });
 
+        paymentId =
+          payment._id;
+
         // =================================================
-        // UPDATE INVOICE PAYMENT
+        // ONLY COMPLETED PAYMENTS AFFECT FINANCIAL TOTALS
         // =================================================
 
-        if (invoiceData) {
-          updateInvoicePaymentTotals(
-            invoiceData,
-            paymentAmount
+        if (
+          paymentStatus ===
+          "Completed"
+        ) {
+          // =================================================
+          // RECONCILE BOOKING FROM ALL COMPLETED PAYMENTS
+          // =================================================
+
+          const bookingPaid =
+            await getCompletedBookingPaymentsTotal(
+              bookingData._id,
+              session
+            );
+
+          // =================================================
+          // IF INVOICE EXISTS
+          // INVOICE TOTAL BECOMES BOOKING TOTAL
+          // =================================================
+
+          if (invoiceData) {
+            bookingData.totalAmount =
+              Number(
+                invoiceData.totalAmount ||
+                  0
+              );
+          }
+
+          await updateBookingPaymentSummary(
+            bookingData,
+            bookingPaid
           );
 
-          await invoiceData.save({
+          await bookingData.save({
             session,
           });
-        }
-      }
 
-      // =================================================
-      // PAYMENT SUMMARY
-      // =================================================
+          // =================================================
+          // RECONCILE INVOICE
+          // =================================================
 
-      bookingSummary = {
-        totalAmount:
-          bookingData.totalAmount,
+          if (invoiceData) {
+            const invoiceLinkedPaid =
+              await getCompletedInvoicePaymentsTotal(
+                invoiceData._id,
+                session
+              );
 
-        amountPaid:
-          bookingData.amountPaid,
+            const historicalBookingPaid =
+              await getCompletedBookingPaymentsTotal(
+                bookingData._id,
+                session
+              );
 
-        amountDue:
-          bookingData.amountDue,
+            const reconciledInvoicePaid =
+              Math.max(
+                invoiceLinkedPaid,
+                historicalBookingPaid
+              );
 
-        paymentStatus:
-          bookingData.paymentStatus,
-      };
+            await updateInvoicePaymentSummary(
+              invoiceData,
+              reconciledInvoicePaid
+            );
 
-      invoiceSummary = invoiceData
-        ? {
-            invoiceNumber:
-              invoiceData.invoiceNumber,
-
-            totalAmount:
-              invoiceData.totalAmount,
-
-            amountPaid:
-              invoiceData.amountPaid,
-
-            amountDue:
-              invoiceData.amountDue,
-
-            paymentStatus:
-              invoiceData.paymentStatus,
-
-            status:
-              invoiceData.status,
+            await invoiceData.save({
+              session,
+            });
           }
-        : null;
-    });
+        }
+
+        // =================================================
+        // PAYMENT SUMMARY
+        // =================================================
+
+        bookingSummary = {
+          totalAmount:
+            bookingData.totalAmount,
+
+          amountPaid:
+            bookingData.amountPaid,
+
+          amountDue:
+            bookingData.amountDue,
+
+          paymentStatus:
+            bookingData.paymentStatus,
+        };
+
+        invoiceSummary =
+          invoiceData
+            ? {
+                invoiceNumber:
+                  invoiceData.invoiceNumber,
+
+                totalAmount:
+                  invoiceData.totalAmount,
+
+                amountPaid:
+                  invoiceData.amountPaid,
+
+                amountDue:
+                  invoiceData.amountDue,
+
+                paymentStatus:
+                  invoiceData.paymentStatus,
+
+                status:
+                  invoiceData.status,
+              }
+            : null;
+      }
+    );
 
     // =====================================================
     // NOTIFICATION
@@ -698,11 +657,14 @@ const createPayment = async (req, res) => {
 
     try {
       const bookingData =
-        await Booking.findById(bookingId);
+        await Booking.findById(
+          bookingId
+        );
 
       if (
         bookingData?.salesOwner &&
-        req.body.status !== "Failed"
+        req.body.status !==
+          "Failed"
       ) {
         await createNotification({
           recipient:
@@ -712,20 +674,15 @@ const createPayment = async (req, res) => {
             "PAYMENT_RECEIVED",
 
           title:
-            req.body.status === "Pending"
-              ? "Payment Pending"
-              : "Payment Received",
+            "Payment Received",
 
           message:
             `Payment of ${
-              bookingData.currency || "INR"
+              bookingData.currency ||
+              "INR"
             } ${Number(
               req.body.amount
-            )} ${
-              req.body.status === "Pending"
-                ? "is pending"
-                : "received"
-            } for booking ${
+            )} received for booking ${
               bookingData._id
             }`,
 
@@ -736,7 +693,9 @@ const createPayment = async (req, res) => {
             bookingData.customer,
         });
       }
-    } catch (notificationError) {
+    } catch (
+      notificationError
+    ) {
       console.log(
         "Payment notification failed:",
         notificationError.message
@@ -748,7 +707,9 @@ const createPayment = async (req, res) => {
     // =====================================================
 
     const populatedPayment =
-      await Payment.findById(paymentId)
+      await Payment.findById(
+        paymentId
+      )
         .populate(
           "booking",
           "status totalAmount amountPaid amountDue paymentStatus"
@@ -802,14 +763,17 @@ const createPayment = async (req, res) => {
     // DUPLICATE KEY ERROR
     // ===================================================
 
-    if (error.code === 11000) {
+    if (
+      error.code === 11000
+    ) {
       const duplicateField =
         Object.keys(
           error.keyPattern || {}
         )[0];
 
       if (
-        duplicateField === "transactionId"
+        duplicateField ===
+        "transactionId"
       ) {
         return res.status(409).json({
           message:
@@ -818,7 +782,8 @@ const createPayment = async (req, res) => {
       }
 
       if (
-        duplicateField === "paymentNumber"
+        duplicateField ===
+        "paymentNumber"
       ) {
         return res.status(409).json({
           message:
@@ -827,24 +792,12 @@ const createPayment = async (req, res) => {
       }
     }
 
-    const message =
-      error.message ||
-      "Failed to create payment";
-
-    if (
-      message === "Access denied for this booking"
-    ) {
-      return res.status(403).json({
-        message,
-      });
-    }
-
     return res.status(400).json({
       message:
         "Failed to create payment",
 
       error:
-        message,
+        error.message,
     });
 
   } finally {
@@ -852,12 +805,14 @@ const createPayment = async (req, res) => {
   }
 };
 
-
 // =====================================================
 // GET ALL PAYMENTS
 // =====================================================
 
-const getPayments = async (req, res) => {
+const getPayments = async (
+  req,
+  res
+) => {
   try {
     const {
       booking,
@@ -869,112 +824,26 @@ const getPayments = async (req, res) => {
       limit = 10,
     } = req.query;
 
-    // =================================================
-    // VALIDATE FILTER IDS
-    // =================================================
-
-    if (
-      booking &&
-      !isValidObjectId(booking)
-    ) {
-      return res.status(400).json({
-        message: "Invalid booking ID",
-      });
-    }
-
-    if (
-      invoice &&
-      !isValidObjectId(invoice)
-    ) {
-      return res.status(400).json({
-        message: "Invalid invoice ID",
-      });
-    }
-
-    if (
-      customer &&
-      !isValidObjectId(customer)
-    ) {
-      return res.status(400).json({
-        message: "Invalid customer ID",
-      });
-    }
-
-    // =================================================
-    // VALIDATE STATUS
-    // =================================================
-
-    if (
-      status &&
-      !PAYMENT_STATUSES.includes(status)
-    ) {
-      return res.status(400).json({
-        message:
-          `Invalid payment status. Allowed values: ${PAYMENT_STATUSES.join(", ")}`,
-      });
-    }
-
-    // =================================================
-    // VALIDATE PAYMENT METHOD
-    // =================================================
-
-    if (
-      paymentMethod &&
-      !PAYMENT_METHODS.includes(paymentMethod)
-    ) {
-      return res.status(400).json({
-        message:
-          `Invalid payment method. Allowed values: ${PAYMENT_METHODS.join(", ")}`,
-      });
-    }
-
-    // =================================================
-    // PAGINATION
-    // =================================================
-
-    const pageNumberRaw = Number(page);
-
-    const limitNumberRaw = Number(limit);
-
-    const pageNumber =
-      Number.isFinite(pageNumberRaw) &&
-      pageNumberRaw > 0
-        ? Math.floor(pageNumberRaw)
-        : 1;
-
-    const limitNumber =
-      Number.isFinite(limitNumberRaw) &&
-      limitNumberRaw > 0
-        ? Math.min(
-            50,
-            Math.floor(limitNumberRaw)
-          )
-        : 10;
-
-    const skip =
-      (pageNumber - 1) *
-      limitNumber;
-
-    // =================================================
-    // BASE FILTER
-    // =================================================
-
     const filter = {};
 
     if (booking) {
-      filter.booking = toObjectId(booking);
+      filter.booking =
+        booking;
     }
 
     if (invoice) {
-      filter.invoice = toObjectId(invoice);
+      filter.invoice =
+        invoice;
     }
 
     if (customer) {
-      filter.customer = toObjectId(customer);
+      filter.customer =
+        customer;
     }
 
     if (status) {
-      filter.status = status;
+      filter.status =
+        status;
     }
 
     if (paymentMethod) {
@@ -982,121 +851,24 @@ const getPayments = async (req, res) => {
         paymentMethod;
     }
 
-    // =================================================
-    // ROLE-BASED BOOKING SCOPE
-    // =================================================
+    const pageNumber =
+      Math.max(
+        1,
+        Number(page)
+      );
 
-    if (req.user.role === "sales") {
-      filter.booking = {
-        ...(booking
-          ? { $eq: toObjectId(booking) }
-          : {}),
-      };
+    const limitNumber =
+      Math.min(
+        100,
+        Math.max(
+          1,
+          Number(limit)
+        )
+      );
 
-      const ownBookings =
-        await Booking.find({
-          salesOwner: req.user.id,
-        }).select("_id");
-
-      const ownBookingIds =
-        ownBookings.map(
-          (item) => item._id
-        );
-
-      if (booking) {
-        const isOwnBooking =
-          ownBookingIds.some(
-            (id) =>
-              id.toString() ===
-              booking.toString()
-          );
-
-        if (!isOwnBooking) {
-          return res.status(200).json({
-            message:
-              "Payments fetched successfully",
-            total: 0,
-            page: pageNumber,
-            limit: limitNumber,
-            totalPages: 0,
-            payments: [],
-          });
-        }
-      } else {
-        filter.booking = {
-          $in: ownBookingIds,
-        };
-      }
-    }
-
-    // =================================================
-    // MANAGER → ACTIVE SALES TEAM ONLY
-    // =================================================
-
-    if (req.user.role === "manager") {
-      const activeSalesUsers =
-        await getActiveSalesUserIds();
-
-      const teamBookings =
-        await Booking.find({
-          salesOwner: {
-            $in: activeSalesUsers,
-          },
-        }).select("_id");
-
-      const teamBookingIds =
-        teamBookings.map(
-          (item) => item._id
-        );
-
-      if (booking) {
-        const isTeamBooking =
-          teamBookingIds.some(
-            (id) =>
-              id.toString() ===
-              booking.toString()
-          );
-
-        if (!isTeamBooking) {
-          return res.status(200).json({
-            message:
-              "Payments fetched successfully",
-            total: 0,
-            page: pageNumber,
-            limit: limitNumber,
-            totalPages: 0,
-            payments: [],
-          });
-        }
-      } else {
-        filter.booking = {
-          $in: teamBookingIds,
-        };
-      }
-    }
-
-    // =================================================
-    // ADMIN / ACCOUNTS / OPERATIONS
-    // ALL PAYMENT RECORDS
-    // =================================================
-
-    if (
-      ![
-        "admin",
-        "manager",
-        "sales",
-        "accounts",
-        "operations",
-      ].includes(req.user.role)
-    ) {
-      return res.status(403).json({
-        message: "Access denied",
-      });
-    }
-
-    // =================================================
-    // FETCH PAYMENTS
-    // =================================================
+    const skip =
+      (pageNumber - 1) *
+      limitNumber;
 
     const [
       payments,
@@ -1105,7 +877,7 @@ const getPayments = async (req, res) => {
       Payment.find(filter)
         .populate(
           "booking",
-          "status totalAmount amountPaid amountDue paymentStatus destination travelDate salesOwner"
+          "status totalAmount amountPaid amountDue paymentStatus"
         )
         .populate(
           "invoice",
@@ -1123,9 +895,13 @@ const getPayments = async (req, res) => {
           createdAt: -1,
         })
         .skip(skip)
-        .limit(limitNumber),
+        .limit(
+          limitNumber
+        ),
 
-      Payment.countDocuments(filter),
+      Payment.countDocuments(
+        filter
+      ),
     ]);
 
     return res.status(200).json({
@@ -1142,7 +918,8 @@ const getPayments = async (req, res) => {
 
       totalPages:
         Math.ceil(
-          total / limitNumber
+          total /
+            limitNumber
         ),
 
       payments,
@@ -1164,7 +941,6 @@ const getPayments = async (req, res) => {
   }
 };
 
-
 // =====================================================
 // GET PAYMENT BY ID
 // =====================================================
@@ -1174,24 +950,10 @@ const getPaymentById = async (
   res
 ) => {
   try {
-    const { id } = req.params;
-
-    // =================================================
-    // OBJECT ID VALIDATION
-    // =================================================
-
-    if (!isValidObjectId(id)) {
-      return res.status(400).json({
-        message: "Invalid payment ID",
-      });
-    }
-
-    // =================================================
-    // FIND PAYMENT
-    // =================================================
-
     const payment =
-      await Payment.findById(id)
+      await Payment.findById(
+        req.params.id
+      )
         .populate(
           "booking"
         )
@@ -1219,30 +981,6 @@ const getPaymentById = async (
       });
     }
 
-    // =================================================
-    // BOOKING ACCESS
-    // =================================================
-
-    if (!payment.booking) {
-      return res.status(400).json({
-        message:
-          "Payment booking reference is missing",
-      });
-    }
-
-    const hasAccess =
-      await canAccessBooking(
-        payment.booking,
-        req.user
-      );
-
-    if (!hasAccess) {
-      return res.status(403).json({
-        message:
-          "Access denied for this payment",
-      });
-    }
-
     return res.status(200).json({
       message:
         "Payment fetched successfully",
@@ -1266,6 +1004,492 @@ const getPaymentById = async (
   }
 };
 
+// =====================================================
+// RECONCILE BOOKING PAYMENTS
+// =====================================================
+
+const reconcileBookingPayments = async (
+  req,
+  res
+) => {
+  const session =
+    await mongoose.startSession();
+
+  try {
+    const {
+      bookingId,
+    } = req.params;
+
+    // =================================================
+    // ROLE CHECK
+    // =================================================
+
+    if (
+      ![
+        "admin",
+        "accounts",
+        "manager",
+      ].includes(
+        req.user.role
+      )
+    ) {
+      return res.status(403).json({
+        message:
+          "Only admin, accounts or manager can reconcile payments",
+      });
+    }
+
+    // =================================================
+    // BOOKING ID VALIDATION
+    // =================================================
+
+    if (
+      !mongoose.Types.ObjectId.isValid(
+        bookingId
+      )
+    ) {
+      return res.status(400).json({
+        message:
+          "Invalid booking ID",
+      });
+    }
+
+    let reconciliationResult =
+      null;
+
+    await session.withTransaction(
+      async () => {
+        // =================================================
+        // FIND BOOKING
+        // =================================================
+
+        const bookingData =
+          await Booking.findById(
+            bookingId
+          ).session(session);
+
+        if (!bookingData) {
+          throw new Error(
+            "Booking not found"
+          );
+        }
+
+        // =================================================
+        // FIND ACTIVE INVOICE
+        // =================================================
+
+        const invoiceData =
+          await Invoice.findOne({
+            booking:
+              bookingData._id,
+
+            status: {
+              $ne: "Cancelled",
+            },
+          })
+            .sort({
+              createdAt: -1,
+            })
+            .session(session);
+
+        if (!invoiceData) {
+          throw new Error(
+            "No active invoice found for this booking"
+          );
+        }
+
+        // =================================================
+        // CUSTOMER VALIDATION
+        // =================================================
+
+        if (
+          invoiceData.customer &&
+          bookingData.customer &&
+          invoiceData.customer.toString() !==
+            bookingData.customer.toString()
+        ) {
+          throw new Error(
+            "Invoice customer does not match booking customer"
+          );
+        }
+
+        // =================================================
+        // LINK QUOTATION IF MISSING
+        // =================================================
+
+        if (
+          !invoiceData.quotation &&
+          bookingData.quotation
+        ) {
+          invoiceData.quotation =
+            bookingData.quotation;
+        }
+
+        // =================================================
+        // GET ALL COMPLETED PAYMENTS
+        // =================================================
+
+        const completedPayments =
+          await Payment.find({
+            booking:
+              bookingData._id,
+
+            status:
+              "Completed",
+          })
+            .sort({
+              createdAt: 1,
+            })
+            .session(session);
+
+        let linkedHistoricalPayments =
+          0;
+
+        // =================================================
+        // LINK HISTORICAL PAYMENTS
+        // =================================================
+
+        for (
+          const payment of
+            completedPayments
+        ) {
+          // -----------------------------------------------
+          // CASE 1: PAYMENT HAS NO INVOICE
+          // -----------------------------------------------
+
+          if (
+            !payment.invoice
+          ) {
+            payment.invoice =
+              invoiceData._id;
+
+            await payment.save({
+              session,
+            });
+
+            linkedHistoricalPayments++;
+
+            continue;
+          }
+
+          // -----------------------------------------------
+          // CASE 2: PAYMENT HAS AN INVOICE
+          // -----------------------------------------------
+
+          const existingInvoice =
+            await Invoice.findById(
+              payment.invoice
+            ).session(session);
+
+          // -----------------------------------------------
+          // CASE 2A: OLD INVOICE DOES NOT EXIST
+          // -----------------------------------------------
+
+          if (
+            !existingInvoice
+          ) {
+            payment.invoice =
+              invoiceData._id;
+
+            await payment.save({
+              session,
+            });
+
+            linkedHistoricalPayments++;
+
+            continue;
+          }
+
+          // -----------------------------------------------
+          // CASE 2B: EXISTING INVOICE BELONGS TO
+          // SAME BOOKING
+          // -----------------------------------------------
+
+          if (
+            existingInvoice.booking &&
+            existingInvoice.booking.toString() ===
+              bookingData._id.toString()
+          ) {
+            // It is safe to relink to the current
+            // active invoice.
+
+            if (
+              existingInvoice._id.toString() !==
+              invoiceData._id.toString()
+            ) {
+              payment.invoice =
+                invoiceData._id;
+
+              await payment.save({
+                session,
+              });
+
+              linkedHistoricalPayments++;
+            }
+
+            continue;
+          }
+
+          // -----------------------------------------------
+          // CASE 2C: INVOICE BELONGS TO DIFFERENT BOOKING
+          // -----------------------------------------------
+
+          throw new Error(
+            `Payment ${payment.paymentNumber} is linked to an invoice belonging to another booking`
+          );
+        }
+
+        // =================================================
+        // CALCULATE TOTAL COMPLETED PAYMENTS
+        // =================================================
+
+        const paymentAggregation =
+          await Payment.aggregate([
+            {
+              $match: {
+                booking:
+                  bookingData._id,
+
+                status:
+                  "Completed",
+              },
+            },
+
+            {
+              $group: {
+                _id: null,
+
+                totalPaid: {
+                  $sum: "$amount",
+                },
+              },
+            },
+          ]).session(session);
+
+        const totalPaid =
+          Number(
+            paymentAggregation[0]
+              ?.totalPaid || 0
+          );
+
+        // =================================================
+        // INVOICE IS FINAL FINANCIAL SOURCE OF TRUTH
+        // =================================================
+
+        const finalBookingTotal =
+          Number(
+            invoiceData.totalAmount ||
+              0
+          );
+
+        // =================================================
+        // UPDATE BOOKING
+        // =================================================
+
+        bookingData.totalAmount =
+          finalBookingTotal;
+
+        bookingData.amountPaid =
+          Number(
+            Math.min(
+              totalPaid,
+              finalBookingTotal
+            ).toFixed(2)
+          );
+
+        bookingData.amountDue =
+          Number(
+            Math.max(
+              0,
+              finalBookingTotal -
+                bookingData.amountPaid
+            ).toFixed(2)
+          );
+
+        if (
+          bookingData.amountPaid <=
+          0
+        ) {
+          bookingData.paymentStatus =
+            "Pending";
+        } else if (
+          bookingData.amountPaid <
+          finalBookingTotal
+        ) {
+          bookingData.paymentStatus =
+            "Partially Paid";
+        } else {
+          bookingData.amountPaid =
+            finalBookingTotal;
+
+          bookingData.amountDue =
+            0;
+
+          bookingData.paymentStatus =
+            "Paid";
+        }
+
+        await bookingData.save({
+          session,
+        });
+
+        // =================================================
+        // UPDATE INVOICE
+        // =================================================
+
+        invoiceData.amountPaid =
+          Number(
+            Math.min(
+              totalPaid,
+              Number(
+                invoiceData.totalAmount ||
+                  0
+              )
+            ).toFixed(2)
+          );
+
+        invoiceData.amountDue =
+          Number(
+            Math.max(
+              0,
+              Number(
+                invoiceData.totalAmount ||
+                  0
+              ) -
+                invoiceData.amountPaid
+            ).toFixed(2)
+          );
+
+        if (
+          invoiceData.amountPaid <=
+          0
+        ) {
+          invoiceData.paymentStatus =
+            "Pending";
+
+          if (
+            invoiceData.status !==
+            "Cancelled"
+          ) {
+            invoiceData.status =
+              "Issued";
+          }
+        } else if (
+          invoiceData.amountPaid <
+          Number(
+            invoiceData.totalAmount ||
+              0
+          )
+        ) {
+          invoiceData.paymentStatus =
+            "Partially Paid";
+
+          invoiceData.status =
+            "Partially Paid";
+        } else {
+          invoiceData.amountPaid =
+            Number(
+              invoiceData.totalAmount
+            );
+
+          invoiceData.amountDue =
+            0;
+
+          invoiceData.paymentStatus =
+            "Paid";
+
+          invoiceData.status =
+            "Paid";
+        }
+
+        await invoiceData.save({
+          session,
+        });
+
+        // =================================================
+        // RESULT
+        // =================================================
+
+        reconciliationResult = {
+          booking: {
+            id:
+              bookingData._id,
+
+            totalAmount:
+              bookingData.totalAmount,
+
+            amountPaid:
+              bookingData.amountPaid,
+
+            amountDue:
+              bookingData.amountDue,
+
+            paymentStatus:
+              bookingData.paymentStatus,
+          },
+
+          invoice: {
+            id:
+              invoiceData._id,
+
+            invoiceNumber:
+              invoiceData.invoiceNumber,
+
+            totalAmount:
+              invoiceData.totalAmount,
+
+            amountPaid:
+              invoiceData.amountPaid,
+
+            amountDue:
+              invoiceData.amountDue,
+
+            paymentStatus:
+              invoiceData.paymentStatus,
+
+            status:
+              invoiceData.status,
+          },
+
+          completedPayments:
+            completedPayments.length,
+
+          totalPaid,
+
+          linkedHistoricalPayments,
+        };
+      }
+    );
+
+    // =================================================
+    // SUCCESS RESPONSE
+    // =================================================
+
+    return res.status(200).json({
+      message:
+        "Booking and invoice payments reconciled successfully",
+
+      ...reconciliationResult,
+    });
+
+  } catch (error) {
+    console.error(
+      "Payment reconciliation error:",
+      error
+    );
+
+    return res.status(400).json({
+      message:
+        "Payment reconciliation failed",
+
+      error:
+        error.message,
+    });
+
+  } finally {
+    await session.endSession();
+  }
+};
 
 // =====================================================
 // EXPORTS
@@ -1275,5 +1499,5 @@ module.exports = {
   createPayment,
   getPayments,
   getPaymentById,
+  reconcileBookingPayments,
 };
-

@@ -5,8 +5,8 @@ const {
   createPayment,
   getPayments,
   getPaymentById,
+  reconcileBookingPayments,
 } = require("../controllers/paymentController");
-
 const protect = require("../middleware/authMiddleware");
 const authorize = require("../middleware/roleMiddleware");
 
@@ -45,6 +45,24 @@ router.get(
   getPayments
 );
 
+
+
+
+// =====================================================
+// RECONCILE BOOKING PAYMENTS
+// POST /api/payments/reconcile/:bookingId
+// =====================================================
+
+router.post(
+  "/reconcile/:bookingId",
+  protect,
+  authorize(
+    "admin",
+    "manager",
+    "accounts"
+  ),
+  reconcileBookingPayments
+);
 // =====================================================
 // GET PAYMENT BY ID
 // =====================================================

@@ -389,26 +389,48 @@ function Sidebar({ isOpen, onClose }) {
           )}
 
           {hasRole("admin", "manager", "accounts") && (
-            <div className="pt-1">
-              <SectionHeader
-                id="finance"
-                title="Finance"
-                icon={FiDollarSign}
-                paths={[
-                  "/payments",
-                  "/expenses",
-                  "/refunds",
-                  "/invoices",
-                  "/commissions",
-                ]}
-                isOpen={false}
-                onToggle={toggleSection}
-                isSectionActive={isSectionActive}
-                disabled={true}
-              />
-            </div>
-          )}
+  <div className="pt-1">
+    <SectionHeader
+      id="finance"
+      title="Finance"
+      icon={FiDollarSign}
+      paths={[
+        "/payments",
+        "/expenses",
+        "/refunds",
+        "/invoices",
+        "/commissions",
+      ]}
+      isOpen={openSections.finance}
+      onToggle={toggleSection}
+      isSectionActive={isSectionActive}
+    />
 
+    {openSections.finance && (
+      <SubMenu>
+        <NavItem to="/payments" icon={FiDollarSign} onClose={onClose}>
+          Payments
+        </NavItem>
+
+        <NavItem to="/expenses" icon={FiDollarSign} onClose={onClose}>
+          Expenses
+        </NavItem>
+
+        <NavItem to="/refunds" icon={FiDollarSign} onClose={onClose}>
+          Refunds
+        </NavItem>
+
+        <NavItem to="/invoices" icon={FiFileText} onClose={onClose}>
+          Invoices
+        </NavItem>
+
+        <NavItem to="/commissions" icon={FiDollarSign} onClose={onClose}>
+          Commissions
+        </NavItem>
+      </SubMenu>
+    )}
+  </div>
+)}
           {hasRole("admin", "manager", "sales", "operations") && (
             <div className="pt-1">
               <SectionHeader
@@ -498,14 +520,7 @@ function Sidebar({ isOpen, onClose }) {
           )}
         </div>
 
-        {/* FOOTER */}
-
-        <div className="border-t border-gray-200 px-4 py-3 shrink-0">
-          <div className="flex items-center gap-2 text-[10px] text-gray-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-brand-gold animate-pulse" />
-            <span>CULT Holidays</span>
-          </div>
-        </div>
+       
       </aside>
     </>
   );

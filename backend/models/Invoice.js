@@ -1,8 +1,16 @@
 
 const mongoose = require("mongoose");
 
+// ============================================
+// INVOICE SCHEMA
+// ============================================
+
 const invoiceSchema = new mongoose.Schema(
   {
+    // ============================================
+    // INVOICE NUMBER
+    // ============================================
+
     invoiceNumber: {
       type: String,
       unique: true,
@@ -10,6 +18,10 @@ const invoiceSchema = new mongoose.Schema(
       trim: true,
       uppercase: true
     },
+
+    // ============================================
+    // DATES
+    // ============================================
 
     invoiceDate: {
       type: Date,
@@ -20,6 +32,10 @@ const invoiceSchema = new mongoose.Schema(
       type: Date,
       default: null
     },
+
+    // ============================================
+    // REFERENCES
+    // ============================================
 
     booking: {
       type: mongoose.Schema.Types.ObjectId,
@@ -45,11 +61,16 @@ const invoiceSchema = new mongoose.Schema(
       default: null
     },
 
+    // Deal → Trip
     trip: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Deal",
+      ref: "Trip",
       default: null
     },
+
+    // ============================================
+    // CURRENCY
+    // ============================================
 
     currency: {
       type: String,
@@ -59,14 +80,14 @@ const invoiceSchema = new mongoose.Schema(
     },
 
     // ============================================
-    // INVOICE LINE ITEMS
+    // INVOICE ITEMS
     // ============================================
 
     items: [
       {
         description: {
           type: String,
-          required: true,
+          required: [true, "Item description is required"],
           trim: true
         },
 
@@ -90,25 +111,25 @@ const invoiceSchema = new mongoose.Schema(
         quantity: {
           type: Number,
           default: 1,
-          min: 1
+          min: [1, "Quantity must be at least 1"]
         },
 
         unitPrice: {
           type: Number,
           default: 0,
-          min: 0
+          min: [0, "Unit price cannot be negative"]
         },
 
         amount: {
           type: Number,
           default: 0,
-          min: 0
+          min: [0, "Amount cannot be negative"]
         }
       }
     ],
 
     // ============================================
-    // AMOUNT CALCULATION
+    // CALCULATION FIELDS
     // ============================================
 
     subtotal: {
@@ -154,6 +175,10 @@ const invoiceSchema = new mongoose.Schema(
       min: 0
     },
 
+    // ============================================
+    // PAYMENT FIELDS
+    // ============================================
+
     amountPaid: {
       type: Number,
       default: 0,
@@ -165,10 +190,6 @@ const invoiceSchema = new mongoose.Schema(
       default: 0,
       min: 0
     },
-
-    // ============================================
-    // PAYMENT STATUS
-    // ============================================
 
     paymentStatus: {
       type: String,
@@ -202,7 +223,7 @@ const invoiceSchema = new mongoose.Schema(
     },
 
     // ============================================
-    // BILLING INFORMATION
+    // BILLING ADDRESS
     // ============================================
 
     billingAddress: {
@@ -237,6 +258,10 @@ const invoiceSchema = new mongoose.Schema(
         trim: true
       }
     },
+
+    // ============================================
+    // ADDITIONAL INFORMATION
+    // ============================================
 
     notes: {
       type: String,
@@ -275,154 +300,125 @@ const invoiceSchema = new mongoose.Schema(
   }
 );
 
-
 // ============================================
-// PRE-SAVE CALCULATIONS
+// CALCULATE INVOICE TOTALS
 // ============================================
 
-invoiceSchema.pre("save", async function () {
+invoiceSchema.pre("save", function () {
+  // --------------------------------------------
+  // Ensure items is an array
+  // --------------------------------------------
 
-  // ============================================
-  // 1. CALCULATE EACH ITEM AMOUNT
-  // ============================================
-
-  if (Array.isArray(this.items)) {
-    this.items.forEach((item) => {
-
-      const quantity = Number(item.quantity || 0);
-      const unitPrice = Number(item.unitPrice || 0);
-
-      item.amount = Number(
-        (quantity * unitPrice).toFixed(2)
-      );
-
-    });
+  if (!Array.isArray(this.items)) {
+    this.items = [];
   }
 
+  // --------------------------------------------
+  // Calculate item amounts
+  // --------------------------------------------
 
-  // ============================================
-  // 2. CALCULATE SUBTOTAL
-  // ============================================
+  this.items = this.items.map((item) => {
+    const quantity = Number(item.quantity || 1);
+    const unitPrice = Number(item.unitPrice || 0);
+
+    item.amount = Number(
+      (quantity * unitPrice).toFixed(2)
+    );
+
+    return item;
+  });
+
+  // --------------------------------------------
+  // Calculate subtotal
+  // --------------------------------------------
 
   this.subtotal = Number(
     this.items
       .reduce(
-        (total, item) => {
-          return total + Number(item.amount || 0);
-        },
+        (sum, item) => sum + Number(item.amount || 0),
         0
       )
       .toFixed(2)
   );
 
-
-  // ============================================
-  // 3. CALCULATE DISCOUNT
-  // ============================================
-
-  const discountValue = Number(
-    this.discountValue || 0
-  );
+  // --------------------------------------------
+  // Calculate discount
+  // --------------------------------------------
 
   if (this.discountType === "Percentage") {
-
     this.discountAmount = Number(
       (
-        (this.subtotal * discountValue) /
+        (this.subtotal *
+          Number(this.discountValue || 0)) /
         100
       ).toFixed(2)
     );
-
   } else {
-
     this.discountAmount = Number(
       Math.min(
-        discountValue,
+        Number(this.discountValue || 0),
         this.subtotal
       ).toFixed(2)
     );
-
   }
 
-
-  // ============================================
-  // 4. CALCULATE TAXABLE AMOUNT
-  // ============================================
+  // --------------------------------------------
+  // Calculate taxable amount
+  // --------------------------------------------
 
   const taxableAmount = Math.max(
     0,
     this.subtotal - this.discountAmount
   );
 
-
-  // ============================================
-  // 5. CALCULATE TAX
-  // ============================================
-
-  const taxPercentage = Number(
-    this.taxPercentage || 0
-  );
+  // --------------------------------------------
+  // Calculate tax
+  // --------------------------------------------
 
   this.taxAmount = Number(
     (
-      (taxableAmount * taxPercentage) /
+      (taxableAmount *
+        Number(this.taxPercentage || 0)) /
       100
     ).toFixed(2)
   );
 
-
-  // ============================================
-  // 6. CALCULATE TOTAL AMOUNT
-  // ============================================
+  // --------------------------------------------
+  // Calculate total amount
+  // --------------------------------------------
 
   this.totalAmount = Number(
-    (
-      taxableAmount +
-      this.taxAmount
-    ).toFixed(2)
+    (taxableAmount + this.taxAmount).toFixed(2)
   );
 
-
-  // ============================================
-  // 7. CALCULATE AMOUNT DUE
-  // ============================================
-
-  const amountPaid = Number(
-    this.amountPaid || 0
-  );
+  // --------------------------------------------
+  // Calculate amount due
+  // --------------------------------------------
 
   this.amountDue = Number(
     Math.max(
       0,
-      this.totalAmount - amountPaid
+      this.totalAmount -
+        Number(this.amountPaid || 0)
     ).toFixed(2)
   );
 
-
-  // ============================================
-  // 8. CALCULATE PAYMENT STATUS
-  // ============================================
+  // --------------------------------------------
+  // Calculate payment status
+  // --------------------------------------------
 
   if (this.status === "Cancelled") {
-
     this.paymentStatus = "Cancelled";
-
-  } else if (amountPaid <= 0) {
-
+  } else if (this.amountPaid <= 0) {
     this.paymentStatus = "Pending";
-
-  } else if (amountPaid < this.totalAmount) {
-
+  } else if (this.amountPaid < this.totalAmount) {
     this.paymentStatus = "Partially Paid";
-
   } else {
-
     this.paymentStatus = "Paid";
-
   }
 
+  // No next() required here.
 });
-
 
 // ============================================
 // INDEXES
@@ -464,13 +460,11 @@ invoiceSchema.index({
   status: 1
 });
 
-
 // ============================================
 // MODEL
 // ============================================
 
-module.exports = mongoose.model(
-  "Invoice",
-  invoiceSchema
-);
+module.exports =
+  mongoose.models.Invoice ||
+  mongoose.model("Invoice", invoiceSchema);
 

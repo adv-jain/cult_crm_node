@@ -1,4 +1,3 @@
-
 const mongoose = require("mongoose");
 
 const bookingSchema = new mongoose.Schema(
@@ -7,94 +6,94 @@ const bookingSchema = new mongoose.Schema(
       type: String,
       unique: true,
       sparse: true,
-      trim: true
+      trim: true,
     },
 
     bookingDate: {
       type: Date,
-      default: Date.now
+      default: Date.now,
     },
 
     quotation: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Quotation",
-      default: null
+      default: null,
     },
 
     enquiry: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Enquiry",
-      default: null
+      default: null,
     },
 
     customer: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Customer",
-      required: true
+      required: true,
     },
 
     company: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Company",
-      default: null
+      default: null,
     },
 
     trip: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Trip",
-      default: null
+      default: null,
     },
 
     lead: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Lead",
-      default: null
+      default: null,
     },
 
     travellers: [
       {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "Traveller"
-      }
+        ref: "Traveller",
+      },
     ],
 
     destination: {
       type: String,
       required: [true, "Destination is required"],
-      trim: true
+      trim: true,
     },
 
     departureCity: {
       type: String,
-      trim: true
+      trim: true,
     },
 
     travelDate: {
       type: Date,
-      required: [true, "Travel date is required"]
+      required: [true, "Travel date is required"],
     },
 
     returnDate: {
       type: Date,
-      default: null
+      default: null,
     },
 
     adults: {
       type: Number,
       default: 1,
-      min: 1
+      min: 1,
     },
 
     children: {
       type: Number,
       default: 0,
-      min: 0
+      min: 0,
     },
 
     infants: {
       type: Number,
       default: 0,
-      min: 0
+      min: 0,
     },
 
     travelType: {
@@ -109,19 +108,22 @@ const bookingSchema = new mongoose.Schema(
         "Group",
         "Adventure",
         "Pilgrimage",
-        "Other"
+        "Other",
       ],
-      default: "Other"
+      default: "Other",
     },
 
     currency: {
       type: String,
       default: "INR",
       trim: true,
-      uppercase: true
+      uppercase: true,
     },
 
-    // Booking status
+    // ======================================================
+    // BOOKING STATUS
+    // ======================================================
+
     status: {
       type: String,
       enum: [
@@ -132,12 +134,15 @@ const bookingSchema = new mongoose.Schema(
         "On Hold",
         "Completed",
         "Cancelled",
-        "Refunded"
+        "Refunded",
       ],
-      default: "Pending"
+      default: "Pending",
     },
 
-    // Supplier / service confirmation
+    // ======================================================
+    // SUPPLIER / SERVICE CONFIRMATION
+    // ======================================================
+
     confirmationStatus: {
       hotel: {
         type: String,
@@ -145,9 +150,9 @@ const bookingSchema = new mongoose.Schema(
           "Pending",
           "Partially Confirmed",
           "Confirmed",
-          "Not Required"
+          "Not Required",
         ],
-        default: "Pending"
+        default: "Pending",
       },
 
       transport: {
@@ -156,9 +161,9 @@ const bookingSchema = new mongoose.Schema(
           "Pending",
           "Partially Confirmed",
           "Confirmed",
-          "Not Required"
+          "Not Required",
         ],
-        default: "Pending"
+        default: "Pending",
       },
 
       activities: {
@@ -167,9 +172,9 @@ const bookingSchema = new mongoose.Schema(
           "Pending",
           "Partially Confirmed",
           "Confirmed",
-          "Not Required"
+          "Not Required",
         ],
-        default: "Not Required"
+        default: "Not Required",
       },
 
       overall: {
@@ -177,54 +182,71 @@ const bookingSchema = new mongoose.Schema(
         enum: [
           "Pending",
           "Partially Confirmed",
-          "Confirmed"
+          "Confirmed",
         ],
-        default: "Pending"
-      }
+        default: "Pending",
+      },
     },
 
-    // Pricing
+    // ======================================================
+    // PRICING
+    // ======================================================
+
+    /*
+      IMPORTANT:
+
+      These fields represent the final financial snapshot
+      copied from the accepted quotation during booking creation.
+
+      Do not blindly trust frontend values while creating
+      a booking. The controller should derive these values
+      from the accepted quotation.
+    */
+
     totalAmount: {
       type: Number,
       required: true,
       default: 0,
-      min: 0
+      min: 0,
     },
 
     totalCost: {
       type: Number,
       default: 0,
-      min: 0
+      min: 0,
     },
 
     discountAmount: {
       type: Number,
       default: 0,
-      min: 0
+      min: 0,
     },
 
     taxAmount: {
       type: Number,
       default: 0,
-      min: 0
+      min: 0,
     },
 
     profitAmount: {
       type: Number,
-      default: 0
+      default: 0,
     },
 
-    // Payment summary
+    // ======================================================
+    // PAYMENT SUMMARY
+    // ======================================================
+
     amountPaid: {
       type: Number,
       default: 0,
-      min: 0
+      min: 0,
     },
 
     amountDue: {
       type: Number,
       default: 0,
-      min: 0
+      min: 0,
     },
 
     paymentStatus: {
@@ -234,52 +256,61 @@ const bookingSchema = new mongoose.Schema(
         "Partially Paid",
         "Paid",
         "Overdue",
-        "Refunded"
+        "Refunded",
       ],
-      default: "Pending"
+      default: "Pending",
     },
 
     nextPaymentDueDate: {
       type: Date,
-      default: null
+      default: null,
     },
 
-    // Assigned team
+    // ======================================================
+    // ASSIGNED TEAM
+    // ======================================================
+
     salesOwner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      default: null
+      default: null,
     },
 
     operationsOwner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      default: null
+      default: null,
     },
 
-    // Cancellation
+    // ======================================================
+    // CANCELLATION
+    // ======================================================
+
     cancellationReason: {
       type: String,
       trim: true,
-      maxlength: 2000
+      maxlength: 2000,
     },
 
     cancelledAt: {
       type: Date,
-      default: null
+      default: null,
     },
 
     cancelledBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      default: null
+      default: null,
     },
 
-    // Refund
+    // ======================================================
+    // REFUND
+    // ======================================================
+
     refundAmount: {
       type: Number,
       default: 0,
-      min: 0
+      min: 0,
     },
 
     refundStatus: {
@@ -288,62 +319,78 @@ const bookingSchema = new mongoose.Schema(
         "Not Applicable",
         "Pending",
         "Partially Refunded",
-        "Refunded"
+        "Refunded",
       ],
-      default: "Not Applicable"
+      default: "Not Applicable",
     },
 
     refundProcessedAt: {
       type: Date,
-      default: null
+      default: null,
     },
 
-    // Internal information
+    // ======================================================
+    // INTERNAL INFORMATION
+    // ======================================================
+
     specialRequests: {
       type: String,
       trim: true,
-      maxlength: 5000
+      maxlength: 5000,
     },
 
     internalNotes: {
       type: String,
       trim: true,
-      maxlength: 5000
+      maxlength: 5000,
     },
 
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true
-    }
+      required: true,
+    },
   },
   {
-    timestamps: true
+    timestamps: true,
   }
 );
 
-// ==========================================
-// AUTOMATICALLY CALCULATE AMOUNT DUE
-// ==========================================
+// ======================================================
+// AUTOMATICALLY CALCULATE PAYMENT SUMMARY
+// ======================================================
 
 bookingSchema.pre("save", function () {
-  this.amountDue = Math.max(
+  const total = Math.max(
     0,
-    this.totalAmount - this.amountPaid
+    Number(this.totalAmount) || 0
   );
 
-  if (this.amountPaid <= 0) {
+  const paid = Math.max(
+    0,
+    Number(this.amountPaid) || 0
+  );
+
+  this.totalAmount = total;
+  this.amountPaid = paid;
+
+  this.amountDue = Math.max(
+    0,
+    total - paid
+  );
+
+  if (paid <= 0) {
     this.paymentStatus = "Pending";
-  } else if (this.amountPaid < this.totalAmount) {
+  } else if (paid < total) {
     this.paymentStatus = "Partially Paid";
-  } else if (this.amountPaid >= this.totalAmount) {
+  } else {
     this.paymentStatus = "Paid";
   }
 });
 
-// ==========================================
+// ======================================================
 // INDEXES
-// ==========================================
+// ======================================================
 
 bookingSchema.index({ customer: 1 });
 bookingSchema.index({ company: 1 });
@@ -360,4 +407,3 @@ bookingSchema.index({ operationsOwner: 1 });
 bookingSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model("Booking", bookingSchema);
-

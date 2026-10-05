@@ -1,8 +1,6 @@
-
 const express = require("express");
 
 const router = express.Router();
-
 
 // ============================================
 // CONTROLLER IMPORTS
@@ -21,14 +19,13 @@ const {
   deleteInvoice
 } = require("../controllers/invoiceController");
 
-
 // ============================================
 // MIDDLEWARE IMPORTS
 // ============================================
 
 const protect = require("../middleware/authMiddleware");
-const authorize = require("../middleware/roleMiddleware");
 
+const authorize = require("../middleware/roleMiddleware");
 
 // ============================================
 // CREATE INVOICE
@@ -38,10 +35,14 @@ const authorize = require("../middleware/roleMiddleware");
 router.post(
   "/",
   protect,
-  authorize("admin", "manager", "sales", "accounts"),
+  authorize(
+    "admin",
+    "manager",
+    "sales",
+    "accounts"
+  ),
   createInvoice
 );
-
 
 // ============================================
 // GET ALL INVOICES
@@ -61,43 +62,6 @@ router.get(
   getInvoices
 );
 
-
-// ============================================
-// GET SINGLE INVOICE
-// GET /api/invoices/:id
-// ============================================
-
-router.get(
-  "/:id",
-  protect,
-  authorize(
-    "admin",
-    "manager",
-    "sales",
-    "operations",
-    "accounts"
-  ),
-  getInvoiceById
-);
-
-
-// ============================================
-// UPDATE INVOICE
-// PUT /api/invoices/:id
-// ============================================
-
-router.put(
-  "/:id",
-  protect,
-  authorize(
-    "admin",
-    "manager",
-    "accounts"
-  ),
-  updateInvoice
-);
-
-
 // ============================================
 // ISSUE INVOICE
 // PUT /api/invoices/:id/issue
@@ -113,7 +77,6 @@ router.put(
   ),
   issueInvoice
 );
-
 
 // ============================================
 // SEND INVOICE
@@ -131,7 +94,6 @@ router.put(
   ),
   sendInvoice
 );
-
 
 // ============================================
 // MARK INVOICE AS VIEWED
@@ -151,7 +113,6 @@ router.put(
   markInvoiceViewed
 );
 
-
 // ============================================
 // RECORD INVOICE PAYMENT
 // PUT /api/invoices/:id/payment
@@ -167,7 +128,6 @@ router.put(
   ),
   recordInvoicePayment
 );
-
 
 // ============================================
 // CANCEL INVOICE
@@ -185,6 +145,39 @@ router.put(
   cancelInvoice
 );
 
+// ============================================
+// GET SINGLE INVOICE
+// GET /api/invoices/:id
+// ============================================
+
+router.get(
+  "/:id",
+  protect,
+  authorize(
+    "admin",
+    "manager",
+    "sales",
+    "operations",
+    "accounts"
+  ),
+  getInvoiceById
+);
+
+// ============================================
+// UPDATE INVOICE
+// PUT /api/invoices/:id
+// ============================================
+
+router.put(
+  "/:id",
+  protect,
+  authorize(
+    "admin",
+    "manager",
+    "accounts"
+  ),
+  updateInvoice
+);
 
 // ============================================
 // DELETE INVOICE
@@ -202,10 +195,8 @@ router.delete(
   deleteInvoice
 );
 
-
 // ============================================
 // EXPORT ROUTER
 // ============================================
 
 module.exports = router;
-
