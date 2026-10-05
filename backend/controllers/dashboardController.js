@@ -47,7 +47,10 @@ const getDashboardScope = async (req) => {
   const role = req.user.role;
   const userId = req.user.id || req.user._id;
 
+  // -------------------------------------------------
   // ADMIN
+  // -------------------------------------------------
+
   if (role === "admin") {
     return {
       userIds: null,
@@ -55,7 +58,10 @@ const getDashboardScope = async (req) => {
     };
   }
 
+  // -------------------------------------------------
   // MANAGER
+  // -------------------------------------------------
+
   if (role === "manager") {
     const salesUsers = await User.find({
       role: "sales",
@@ -63,12 +69,17 @@ const getDashboardScope = async (req) => {
     }).select("_id");
 
     return {
-      userIds: salesUsers.map((user) => user._id),
+      userIds: salesUsers.map(
+        (user) => user._id
+      ),
       isAllAccess: false,
     };
   }
 
+  // -------------------------------------------------
   // SALES
+  // -------------------------------------------------
+
   if (role === "sales") {
     return {
       userIds: [
@@ -78,7 +89,10 @@ const getDashboardScope = async (req) => {
     };
   }
 
+  // -------------------------------------------------
   // ACCOUNTS
+  // -------------------------------------------------
+
   if (role === "accounts") {
     return {
       userIds: null,
@@ -86,13 +100,20 @@ const getDashboardScope = async (req) => {
     };
   }
 
+  // -------------------------------------------------
   // OPERATIONS
+  // -------------------------------------------------
+
   if (role === "operations") {
     return {
       userIds: null,
       isAllAccess: true,
     };
   }
+
+  // -------------------------------------------------
+  // NO ACCESS
+  // -------------------------------------------------
 
   return {
     userIds: [],
@@ -138,19 +159,23 @@ const getBookingFilter = (scope) => {
 
 const getDashboardSummary = async (req, res) => {
   try {
-    const scope = await getDashboardScope(req);
+    const scope =
+      await getDashboardScope(req);
 
-    // -------------------------------------------------
+    // =================================================
     // LEADS
-    // -------------------------------------------------
+    // =================================================
 
-    const leadFilter = getOwnerFilter(
-      scope,
-      "assignedTo"
-    );
+    const leadFilter =
+      getOwnerFilter(
+        scope,
+        "assignedTo"
+      );
 
     const totalLeads =
-      await Lead.countDocuments(leadFilter);
+      await Lead.countDocuments(
+        leadFilter
+      );
 
     const newLeads =
       await Lead.countDocuments({
@@ -175,29 +200,35 @@ const getDashboardSummary = async (req, res) => {
         },
       });
 
-    // -------------------------------------------------
+    // =================================================
     // CONTACTS
-    // -------------------------------------------------
+    // =================================================
 
-    const contactFilter = getOwnerFilter(
-      scope,
-      "owner"
-    );
+    const contactFilter =
+      getOwnerFilter(
+        scope,
+        "owner"
+      );
 
     const totalContacts =
-      await Contact.countDocuments(contactFilter);
+      await Contact.countDocuments(
+        contactFilter
+      );
 
-    // -------------------------------------------------
+    // =================================================
     // TRIPS
-    // -------------------------------------------------
+    // =================================================
 
-    const tripFilter = getOwnerFilter(
-      scope,
-      "owner"
-    );
+    const tripFilter =
+      getOwnerFilter(
+        scope,
+        "owner"
+      );
 
     const totalTrips =
-      await Trip.countDocuments(tripFilter);
+      await Trip.countDocuments(
+        tripFilter
+      );
 
     const activeTrips =
       await Trip.countDocuments({
@@ -216,15 +247,16 @@ const getDashboardSummary = async (req, res) => {
         status: "Confirmed",
       });
 
-    // -------------------------------------------------
+    // =================================================
     // TRIP PIPELINE VALUE
-    // -------------------------------------------------
+    // =================================================
 
     const tripPipelineResult =
       await Trip.aggregate([
         {
           $match: {
             ...tripFilter,
+
             status: {
               $nin: [
                 "Completed",
@@ -280,15 +312,16 @@ const getDashboardSummary = async (req, res) => {
           )
         : 0;
 
-    // -------------------------------------------------
+    // =================================================
     // TRIP REVENUE
-    // -------------------------------------------------
+    // =================================================
 
     const tripRevenueResult =
       await Trip.aggregate([
         {
           $match: {
             ...tripFilter,
+
             status: {
               $in: [
                 "Confirmed",
@@ -323,9 +356,9 @@ const getDashboardSummary = async (req, res) => {
           )
         : 0;
 
-    // -------------------------------------------------
+    // =================================================
     // ENQUIRIES
-    // -------------------------------------------------
+    // =================================================
 
     const totalEnquiries =
       scope.isAllAccess
@@ -337,11 +370,13 @@ const getDashboardSummary = async (req, res) => {
                   $in: scope.userIds,
                 },
               },
+
               {
                 owner: {
                   $in: scope.userIds,
                 },
               },
+
               {
                 salesOwner: {
                   $in: scope.userIds,
@@ -350,9 +385,9 @@ const getDashboardSummary = async (req, res) => {
             ],
           });
 
-    // -------------------------------------------------
+    // =================================================
     // CUSTOMERS
-    // -------------------------------------------------
+    // =================================================
 
     const totalCustomers =
       scope.isAllAccess
@@ -363,9 +398,18 @@ const getDashboardSummary = async (req, res) => {
             },
           });
 
-    // -------------------------------------------------
+    // =================================================
     // QUOTATIONS
-    // -------------------------------------------------
+    // =================================================
+
+    // IMPORTANT:
+    // Quotation model has:
+    // preparedBy
+    // assignedTo
+    //
+    // It does NOT have:
+    // createdBy
+    // salesOwner
 
     const totalQuotations =
       scope.isAllAccess
@@ -373,21 +417,22 @@ const getDashboardSummary = async (req, res) => {
         : await Quotation.countDocuments({
             $or: [
               {
-                createdBy: {
+                preparedBy: {
                   $in: scope.userIds,
                 },
               },
+
               {
-                salesOwner: {
+                assignedTo: {
                   $in: scope.userIds,
                 },
               },
             ],
           });
 
-    // -------------------------------------------------
+    // =================================================
     // BOOKINGS
-    // -------------------------------------------------
+    // =================================================
 
     const bookingFilter =
       getBookingFilter(scope);
@@ -397,9 +442,9 @@ const getDashboardSummary = async (req, res) => {
         bookingFilter
       );
 
-    // -------------------------------------------------
+    // =================================================
     // BOOKING REVENUE
-    // -------------------------------------------------
+    // =================================================
 
     const bookingRevenueResult =
       await Booking.aggregate([
@@ -430,9 +475,9 @@ const getDashboardSummary = async (req, res) => {
           )
         : 0;
 
-    // -------------------------------------------------
+    // =================================================
     // BOOKING COST
-    // -------------------------------------------------
+    // =================================================
 
     const bookingCostResult =
       await Booking.aggregate([
@@ -463,9 +508,9 @@ const getDashboardSummary = async (req, res) => {
           )
         : 0;
 
-    // -------------------------------------------------
+    // =================================================
     // BOOKING PROFIT
-    // -------------------------------------------------
+    // =================================================
 
     const bookingProfitResult =
       await Booking.aggregate([
@@ -496,9 +541,9 @@ const getDashboardSummary = async (req, res) => {
           )
         : 0;
 
-    // -------------------------------------------------
+    // =================================================
     // PAYMENT
-    // -------------------------------------------------
+    // =================================================
 
     const bookingsForPayments =
       scope.isAllAccess
@@ -560,9 +605,9 @@ const getDashboardSummary = async (req, res) => {
           )
         : 0;
 
-    // -------------------------------------------------
+    // =================================================
     // EXPENSE
-    // -------------------------------------------------
+    // =================================================
 
     const expenseResult =
       await Expense.aggregate([
@@ -589,9 +634,9 @@ const getDashboardSummary = async (req, res) => {
           )
         : 0;
 
-    // -------------------------------------------------
+    // =================================================
     // REFUNDS
-    // -------------------------------------------------
+    // =================================================
 
     const refundResult =
       await Refund.aggregate([
@@ -624,9 +669,9 @@ const getDashboardSummary = async (req, res) => {
           )
         : 0;
 
-    // -------------------------------------------------
+    // =================================================
     // COMMISSION
-    // -------------------------------------------------
+    // =================================================
 
     const commissionResult =
       await Commission.aggregate([
@@ -695,9 +740,9 @@ const getDashboardSummary = async (req, res) => {
           )
         : 0;
 
-    // -------------------------------------------------
+    // =================================================
     // PAYMENT DUE
-    // -------------------------------------------------
+    // =================================================
 
     const paymentDueResult =
       await Booking.aggregate([
@@ -728,9 +773,9 @@ const getDashboardSummary = async (req, res) => {
           )
         : 0;
 
-    // -------------------------------------------------
+    // =================================================
     // UPCOMING TRIPS
-    // -------------------------------------------------
+    // =================================================
 
     const upcomingTrips =
       await Trip.countDocuments({
@@ -748,9 +793,9 @@ const getDashboardSummary = async (req, res) => {
         },
       });
 
-    // -------------------------------------------------
+    // =================================================
     // NET PROFIT
-    // -------------------------------------------------
+    // =================================================
 
     const netProfit =
       bookingRevenue -
@@ -758,9 +803,9 @@ const getDashboardSummary = async (req, res) => {
       totalRefunds -
       totalCommission;
 
-    // -------------------------------------------------
+    // =================================================
     // RESPONSE
-    // -------------------------------------------------
+    // =================================================
 
     return res.status(200).json({
       message:
@@ -779,6 +824,7 @@ const getDashboardSummary = async (req, res) => {
         totalTrips,
         activeTrips,
         confirmedTrips,
+
         pipelineValue,
         tripRevenue,
 
@@ -787,12 +833,16 @@ const getDashboardSummary = async (req, res) => {
         totalQuotations,
         totalBookings,
 
-        totalRevenue: bookingRevenue,
+        totalRevenue:
+          bookingRevenue,
+
         totalPayments,
         totalExpenses,
         totalRefunds,
+
         totalCommission,
         paidCommission,
+
         paymentDue,
 
         bookingCost,
@@ -811,13 +861,14 @@ const getDashboardSummary = async (req, res) => {
     return res.status(500).json({
       message:
         "Failed to fetch dashboard summary",
+
       error: error.message,
     });
   }
 };
 
 // =====================================================
-// TRIP PIPELINE
+// QUOTATION PIPELINE
 // =====================================================
 
 const getDashboardPipeline = async (
@@ -828,54 +879,53 @@ const getDashboardPipeline = async (
     const scope =
       await getDashboardScope(req);
 
-    const tripFilter =
-      getOwnerFilter(
-        scope,
-        "owner"
-      );
+    // -------------------------------------------------
+    // QUOTATION FILTER
+    // -------------------------------------------------
+
+    let quotationFilter = {};
+
+    if (!scope.isAllAccess) {
+      quotationFilter = {
+        $or: [
+          {
+            preparedBy: {
+              $in: scope.userIds,
+            },
+          },
+
+          {
+            assignedTo: {
+              $in: scope.userIds,
+            },
+          },
+        ],
+      };
+    }
+
+    // -------------------------------------------------
+    // QUOTATION AGGREGATION
+    // -------------------------------------------------
 
     const pipeline =
-      await Trip.aggregate([
+      await Quotation.aggregate([
         {
-          $match: tripFilter,
+          $match: quotationFilter,
         },
 
         {
           $group: {
             _id: "$status",
 
-            tripCount: {
+            quotationCount: {
               $sum: 1,
             },
 
             totalValue: {
               $sum: {
-                $cond: [
-                  {
-                    $gt: [
-                      {
-                        $ifNull: [
-                          "$totalAmount",
-                          0,
-                        ],
-                      },
-                      0,
-                    ],
-                  },
-
-                  {
-                    $ifNull: [
-                      "$totalAmount",
-                      0,
-                    ],
-                  },
-
-                  {
-                    $ifNull: [
-                      "$estimatedValue",
-                      0,
-                    ],
-                  },
+                $ifNull: [
+                  "$totalAmount",
+                  0,
                 ],
               },
             },
@@ -883,15 +933,22 @@ const getDashboardPipeline = async (
         },
       ]);
 
+    // -------------------------------------------------
+    // MAIN QUOTATION PIPELINE
+    // -------------------------------------------------
+
     const stages = [
-      "Planning",
-      "Quotation",
-      "Confirmed",
-      "Upcoming",
-      "Ongoing",
-      "Completed",
-      "Cancelled",
+      "Draft",
+      "Prepared",
+      "Sent",
+      "Viewed",
+      "Negotiation",
+      "Accepted",
     ];
+
+    // -------------------------------------------------
+    // FORMAT PIPELINE
+    // -------------------------------------------------
 
     const formattedPipeline =
       stages.map((stage) => {
@@ -904,14 +961,14 @@ const getDashboardPipeline = async (
         return {
           stage,
 
-          tripCount:
+          quotationCount:
             found
-              ? found.tripCount
+              ? found.quotationCount
               : 0,
 
-          dealCount:
+          count:
             found
-              ? found.tripCount
+              ? found.quotationCount
               : 0,
 
           totalValue:
@@ -923,9 +980,13 @@ const getDashboardPipeline = async (
         };
       });
 
+    // -------------------------------------------------
+    // RESPONSE
+    // -------------------------------------------------
+
     return res.status(200).json({
       message:
-        "Trip pipeline fetched successfully",
+        "Quotation pipeline fetched successfully",
 
       role: req.user.role,
 
@@ -934,13 +995,13 @@ const getDashboardPipeline = async (
     });
   } catch (error) {
     console.error(
-      "Dashboard Pipeline Error:",
+      "Dashboard Quotation Pipeline Error:",
       error
     );
 
     return res.status(500).json({
       message:
-        "Failed to fetch trip pipeline",
+        "Failed to fetch quotation pipeline",
 
       error: error.message,
     });
@@ -1120,6 +1181,7 @@ const getDashboardMonthlyRevenue = async (
 
           return {
             month,
+
             monthNumber,
 
             revenue:
@@ -1143,8 +1205,11 @@ const getDashboardMonthlyRevenue = async (
 
       year: currentYear,
 
-      monthlyRevenue: result,
-      data: result,
+      monthlyRevenue:
+        result,
+
+      data:
+        result,
     });
   } catch (error) {
     console.error(
@@ -1179,7 +1244,8 @@ const getDashboardBookingStatus = async (
     const result =
       await Booking.aggregate([
         {
-          $match: bookingFilter,
+          $match:
+            bookingFilter,
         },
 
         {
@@ -1222,7 +1288,9 @@ const getDashboardBookingStatus = async (
             item.bookingCount,
 
           totalAmount:
-            item.totalAmount,
+            toNumber(
+              item.totalAmount
+            ),
         })
       );
 
@@ -1332,7 +1400,9 @@ const getDashboardPaymentStatus = async (
             item.paymentCount,
 
           totalAmount:
-            item.totalAmount,
+            toNumber(
+              item.totalAmount
+            ),
         })
       );
 
@@ -1435,10 +1505,14 @@ const getDashboardDestinations = async (
             item.bookingCount,
 
           revenue:
-            item.revenue,
+            toNumber(
+              item.revenue
+            ),
 
           profit:
-            item.profit,
+            toNumber(
+              item.profit
+            ),
         })
       );
 
@@ -1526,7 +1600,9 @@ const getDashboardTravelTypes = async (
             item.bookingCount,
 
           revenue:
-            item.revenue,
+            toNumber(
+              item.revenue
+            ),
         })
       );
 
@@ -1564,9 +1640,9 @@ const getDashboardRecent = async (
     const scope =
       await getDashboardScope(req);
 
-    // -------------------------------------------------
+    // =================================================
     // TASK FILTER
-    // -------------------------------------------------
+    // =================================================
 
     const taskFilter = {
       status: {
@@ -1587,9 +1663,9 @@ const getDashboardRecent = async (
       };
     }
 
-    // -------------------------------------------------
+    // =================================================
     // UPCOMING TASKS
-    // -------------------------------------------------
+    // =================================================
 
     const upcomingTasks =
       await Task.find(taskFilter)
@@ -1597,46 +1673,58 @@ const getDashboardRecent = async (
           dueDate: 1,
         })
         .limit(5)
+
         .populate(
           "assignedTo",
           "name email role"
         )
+
         .populate(
           "createdBy",
           "name email role"
         )
+
         .populate(
           "relatedLead",
           "firstName lastName email"
         )
+
         .populate(
           "relatedContact",
           "firstName lastName email"
         )
+
         .populate(
           "relatedCompany",
           "name email"
         )
+
         .populate(
           "relatedTrip",
           "title tripCode destination startDate endDate status totalAmount estimatedValue"
         )
+
         .populate(
           "relatedCustomer",
           "name email phone"
         )
+
         .populate(
           "relatedBooking",
           "bookingNumber destination status totalAmount amountDue"
         );
 
-    // -------------------------------------------------
+    // =================================================
     // ACTIVITY FILTER
-    // -------------------------------------------------
+    // =================================================
 
     let activityFilter = {};
 
     if (!scope.isAllAccess) {
+      // ------------------------------------------------
+      // SALES LEADS
+      // ------------------------------------------------
+
       const salesLeads =
         await Lead.find({
           assignedTo: {
@@ -1648,6 +1736,10 @@ const getDashboardRecent = async (
         salesLeads.map(
           (lead) => lead._id
         );
+
+      // ------------------------------------------------
+      // SALES CONTACTS
+      // ------------------------------------------------
 
       const salesContacts =
         await Contact.find({
@@ -1662,6 +1754,10 @@ const getDashboardRecent = async (
             contact._id
         );
 
+      // ------------------------------------------------
+      // SALES COMPANIES
+      // ------------------------------------------------
+
       const salesCompanies =
         await Company.find({
           owner: {
@@ -1675,6 +1771,10 @@ const getDashboardRecent = async (
             company._id
         );
 
+      // ------------------------------------------------
+      // SALES TRIPS
+      // ------------------------------------------------
+
       const salesTrips =
         await Trip.find({
           owner: {
@@ -1687,6 +1787,10 @@ const getDashboardRecent = async (
           (trip) =>
             trip._id
         );
+
+      // ------------------------------------------------
+      // ACTIVITY FILTER
+      // ------------------------------------------------
 
       activityFilter = {
         $or: [
@@ -1723,9 +1827,9 @@ const getDashboardRecent = async (
       };
     }
 
-    // -------------------------------------------------
+    // =================================================
     // RECENT ACTIVITIES
-    // -------------------------------------------------
+    // =================================================
 
     const recentActivities =
       await Activity.find(
@@ -1735,34 +1839,45 @@ const getDashboardRecent = async (
           createdAt: -1,
         })
         .limit(5)
+
         .populate(
           "createdBy",
           "name email role"
         )
+
         .populate(
           "lead",
           "firstName lastName email"
         )
+
         .populate(
           "customer",
           "name email phone"
         )
+
         .populate(
           "contact",
           "firstName lastName email"
         )
+
         .populate(
           "company",
           "name email"
         )
+
         .populate(
           "trip",
           "title tripCode destination startDate endDate status totalAmount estimatedValue owner"
         )
+
         .populate(
           "booking",
           "bookingNumber destination status totalAmount amountDue"
         );
+
+    // =================================================
+    // RESPONSE
+    // =================================================
 
     return res.status(200).json({
       message:

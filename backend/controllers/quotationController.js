@@ -1,3 +1,4 @@
+
 const mongoose = require("mongoose");
 
 const Quotation = require("../models/Quotation");
@@ -114,28 +115,35 @@ const calculatePricing = ({
   let markupAmount = 0;
 
   if (markupType === "Percentage") {
-    markupAmount = (numericBaseAmount * numericMarkupValue) / 100;
+    markupAmount =
+      (numericBaseAmount * numericMarkupValue) / 100;
   } else if (markupType === "Fixed") {
     markupAmount = numericMarkupValue;
   }
 
-  const amountAfterMarkup = numericBaseAmount + markupAmount;
+  const amountAfterMarkup =
+    numericBaseAmount + markupAmount;
 
   let discountAmount = 0;
 
   if (discountType === "Percentage") {
-    discountAmount = (amountAfterMarkup * numericDiscountValue) / 100;
+    discountAmount =
+      (amountAfterMarkup * numericDiscountValue) / 100;
   } else if (discountType === "Fixed") {
     discountAmount = numericDiscountValue;
   }
 
-  const amountAfterDiscount = amountAfterMarkup - discountAmount;
+  const amountAfterDiscount =
+    amountAfterMarkup - discountAmount;
 
-  const taxAmount = (amountAfterDiscount * numericTaxPercentage) / 100;
+  const taxAmount =
+    (amountAfterDiscount * numericTaxPercentage) / 100;
 
-  const totalAmount = amountAfterDiscount + taxAmount;
+  const totalAmount =
+    amountAfterDiscount + taxAmount;
 
-  const estimatedProfit = totalAmount - numericCostAmount;
+  const estimatedProfit =
+    totalAmount - numericCostAmount;
 
   return {
     baseAmount: numericBaseAmount,
@@ -187,7 +195,10 @@ const generateItineraryNumber = async () => {
 // ======================================================
 
 const buildEmptyDaySlots = (startDate, endDate) => {
-  const totalDays = calculateTotalDays(startDate, endDate);
+  const totalDays = calculateTotalDays(
+    startDate,
+    endDate
+  );
 
   if (totalDays <= 0) return [];
 
@@ -232,10 +243,17 @@ const buildEmptyDaySlots = (startDate, endDate) => {
 // HELPER: NORMALIZE ITINERARY DAY
 // ======================================================
 
-const normalizeItineraryDay = (day, index, fallbackDate) => {
-  const date = day?.date ? new Date(day.date) : fallbackDate || null;
+const normalizeItineraryDay = (
+  day,
+  index,
+  fallbackDate
+) => {
+  const date = day?.date
+    ? new Date(day.date)
+    : fallbackDate || null;
 
   /* ACTIVITIES */
+
   const activities = Array.isArray(day?.activities)
     ? day.activities
         .map((activity) => {
@@ -259,8 +277,10 @@ const normalizeItineraryDay = (day, index, fallbackDate) => {
             startTime: activity?.startTime || "",
             endTime: activity?.endTime || "",
             location: activity?.location || "",
-            duration: Number(activity?.duration) || 0,
-            amount: Number(activity?.amount) || 0,
+            duration:
+              Number(activity?.duration) || 0,
+            amount:
+              Number(activity?.amount) || 0,
             included:
               activity?.included !== undefined
                 ? Boolean(activity.included)
@@ -272,29 +292,40 @@ const normalizeItineraryDay = (day, index, fallbackDate) => {
     : [];
 
   /* TRANSPORT */
+
   const transport = Array.isArray(day?.transport)
     ? day.transport
         .map((item) => {
-          const trimmedType = (item?.type || "").trim();
+          const trimmedType =
+            (item?.type || "").trim();
 
           return {
             transport: item?.transport || null,
             type: trimmedType || "Other",
             from: (item?.from || "").trim(),
             to: (item?.to || "").trim(),
-            departureTime: item?.departureTime || "",
-            arrivalTime: item?.arrivalTime || "",
+            departureTime:
+              item?.departureTime || "",
+            arrivalTime:
+              item?.arrivalTime || "",
             notes: item?.notes || "",
           };
         })
-        .filter((item) => item.from || item.to || item.type)
+        .filter(
+          (item) =>
+            item.from ||
+            item.to ||
+            item.type
+        )
     : [];
 
   /* MEALS */
+
   const meals = Array.isArray(day?.meals)
     ? day.meals
         .map((meal) => {
-          const trimmedType = (meal?.type || "").trim();
+          const trimmedType =
+            (meal?.type || "").trim();
 
           return {
             type: trimmedType || "Breakfast",
@@ -302,7 +333,8 @@ const normalizeItineraryDay = (day, index, fallbackDate) => {
               meal?.included !== undefined
                 ? Boolean(meal.included)
                 : true,
-            restaurant: meal?.restaurant || "",
+            restaurant:
+              meal?.restaurant || "",
             notes: meal?.notes || "",
           };
         })
@@ -310,26 +342,48 @@ const normalizeItineraryDay = (day, index, fallbackDate) => {
     : [];
 
   return {
-    dayNumber: Number(day?.dayNumber) || index + 1,
+    dayNumber:
+      Number(day?.dayNumber) || index + 1,
+
     date,
-    title: (day?.title || `Day ${index + 1}`).trim(),
+
+    title:
+      (day?.title || `Day ${index + 1}`).trim(),
+
     description: day?.description || "",
+
     city: day?.city || "",
+
     location: day?.location || "",
+
     activities,
+
     hotel: {
-      hotel: day?.hotel?.hotel || null,
-      name: (day?.hotel?.name || "").trim(),
-      roomType: day?.hotel?.roomType || "",
-      checkIn: day?.hotel?.checkIn || "",
-      checkOut: day?.hotel?.checkOut || "",
-      nights: Number(day?.hotel?.nights) || 0,
-      notes: day?.hotel?.notes || "",
+      hotel:
+        day?.hotel?.hotel || null,
+      name:
+        (day?.hotel?.name || "").trim(),
+      roomType:
+        day?.hotel?.roomType || "",
+      checkIn:
+        day?.hotel?.checkIn || "",
+      checkOut:
+        day?.hotel?.checkOut || "",
+      nights:
+        Number(day?.hotel?.nights) || 0,
+      notes:
+        day?.hotel?.notes || "",
     },
+
     transport,
+
     meals,
-    freeTime: day?.freeTime || "",
-    notes: day?.notes || "",
+
+    freeTime:
+      day?.freeTime || "",
+
+    notes:
+      day?.notes || "",
   };
 };
 
@@ -337,25 +391,46 @@ const normalizeItineraryDay = (day, index, fallbackDate) => {
 // HELPER: BUILD ITINERARY DAYS
 // ======================================================
 
-const buildItineraryDays = ({ travelDate, returnDate, userDays }) => {
-  const autoDays = buildEmptyDaySlots(travelDate, returnDate);
+const buildItineraryDays = ({
+  travelDate,
+  returnDate,
+  userDays,
+}) => {
+  const autoDays = buildEmptyDaySlots(
+    travelDate,
+    returnDate
+  );
 
-  if (!Array.isArray(userDays) || userDays.length === 0) {
+  if (
+    !Array.isArray(userDays) ||
+    userDays.length === 0
+  ) {
     return autoDays;
   }
 
-  const maxLength = Math.max(autoDays.length, userDays.length);
+  const maxLength = Math.max(
+    autoDays.length,
+    userDays.length
+  );
 
-  return Array.from({ length: maxLength }, (_, index) => {
-    const userDay = userDays[index];
-    const fallbackDate = autoDays[index]?.date;
+  return Array.from(
+    { length: maxLength },
+    (_, index) => {
+      const userDay = userDays[index];
+      const fallbackDate =
+        autoDays[index]?.date;
 
-    if (userDay) {
-      return normalizeItineraryDay(userDay, index, fallbackDate);
+      if (userDay) {
+        return normalizeItineraryDay(
+          userDay,
+          index,
+          fallbackDate
+        );
+      }
+
+      return null;
     }
-
-    return null;
-  }).filter(Boolean);
+  ).filter(Boolean);
 };
 
 // ======================================================
@@ -377,70 +452,113 @@ const createQuotationItinerary = async ({
     quotation.returnDate
   );
 
-  const itineraryNumber = await generateItineraryNumber();
+  const itineraryNumber =
+    await generateItineraryNumber();
 
   const days = buildItineraryDays({
     travelDate: quotation.travelDate,
     returnDate: quotation.returnDate,
-    userDays: userItineraryData?.days,
+    userDays:
+      userItineraryData?.days,
   });
 
-  const itinerary = await Itinerary.create({
-    itineraryNumber,
+  const itinerary =
+    await Itinerary.create({
+      itineraryNumber,
 
-    title: userItineraryData?.title || quotation.title,
+      title:
+        userItineraryData?.title ||
+        quotation.title,
 
-    quotation: quotation._id,
+      quotation:
+        quotation._id,
 
-    trip: quotation.trip || null,
+      trip:
+        quotation.trip || null,
 
-    booking: null,
+      booking: null,
 
-    customer: quotation.customer || null,
+      customer:
+        quotation.customer || null,
 
-    destination: userItineraryData?.destination || quotation.destination,
+      destination:
+        userItineraryData?.destination ||
+        quotation.destination,
 
-    startDate: quotation.travelDate || null,
+      startDate:
+        quotation.travelDate || null,
 
-    endDate: quotation.returnDate || null,
+      endDate:
+        quotation.returnDate || null,
 
-    totalDays,
+      totalDays,
 
-    totalNights,
+      totalNights,
 
-    status: userItineraryData?.status || "Draft",
+      status:
+        userItineraryData?.status ||
+        "Draft",
 
-    days,
+      days,
 
-    inclusions: Array.isArray(userItineraryData?.inclusions)
-      ? userItineraryData.inclusions.filter(Boolean)
-      : Array.isArray(quotation.inclusions)
-      ? quotation.inclusions
-      : [],
+      inclusions:
+        Array.isArray(
+          userItineraryData?.inclusions
+        )
+          ? userItineraryData.inclusions.filter(
+              Boolean
+            )
+          : Array.isArray(
+              quotation.inclusions
+            )
+          ? quotation.inclusions
+          : [],
 
-    exclusions: Array.isArray(userItineraryData?.exclusions)
-      ? userItineraryData.exclusions.filter(Boolean)
-      : Array.isArray(quotation.exclusions)
-      ? quotation.exclusions
-      : [],
+      exclusions:
+        Array.isArray(
+          userItineraryData?.exclusions
+        )
+          ? userItineraryData.exclusions.filter(
+              Boolean
+            )
+          : Array.isArray(
+              quotation.exclusions
+            )
+          ? quotation.exclusions
+          : [],
 
-    importantNotes: Array.isArray(userItineraryData?.importantNotes)
-      ? userItineraryData.importantNotes.filter(Boolean)
-      : quotation.notes
-      ? [quotation.notes]
-      : [],
+      importantNotes:
+        Array.isArray(
+          userItineraryData?.importantNotes
+        )
+          ? userItineraryData.importantNotes.filter(
+              Boolean
+            )
+          : quotation.notes
+          ? [quotation.notes]
+          : [],
 
-    emergencyContact: {
-      name: userItineraryData?.emergencyContact?.name || "",
-      phone: userItineraryData?.emergencyContact?.phone || "",
-      email: userItineraryData?.emergencyContact?.email || "",
-    },
+      emergencyContact: {
+        name:
+          userItineraryData
+            ?.emergencyContact?.name || "",
 
-    preparedBy,
+        phone:
+          userItineraryData
+            ?.emergencyContact?.phone || "",
 
-    notes:
-      userItineraryData?.notes || quotation.termsAndConditions || "",
-  });
+        email:
+          userItineraryData
+            ?.emergencyContact?.email || "",
+      },
+
+      preparedBy,
+
+      notes:
+        userItineraryData?.notes ||
+        quotation.termsAndConditions ||
+        "",
+    });
 
   return itinerary;
 };
@@ -449,50 +567,96 @@ const createQuotationItinerary = async ({
 // HELPER: SYNC ITINERARY WITH QUOTATION
 // ======================================================
 
-const syncItineraryWithQuotation = async (quotation) => {
+const syncItineraryWithQuotation = async (
+  quotation
+) => {
   if (!quotation.itinerary) {
     return null;
   }
 
-  const itinerary = await Itinerary.findById(quotation.itinerary);
+  const itinerary =
+    await Itinerary.findById(
+      quotation.itinerary
+    );
 
   if (!itinerary) {
     return null;
   }
 
-  const oldTotalDays = itinerary.totalDays;
+  const oldTotalDays =
+    itinerary.totalDays;
 
-  const newTotalDays = calculateTotalDays(
-    quotation.travelDate,
-    quotation.returnDate
-  );
+  const newTotalDays =
+    calculateTotalDays(
+      quotation.travelDate,
+      quotation.returnDate
+    );
 
-  const newTotalNights = calculateTotalNights(
-    quotation.travelDate,
-    quotation.returnDate
-  );
+  const newTotalNights =
+    calculateTotalNights(
+      quotation.travelDate,
+      quotation.returnDate
+    );
 
-  itinerary.title = quotation.title;
-  itinerary.customer = quotation.customer || null;
-  itinerary.trip = quotation.trip || null;
-  itinerary.destination = quotation.destination;
-  itinerary.startDate = quotation.travelDate || null;
-  itinerary.endDate = quotation.returnDate || null;
-  itinerary.totalDays = newTotalDays;
-  itinerary.totalNights = newTotalNights;
-  itinerary.inclusions = quotation.inclusions || [];
-  itinerary.exclusions = quotation.exclusions || [];
-  itinerary.importantNotes = quotation.notes ? [quotation.notes] : [];
-  itinerary.notes = quotation.termsAndConditions || "";
+  itinerary.title =
+    quotation.title;
 
-  if (newTotalDays > 0 && oldTotalDays !== newTotalDays) {
-    const existingDays = Array.isArray(itinerary.days) ? itinerary.days : [];
+  itinerary.customer =
+    quotation.customer || null;
 
-    itinerary.days = buildItineraryDays({
-      travelDate: quotation.travelDate,
-      returnDate: quotation.returnDate,
-      userDays: existingDays,
-    });
+  itinerary.trip =
+    quotation.trip || null;
+
+  itinerary.destination =
+    quotation.destination;
+
+  itinerary.startDate =
+    quotation.travelDate || null;
+
+  itinerary.endDate =
+    quotation.returnDate || null;
+
+  itinerary.totalDays =
+    newTotalDays;
+
+  itinerary.totalNights =
+    newTotalNights;
+
+  itinerary.inclusions =
+    quotation.inclusions || [];
+
+  itinerary.exclusions =
+    quotation.exclusions || [];
+
+  itinerary.importantNotes =
+    quotation.notes
+      ? [quotation.notes]
+      : [];
+
+  itinerary.notes =
+    quotation.termsAndConditions ||
+    "";
+
+  if (
+    newTotalDays > 0 &&
+    oldTotalDays !== newTotalDays
+  ) {
+    const existingDays =
+      Array.isArray(itinerary.days)
+        ? itinerary.days
+        : [];
+
+    itinerary.days =
+      buildItineraryDays({
+        travelDate:
+          quotation.travelDate,
+
+        returnDate:
+          quotation.returnDate,
+
+        userDays:
+          existingDays,
+      });
   }
 
   await itinerary.save();
@@ -514,12 +678,24 @@ const populateQuotation = (query) => {
     .populate({
       path: "itinerary",
       populate: [
-        { path: "days.hotel.hotel", model: "Hotel" },
-        { path: "days.transport.transport", model: "Transport" },
+        {
+          path: "days.hotel.hotel",
+          model: "Hotel",
+        },
+        {
+          path: "days.transport.transport",
+          model: "Transport",
+        },
       ],
     })
-    .populate("preparedBy", "name email role")
-    .populate("assignedTo", "name email role");
+    .populate(
+      "preparedBy",
+      "name email role"
+    )
+    .populate(
+      "assignedTo",
+      "name email role"
+    );
 };
 
 // ======================================================
@@ -527,9 +703,14 @@ const populateQuotation = (query) => {
 // Multiple quotations per enquiry allowed
 // ======================================================
 
-const createQuotation = async (req, res) => {
+const createQuotation = async (
+  req,
+  res
+) => {
   try {
-    normalizeObjectIdFields(req.body);
+    normalizeObjectIdFields(
+      req.body
+    );
 
     const {
       title,
@@ -572,99 +753,150 @@ const createQuotation = async (req, res) => {
 
     if (!title) {
       return res.status(400).json({
-        message: "Quotation title is required",
+        message:
+          "Quotation title is required",
       });
     }
 
     if (!enquiry) {
       return res.status(400).json({
-        message: "Enquiry is required",
+        message:
+          "Enquiry is required",
       });
     }
 
     if (!destination) {
       return res.status(400).json({
-        message: "Destination is required",
+        message:
+          "Destination is required",
       });
     }
 
-    if (!req.user || !req.user._id) {
+    if (
+      !req.user ||
+      !req.user._id
+    ) {
       return res.status(401).json({
-        message: "Authenticated user not found",
+        message:
+          "Authenticated user not found",
       });
     }
 
-    const enquiryDoc = await Enquiry.findById(enquiry);
+    const enquiryDoc =
+      await Enquiry.findById(
+        enquiry
+      );
 
     if (!enquiryDoc) {
       return res.status(404).json({
-        message: "Enquiry not found",
+        message:
+          "Enquiry not found",
       });
     }
 
-    // ✅ NO DUPLICATE CHECK — Multiple quotations allowed
+    // NO DUPLICATE CHECK
+    // Multiple quotations allowed
 
     if (packageId) {
-      if (!mongoose.Types.ObjectId.isValid(packageId)) {
+      if (
+        !mongoose.Types.ObjectId.isValid(
+          packageId
+        )
+      ) {
         return res.status(400).json({
-          message: "Invalid package ID",
+          message:
+            "Invalid package ID",
         });
       }
 
-      const PackageModel = getPackageModel();
-      const packageExists = await PackageModel.findById(packageId);
+      const PackageModel =
+        getPackageModel();
+
+      const packageExists =
+        await PackageModel.findById(
+          packageId
+        );
 
       if (!packageExists) {
         return res.status(404).json({
-          message: "Package not found",
+          message:
+            "Package not found",
         });
       }
     }
 
-    const finalCustomer = customer || enquiryDoc.customer || null;
+    const finalCustomer =
+      customer ||
+      enquiryDoc.customer ||
+      null;
 
     if (finalCustomer) {
-      const customerExists = await Customer.findById(finalCustomer);
+      const customerExists =
+        await Customer.findById(
+          finalCustomer
+        );
 
       if (!customerExists) {
         return res.status(404).json({
-          message: "Customer not found",
+          message:
+            "Customer not found",
         });
       }
     }
 
-    const finalLead = lead || enquiryDoc.lead || null;
+    const finalLead =
+      lead ||
+      enquiryDoc.lead ||
+      null;
 
     if (finalLead) {
-      const leadExists = await Lead.findById(finalLead);
+      const leadExists =
+        await Lead.findById(
+          finalLead
+        );
 
       if (!leadExists) {
         return res.status(404).json({
-          message: "Lead not found",
+          message:
+            "Lead not found",
         });
       }
     }
 
     if (trip) {
-      const tripExists = await Trip.findById(trip);
+      const tripExists =
+        await Trip.findById(trip);
 
       if (!tripExists) {
         return res.status(404).json({
-          message: "Trip not found",
+          message:
+            "Trip not found",
         });
       }
     }
 
     if (assignedTo) {
-      const assignedUser = await User.findById(assignedTo);
+      const assignedUser =
+        await User.findById(
+          assignedTo
+        );
 
       if (!assignedUser) {
         return res.status(404).json({
-          message: "Assigned user not found",
+          message:
+            "Assigned user not found",
         });
       }
 
-      if (!["admin", "manager", "sales"].includes(assignedUser.role)) {
+      if (
+        ![
+          "admin",
+          "manager",
+          "sales",
+        ].includes(
+          assignedUser.role
+        )
+      ) {
         return res.status(400).json({
           message:
             "Quotation can only be assigned to admin, manager or sales user",
@@ -672,115 +904,216 @@ const createQuotation = async (req, res) => {
       }
     }
 
-    const finalMarkupType = markupType || "Percentage";
-    const finalDiscountType = discountType || "Fixed";
+    const finalMarkupType =
+      markupType || "Percentage";
 
-    if (!["Percentage", "Fixed"].includes(finalMarkupType)) {
+    const finalDiscountType =
+      discountType || "Fixed";
+
+    if (
+      ![
+        "Percentage",
+        "Fixed",
+      ].includes(finalMarkupType)
+    ) {
       return res.status(400).json({
-        message: "markupType must be Percentage or Fixed",
+        message:
+          "markupType must be Percentage or Fixed",
       });
     }
 
-    if (!["Percentage", "Fixed"].includes(finalDiscountType)) {
+    if (
+      ![
+        "Percentage",
+        "Fixed",
+      ].includes(finalDiscountType)
+    ) {
       return res.status(400).json({
-        message: "discountType must be Percentage or Fixed",
+        message:
+          "discountType must be Percentage or Fixed",
       });
     }
 
-    const pricing = calculatePricing({
-      baseAmount,
-      markupType: finalMarkupType,
-      markupValue,
-      discountType: finalDiscountType,
-      discountValue,
-      taxPercentage,
-      costAmount,
-    });
+    const pricing =
+      calculatePricing({
+        baseAmount,
+        markupType:
+          finalMarkupType,
+        markupValue,
+        discountType:
+          finalDiscountType,
+        discountValue,
+        taxPercentage,
+        costAmount,
+      });
 
-    const quotationNumber = `QT-${Date.now()}`;
+    const quotationNumber =
+      `QT-${Date.now()}`;
 
-    const quotation = await Quotation.create({
-      quotationNumber,
+    const quotation =
+      await Quotation.create({
+        quotationNumber,
 
-      title,
-      enquiry,
-      customer: finalCustomer,
-      lead: finalLead,
-      trip: trip || null,
-      itinerary: null,
-      package: packageId || null,
-      preparedBy: req.user._id,
-      assignedTo: assignedTo || null,
+        title,
+        enquiry,
+        customer: finalCustomer,
+        lead: finalLead,
+        trip: trip || null,
+        itinerary: null,
+        package:
+          packageId || null,
 
-      destination,
-      travelDate: travelDate || null,
-      returnDate: returnDate || null,
-      adults: Number(adults) || 1,
-      children: Number(children) || 0,
-      infants: Number(infants) || 0,
-      currency: currency || "INR",
+        preparedBy:
+          req.user._id,
 
-      hotels: hotels || [],
-      transport: transport || [],
-      activities: activities || [],
-      otherServices: otherServices || [],
+        assignedTo:
+          assignedTo || null,
 
-      baseAmount: pricing.baseAmount,
-      markupType: finalMarkupType,
-      markupValue: pricing.markupValue,
-      markupAmount: pricing.markupAmount,
-      discountType: finalDiscountType,
-      discountValue: pricing.discountValue,
-      discountAmount: pricing.discountAmount,
-      taxPercentage: pricing.taxPercentage,
-      taxAmount: pricing.taxAmount,
-      totalAmount: pricing.totalAmount,
-      costAmount: pricing.costAmount,
-      estimatedProfit: pricing.estimatedProfit,
+        destination,
 
-      status: "Draft",
-      validUntil: validUntil || null,
-      termsAndConditions: termsAndConditions || "",
-      inclusions: inclusions || [],
-      exclusions: exclusions || [],
-      notes: notes || "",
-    });
+        travelDate:
+          travelDate || null,
+
+        returnDate:
+          returnDate || null,
+
+        adults:
+          Number(adults) || 1,
+
+        children:
+          Number(children) || 0,
+
+        infants:
+          Number(infants) || 0,
+
+        currency:
+          currency || "INR",
+
+        hotels:
+          hotels || [],
+
+        transport:
+          transport || [],
+
+        activities:
+          activities || [],
+
+        otherServices:
+          otherServices || [],
+
+        baseAmount:
+          pricing.baseAmount,
+
+        markupType:
+          finalMarkupType,
+
+        markupValue:
+          pricing.markupValue,
+
+        markupAmount:
+          pricing.markupAmount,
+
+        discountType:
+          finalDiscountType,
+
+        discountValue:
+          pricing.discountValue,
+
+        discountAmount:
+          pricing.discountAmount,
+
+        taxPercentage:
+          pricing.taxPercentage,
+
+        taxAmount:
+          pricing.taxAmount,
+
+        totalAmount:
+          pricing.totalAmount,
+
+        costAmount:
+          pricing.costAmount,
+
+        estimatedProfit:
+          pricing.estimatedProfit,
+
+        status: "Draft",
+
+        validUntil:
+          validUntil || null,
+
+        termsAndConditions:
+          termsAndConditions || "",
+
+        inclusions:
+          inclusions || [],
+
+        exclusions:
+          exclusions || [],
+
+        notes:
+          notes || "",
+      });
 
     if (!packageId) {
-      const itinerary = await createQuotationItinerary({
-        quotation,
-        preparedBy: req.user._id,
-        userItineraryData: itineraryData,
-      });
+      const itinerary =
+        await createQuotationItinerary({
+          quotation,
+          preparedBy:
+            req.user._id,
+          userItineraryData:
+            itineraryData,
+        });
 
-      quotation.itinerary = itinerary._id;
+      quotation.itinerary =
+        itinerary._id;
+
       await quotation.save();
     }
 
     if (
-      ["New", "In Progress", "Waiting for Customer"].includes(
+      [
+        "New",
+        "In Progress",
+        "Waiting for Customer",
+      ].includes(
         enquiryDoc.status
       )
     ) {
-      enquiryDoc.status = "Quotation Prepared";
+      enquiryDoc.status =
+        "Quotation Prepared";
+
       await enquiryDoc.save();
     }
 
-    const populatedQuotation = await populateQuotation(
-      Quotation.findById(quotation._id)
-    );
+    const populatedQuotation =
+      await populateQuotation(
+        Quotation.findById(
+          quotation._id
+        )
+      );
 
     try {
       if (assignedTo) {
         await createNotification({
           recipient: assignedTo,
-          type: "QUOTATION_CREATED",
-          title: "New Quotation Created",
-          message: `Quotation ${quotation.quotationNumber} has been created and assigned to you.`,
-          relatedQuotation: quotation._id,
+
+          type:
+            "QUOTATION_CREATED",
+
+          title:
+            "New Quotation Created",
+
+          message:
+            `Quotation ${quotation.quotationNumber} has been created and assigned to you.`,
+
+          relatedQuotation:
+            quotation._id,
         });
       }
-    } catch (notificationError) {
+    } catch (
+      notificationError
+    ) {
       console.error(
         "Notification Error:",
         notificationError.message
@@ -788,15 +1121,24 @@ const createQuotation = async (req, res) => {
     }
 
     return res.status(201).json({
-      message: "Quotation created successfully",
-      quotation: populatedQuotation,
+      message:
+        "Quotation created successfully",
+
+      quotation:
+        populatedQuotation,
     });
   } catch (error) {
-    console.error("Create Quotation Error:", error);
+    console.error(
+      "Create Quotation Error:",
+      error
+    );
 
     return res.status(500).json({
-      message: "Failed to create quotation",
-      error: error.message,
+      message:
+        "Failed to create quotation",
+
+      error:
+        error.message,
     });
   }
 };
@@ -805,7 +1147,10 @@ const createQuotation = async (req, res) => {
 // GET ALL QUOTATIONS
 // ======================================================
 
-const getQuotations = async (req, res) => {
+const getQuotations = async (
+  req,
+  res
+) => {
   try {
     const {
       status,
@@ -819,34 +1164,75 @@ const getQuotations = async (req, res) => {
 
     const filter = {};
 
-    if (status) filter.status = status;
-    if (enquiry) filter.enquiry = enquiry;
-    if (customer) filter.customer = customer;
-    if (lead) filter.lead = lead;
-    if (trip) filter.trip = trip;
-    if (assignedTo) filter.assignedTo = assignedTo;
+    if (status)
+      filter.status = status;
+
+    if (enquiry)
+      filter.enquiry = enquiry;
+
+    if (customer)
+      filter.customer = customer;
+
+    if (lead)
+      filter.lead = lead;
+
+    if (trip)
+      filter.trip = trip;
+
+    if (assignedTo)
+      filter.assignedTo =
+        assignedTo;
 
     if (search) {
       filter.$or = [
-        { quotationNumber: { $regex: search, $options: "i" } },
-        { title: { $regex: search, $options: "i" } },
-        { destination: { $regex: search, $options: "i" } },
+        {
+          quotationNumber: {
+            $regex: search,
+            $options: "i",
+          },
+        },
+
+        {
+          title: {
+            $regex: search,
+            $options: "i",
+          },
+        },
+
+        {
+          destination: {
+            $regex: search,
+            $options: "i",
+          },
+        },
       ];
     }
 
-    const quotations = await populateQuotation(
-      Quotation.find(filter).sort({ createdAt: -1 })
-    );
+    const quotations =
+      await populateQuotation(
+        Quotation.find(filter).sort({
+          createdAt: -1,
+        })
+      );
 
     return res.status(200).json({
-      count: quotations.length,
+      count:
+        quotations.length,
+
       quotations,
     });
   } catch (error) {
-    console.error("Get Quotations Error:", error);
+    console.error(
+      "Get Quotations Error:",
+      error
+    );
+
     return res.status(500).json({
-      message: "Failed to fetch quotations",
-      error: error.message,
+      message:
+        "Failed to fetch quotations",
+
+      error:
+        error.message,
     });
   }
 };
@@ -855,21 +1241,34 @@ const getQuotations = async (req, res) => {
 // GET QUOTATION BY ID
 // ======================================================
 
-const getQuotationById = async (req, res) => {
+const getQuotationById = async (
+  req,
+  res
+) => {
   try {
-    const { id } = req.params;
+    const { id } =
+      req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (
+      !mongoose.Types.ObjectId.isValid(
+        id
+      )
+    ) {
       return res.status(400).json({
-        message: "Invalid quotation ID",
+        message:
+          "Invalid quotation ID",
       });
     }
 
-    const quotation = await populateQuotation(Quotation.findById(id));
+    const quotation =
+      await populateQuotation(
+        Quotation.findById(id)
+      );
 
     if (!quotation) {
       return res.status(404).json({
-        message: "Quotation not found",
+        message:
+          "Quotation not found",
       });
     }
 
@@ -877,10 +1276,17 @@ const getQuotationById = async (req, res) => {
       quotation,
     });
   } catch (error) {
-    console.error("Get Quotation By ID Error:", error);
+    console.error(
+      "Get Quotation By ID Error:",
+      error
+    );
+
     return res.status(500).json({
-      message: "Failed to fetch quotation",
-      error: error.message,
+      message:
+        "Failed to fetch quotation",
+
+      error:
+        error.message,
     });
   }
 };
@@ -889,25 +1295,38 @@ const getQuotationById = async (req, res) => {
 // UPDATE QUOTATION
 // ======================================================
 
-const updateQuotation = async (req, res) => {
+const updateQuotation = async (
+  req,
+  res
+) => {
   try {
-    const { id } = req.params;
+    const { id } =
+      req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (
+      !mongoose.Types.ObjectId.isValid(
+        id
+      )
+    ) {
       return res.status(400).json({
-        message: "Invalid quotation ID",
+        message:
+          "Invalid quotation ID",
       });
     }
 
-    const quotation = await Quotation.findById(id);
+    const quotation =
+      await Quotation.findById(id);
 
     if (!quotation) {
       return res.status(404).json({
-        message: "Quotation not found",
+        message:
+          "Quotation not found",
       });
     }
 
-    normalizeObjectIdFields(req.body);
+    normalizeObjectIdFields(
+      req.body
+    );
 
     const allowedFields = [
       "title",
@@ -942,94 +1361,180 @@ const updateQuotation = async (req, res) => {
       "status",
     ];
 
+    /*
+      IMPORTANT:
+
+      Negotiation is allowed here because
+      frontend pipeline may update quotation
+      status through PUT /:id.
+
+      Converted is intentionally NOT included.
+
+      Converted should only happen after
+      successful booking creation.
+    */
+
     const allowedStatuses = [
       "Draft",
       "Prepared",
       "Sent",
       "Viewed",
+      "Negotiation",
       "Accepted",
       "Rejected",
       "Cancelled",
     ];
 
-    if (Object.prototype.hasOwnProperty.call(req.body, "status")) {
-      if (!allowedStatuses.includes(req.body.status)) {
+    if (
+      Object.prototype.hasOwnProperty.call(
+        req.body,
+        "status"
+      )
+    ) {
+      if (
+        !allowedStatuses.includes(
+          req.body.status
+        )
+      ) {
         return res.status(400).json({
-          message: `Invalid quotation status. Allowed statuses: ${allowedStatuses.join(
-            ", "
-          )}`,
+          message:
+            `Invalid quotation status. Allowed statuses: ${allowedStatuses.join(
+              ", "
+            )}`,
+        });
+      }
+
+      /*
+        Converted quotations cannot be
+        changed back through generic update.
+      */
+
+      if (
+        quotation.status ===
+        "Converted"
+      ) {
+        return res.status(400).json({
+          message:
+            "Converted quotation cannot be modified through status update",
         });
       }
     }
 
     if (
-      Object.prototype.hasOwnProperty.call(req.body, "package") &&
+      Object.prototype.hasOwnProperty.call(
+        req.body,
+        "package"
+      ) &&
       req.body.package
     ) {
-      if (!mongoose.Types.ObjectId.isValid(req.body.package)) {
+      if (
+        !mongoose.Types.ObjectId.isValid(
+          req.body.package
+        )
+      ) {
         return res.status(400).json({
-          message: "Invalid package ID",
+          message:
+            "Invalid package ID",
         });
       }
 
-      const PackageModel = getPackageModel();
-      const packageExists = await PackageModel.findById(req.body.package);
+      const PackageModel =
+        getPackageModel();
+
+      const packageExists =
+        await PackageModel.findById(
+          req.body.package
+        );
 
       if (!packageExists) {
         return res.status(404).json({
-          message: "Package not found",
+          message:
+            "Package not found",
         });
       }
     }
 
-    const oldStatus = quotation.status;
+    const oldStatus =
+      quotation.status;
 
-    allowedFields.forEach((field) => {
-      if (Object.prototype.hasOwnProperty.call(req.body, field)) {
-        quotation[field] = req.body[field];
+    allowedFields.forEach(
+      (field) => {
+        if (
+          Object.prototype.hasOwnProperty.call(
+            req.body,
+            field
+          )
+        ) {
+          quotation[field] =
+            req.body[field];
+        }
       }
-    });
+    );
 
     if (quotation.customer) {
-      const customerExists = await Customer.findById(quotation.customer);
+      const customerExists =
+        await Customer.findById(
+          quotation.customer
+        );
 
       if (!customerExists) {
         return res.status(404).json({
-          message: "Customer not found",
+          message:
+            "Customer not found",
         });
       }
     }
 
     if (quotation.lead) {
-      const leadExists = await Lead.findById(quotation.lead);
+      const leadExists =
+        await Lead.findById(
+          quotation.lead
+        );
 
       if (!leadExists) {
         return res.status(404).json({
-          message: "Lead not found",
+          message:
+            "Lead not found",
         });
       }
     }
 
     if (quotation.trip) {
-      const tripExists = await Trip.findById(quotation.trip);
+      const tripExists =
+        await Trip.findById(
+          quotation.trip
+        );
 
       if (!tripExists) {
         return res.status(404).json({
-          message: "Trip not found",
+          message:
+            "Trip not found",
         });
       }
     }
 
     if (quotation.assignedTo) {
-      const assignedUser = await User.findById(quotation.assignedTo);
+      const assignedUser =
+        await User.findById(
+          quotation.assignedTo
+        );
 
       if (!assignedUser) {
         return res.status(404).json({
-          message: "Assigned user not found",
+          message:
+            "Assigned user not found",
         });
       }
 
-      if (!["admin", "manager", "sales"].includes(assignedUser.role)) {
+      if (
+        ![
+          "admin",
+          "manager",
+          "sales",
+        ].includes(
+          assignedUser.role
+        )
+      ) {
         return res.status(400).json({
           message:
             "Quotation can only be assigned to admin, manager or sales user",
@@ -1037,212 +1542,482 @@ const updateQuotation = async (req, res) => {
       }
     }
 
-    if (!["Percentage", "Fixed"].includes(quotation.markupType)) {
+    if (
+      ![
+        "Percentage",
+        "Fixed",
+      ].includes(
+        quotation.markupType
+      )
+    ) {
       return res.status(400).json({
-        message: "markupType must be Percentage or Fixed",
+        message:
+          "markupType must be Percentage or Fixed",
       });
     }
 
-    if (!["Percentage", "Fixed"].includes(quotation.discountType)) {
+    if (
+      ![
+        "Percentage",
+        "Fixed",
+      ].includes(
+        quotation.discountType
+      )
+    ) {
       return res.status(400).json({
-        message: "discountType must be Percentage or Fixed",
+        message:
+          "discountType must be Percentage or Fixed",
       });
     }
 
-    const pricing = calculatePricing({
-      baseAmount: quotation.baseAmount,
-      markupType: quotation.markupType,
-      markupValue: quotation.markupValue,
-      discountType: quotation.discountType,
-      discountValue: quotation.discountValue,
-      taxPercentage: quotation.taxPercentage,
-      costAmount: quotation.costAmount,
-    });
+    const pricing =
+      calculatePricing({
+        baseAmount:
+          quotation.baseAmount,
 
-    quotation.baseAmount = pricing.baseAmount;
-    quotation.markupValue = pricing.markupValue;
-    quotation.markupAmount = pricing.markupAmount;
-    quotation.discountValue = pricing.discountValue;
-    quotation.discountAmount = pricing.discountAmount;
-    quotation.taxPercentage = pricing.taxPercentage;
-    quotation.taxAmount = pricing.taxAmount;
-    quotation.totalAmount = pricing.totalAmount;
-    quotation.costAmount = pricing.costAmount;
-    quotation.estimatedProfit = pricing.estimatedProfit;
+        markupType:
+          quotation.markupType,
 
-    const newStatus = quotation.status;
+        markupValue:
+          quotation.markupValue,
+
+        discountType:
+          quotation.discountType,
+
+        discountValue:
+          quotation.discountValue,
+
+        taxPercentage:
+          quotation.taxPercentage,
+
+        costAmount:
+          quotation.costAmount,
+      });
+
+    quotation.baseAmount =
+      pricing.baseAmount;
+
+    quotation.markupValue =
+      pricing.markupValue;
+
+    quotation.markupAmount =
+      pricing.markupAmount;
+
+    quotation.discountValue =
+      pricing.discountValue;
+
+    quotation.discountAmount =
+      pricing.discountAmount;
+
+    quotation.taxPercentage =
+      pricing.taxPercentage;
+
+    quotation.taxAmount =
+      pricing.taxAmount;
+
+    quotation.totalAmount =
+      pricing.totalAmount;
+
+    quotation.costAmount =
+      pricing.costAmount;
+
+    quotation.estimatedProfit =
+      pricing.estimatedProfit;
+
+    const newStatus =
+      quotation.status;
 
     if (newStatus !== oldStatus) {
-      if (newStatus === "Sent") quotation.sentAt = new Date();
-      if (newStatus === "Viewed") quotation.viewedAt = new Date();
-      if (newStatus === "Accepted") quotation.acceptedAt = new Date();
-      if (newStatus === "Rejected") quotation.rejectedAt = new Date();
+      if (
+        newStatus === "Sent"
+      ) {
+        quotation.sentAt =
+          new Date();
+      }
+
+      if (
+        newStatus === "Viewed"
+      ) {
+        quotation.viewedAt =
+          new Date();
+      }
+
+      if (
+        newStatus === "Accepted"
+      ) {
+        quotation.acceptedAt =
+          new Date();
+      }
+
+      if (
+        newStatus === "Rejected"
+      ) {
+        quotation.rejectedAt =
+          new Date();
+      }
     }
 
     await quotation.save();
 
     let itinerary = null;
 
-    const { itinerary: itineraryData } = req.body;
+    const {
+      itinerary: itineraryData,
+    } = req.body;
 
-    if (itineraryData && quotation.itinerary) {
-      const existingItinerary = await Itinerary.findById(
-        quotation.itinerary
-      );
+    if (
+      itineraryData &&
+      quotation.itinerary
+    ) {
+      const existingItinerary =
+        await Itinerary.findById(
+          quotation.itinerary
+        );
 
       if (existingItinerary) {
-        if (Array.isArray(itineraryData.days)) {
-          existingItinerary.days = buildItineraryDays({
-            travelDate: quotation.travelDate,
-            returnDate: quotation.returnDate,
-            userDays: itineraryData.days,
-          });
+        if (
+          Array.isArray(
+            itineraryData.days
+          )
+        ) {
+          existingItinerary.days =
+            buildItineraryDays({
+              travelDate:
+                quotation.travelDate,
+
+              returnDate:
+                quotation.returnDate,
+
+              userDays:
+                itineraryData.days,
+            });
         }
 
-        if (itineraryData.title)
-          existingItinerary.title = itineraryData.title;
-
-        if (itineraryData.destination)
-          existingItinerary.destination = itineraryData.destination;
-
-        if (Array.isArray(itineraryData.inclusions)) {
-          existingItinerary.inclusions = itineraryData.inclusions;
+        if (itineraryData.title) {
+          existingItinerary.title =
+            itineraryData.title;
         }
 
-        if (Array.isArray(itineraryData.exclusions)) {
-          existingItinerary.exclusions = itineraryData.exclusions;
+        if (
+          itineraryData.destination
+        ) {
+          existingItinerary.destination =
+            itineraryData.destination;
         }
 
-        if (itineraryData.notes !== undefined) {
-          existingItinerary.notes = itineraryData.notes;
+        if (
+          Array.isArray(
+            itineraryData.inclusions
+          )
+        ) {
+          existingItinerary.inclusions =
+            itineraryData.inclusions;
         }
 
-        existingItinerary.totalDays = calculateTotalDays(
-          quotation.travelDate,
-          quotation.returnDate
-        );
-        existingItinerary.totalNights = calculateTotalNights(
-          quotation.travelDate,
-          quotation.returnDate
-        );
+        if (
+          Array.isArray(
+            itineraryData.exclusions
+          )
+        ) {
+          existingItinerary.exclusions =
+            itineraryData.exclusions;
+        }
+
+        if (
+          itineraryData.notes !==
+          undefined
+        ) {
+          existingItinerary.notes =
+            itineraryData.notes;
+        }
+
+        existingItinerary.totalDays =
+          calculateTotalDays(
+            quotation.travelDate,
+            quotation.returnDate
+          );
+
+        existingItinerary.totalNights =
+          calculateTotalNights(
+            quotation.travelDate,
+            quotation.returnDate
+          );
 
         await existingItinerary.save();
-        itinerary = existingItinerary;
+
+        itinerary =
+          existingItinerary;
       }
-    } else if (quotation.itinerary) {
-      itinerary = await syncItineraryWithQuotation(quotation);
+    } else if (
+      quotation.itinerary
+    ) {
+      itinerary =
+        await syncItineraryWithQuotation(
+          quotation
+        );
     }
+
+    // ==================================================
+    // STATUS SIDE EFFECTS
+    // ==================================================
 
     if (newStatus !== oldStatus) {
-      if (newStatus === "Draft") {
-        if (quotation.itinerary) {
-          await Itinerary.findByIdAndUpdate(quotation.itinerary, {
-            status: "Draft",
-          });
+      if (
+        newStatus === "Draft"
+      ) {
+        if (
+          quotation.itinerary
+        ) {
+          await Itinerary.findByIdAndUpdate(
+            quotation.itinerary,
+            {
+              status: "Draft",
+            }
+          );
         }
-        if (quotation.enquiry) {
-          await Enquiry.findByIdAndUpdate(quotation.enquiry, {
-            status: "Quotation Prepared",
-          });
+
+        if (
+          quotation.enquiry
+        ) {
+          await Enquiry.findByIdAndUpdate(
+            quotation.enquiry,
+            {
+              status:
+                "Quotation Prepared",
+            }
+          );
         }
       }
 
-      if (newStatus === "Prepared") {
-        if (quotation.itinerary) {
-          await Itinerary.findByIdAndUpdate(quotation.itinerary, {
-            status: "Planning",
-          });
+      if (
+        newStatus === "Prepared"
+      ) {
+        if (
+          quotation.itinerary
+        ) {
+          await Itinerary.findByIdAndUpdate(
+            quotation.itinerary,
+            {
+              status: "Planning",
+            }
+          );
         }
-        if (quotation.enquiry) {
-          await Enquiry.findByIdAndUpdate(quotation.enquiry, {
-            status: "Quotation Prepared",
-          });
+
+        if (
+          quotation.enquiry
+        ) {
+          await Enquiry.findByIdAndUpdate(
+            quotation.enquiry,
+            {
+              status:
+                "Quotation Prepared",
+            }
+          );
         }
       }
 
-      if (newStatus === "Sent") {
-        if (quotation.itinerary) {
-          await Itinerary.findByIdAndUpdate(quotation.itinerary, {
-            status: "Shared",
-            customerSharedAt: new Date(),
-          });
+      if (
+        newStatus === "Sent"
+      ) {
+        if (
+          quotation.itinerary
+        ) {
+          await Itinerary.findByIdAndUpdate(
+            quotation.itinerary,
+            {
+              status: "Shared",
+              customerSharedAt:
+                new Date(),
+            }
+          );
         }
-        if (quotation.enquiry) {
-          await Enquiry.findByIdAndUpdate(quotation.enquiry, {
-            status: "Quotation Sent",
-          });
+
+        if (
+          quotation.enquiry
+        ) {
+          await Enquiry.findByIdAndUpdate(
+            quotation.enquiry,
+            {
+              status:
+                "Quotation Sent",
+            }
+          );
         }
       }
 
-      if (newStatus === "Viewed") {
-        if (quotation.itinerary) {
-          await Itinerary.findByIdAndUpdate(quotation.itinerary, {
-            status: "Shared",
-          });
+      if (
+        newStatus === "Viewed"
+      ) {
+        if (
+          quotation.itinerary
+        ) {
+          await Itinerary.findByIdAndUpdate(
+            quotation.itinerary,
+            {
+              status: "Shared",
+            }
+          );
         }
       }
 
-      if (newStatus === "Accepted") {
-        if (quotation.itinerary) {
-          await Itinerary.findByIdAndUpdate(quotation.itinerary, {
-            status: "Approved",
-            approvedBy: req.user._id,
-            approvedAt: new Date(),
-          });
+      /*
+        Negotiation does not change
+        itinerary or enquiry status.
+
+        The quotation simply moves into
+        negotiation stage.
+      */
+
+      if (
+        newStatus ===
+        "Negotiation"
+      ) {
+        if (
+          quotation.itinerary
+        ) {
+          await Itinerary.findByIdAndUpdate(
+            quotation.itinerary,
+            {
+              status: "Shared",
+            }
+          );
         }
-        if (quotation.enquiry) {
-          await Enquiry.findByIdAndUpdate(quotation.enquiry, {
-            status: "Confirmed",
-          });
+
+        if (
+          quotation.enquiry
+        ) {
+          await Enquiry.findByIdAndUpdate(
+            quotation.enquiry,
+            {
+              status:
+                "Quotation Sent",
+            }
+          );
         }
       }
 
-      if (newStatus === "Rejected") {
-        if (quotation.itinerary) {
-          await Itinerary.findByIdAndUpdate(quotation.itinerary, {
-            status: "Cancelled",
-          });
+      if (
+        newStatus === "Accepted"
+      ) {
+        if (
+          quotation.itinerary
+        ) {
+          await Itinerary.findByIdAndUpdate(
+            quotation.itinerary,
+            {
+              status: "Approved",
+              approvedBy:
+                req.user._id,
+              approvedAt:
+                new Date(),
+            }
+          );
         }
-        if (quotation.enquiry) {
-          await Enquiry.findByIdAndUpdate(quotation.enquiry, {
-            status: "In Progress",
-          });
+
+        if (
+          quotation.enquiry
+        ) {
+          await Enquiry.findByIdAndUpdate(
+            quotation.enquiry,
+            {
+              status: "Confirmed",
+            }
+          );
         }
       }
 
-      if (newStatus === "Cancelled") {
-        if (quotation.itinerary) {
-          await Itinerary.findByIdAndUpdate(quotation.itinerary, {
-            status: "Cancelled",
-          });
+      if (
+        newStatus === "Rejected"
+      ) {
+        if (
+          quotation.itinerary
+        ) {
+          await Itinerary.findByIdAndUpdate(
+            quotation.itinerary,
+            {
+              status:
+                "Cancelled",
+            }
+          );
         }
-        if (quotation.enquiry) {
-          await Enquiry.findByIdAndUpdate(quotation.enquiry, {
-            status: "Cancelled",
-          });
+
+        if (
+          quotation.enquiry
+        ) {
+          await Enquiry.findByIdAndUpdate(
+            quotation.enquiry,
+            {
+              status:
+                "In Progress",
+            }
+          );
         }
       }
 
-      if (quotation.itinerary) {
-        itinerary = await Itinerary.findById(quotation.itinerary);
+      if (
+        newStatus === "Cancelled"
+      ) {
+        if (
+          quotation.itinerary
+        ) {
+          await Itinerary.findByIdAndUpdate(
+            quotation.itinerary,
+            {
+              status:
+                "Cancelled",
+            }
+          );
+        }
+
+        if (
+          quotation.enquiry
+        ) {
+          await Enquiry.findByIdAndUpdate(
+            quotation.enquiry,
+            {
+              status:
+                "Cancelled",
+            }
+          );
+        }
+      }
+
+      if (
+        quotation.itinerary
+      ) {
+        itinerary =
+          await Itinerary.findById(
+            quotation.itinerary
+          );
       }
     }
 
-    const updatedQuotation = await populateQuotation(
-      Quotation.findById(id)
-    );
+    const updatedQuotation =
+      await populateQuotation(
+        Quotation.findById(id)
+      );
 
     return res.status(200).json({
-      message: "Quotation updated successfully",
-      quotation: updatedQuotation,
+      message:
+        "Quotation updated successfully",
+
+      quotation:
+        updatedQuotation,
+
       itinerary,
     });
   } catch (error) {
-    console.error("Update Quotation Error:", error);
+    console.error(
+      "Update Quotation Error:",
+      error
+    );
 
     return res.status(500).json({
-      message: "Failed to update quotation",
-      error: error.message,
+      message:
+        "Failed to update quotation",
+
+      error:
+        error.message,
     });
   }
 };
@@ -1251,38 +2026,61 @@ const updateQuotation = async (req, res) => {
 // DELETE QUOTATION
 // ======================================================
 
-const deleteQuotation = async (req, res) => {
+const deleteQuotation = async (
+  req,
+  res
+) => {
   try {
-    const { id } = req.params;
+    const { id } =
+      req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (
+      !mongoose.Types.ObjectId.isValid(
+        id
+      )
+    ) {
       return res.status(400).json({
-        message: "Invalid quotation ID",
+        message:
+          "Invalid quotation ID",
       });
     }
 
-    const quotation = await Quotation.findById(id);
+    const quotation =
+      await Quotation.findById(id);
 
     if (!quotation) {
       return res.status(404).json({
-        message: "Quotation not found",
+        message:
+          "Quotation not found",
       });
     }
 
     if (quotation.itinerary) {
-      await Itinerary.findByIdAndDelete(quotation.itinerary);
+      await Itinerary.findByIdAndDelete(
+        quotation.itinerary
+      );
     }
 
-    await Quotation.findByIdAndDelete(id);
+    await Quotation.findByIdAndDelete(
+      id
+    );
 
     return res.status(200).json({
-      message: "Quotation and linked itinerary deleted successfully",
+      message:
+        "Quotation and linked itinerary deleted successfully",
     });
   } catch (error) {
-    console.error("Delete Quotation Error:", error);
+    console.error(
+      "Delete Quotation Error:",
+      error
+    );
+
     return res.status(500).json({
-      message: "Failed to delete quotation",
-      error: error.message,
+      message:
+        "Failed to delete quotation",
+
+      error:
+        error.message,
     });
   }
 };
@@ -1291,53 +2089,83 @@ const deleteQuotation = async (req, res) => {
 // PREPARE QUOTATION
 // ======================================================
 
-const prepareQuotation = async (req, res) => {
+const prepareQuotation = async (
+  req,
+  res
+) => {
   try {
-    const { id } = req.params;
+    const { id } =
+      req.params;
 
-    const quotation = await Quotation.findById(id);
+    const quotation =
+      await Quotation.findById(id);
 
     if (!quotation) {
       return res.status(404).json({
-        message: "Quotation not found",
+        message:
+          "Quotation not found",
       });
     }
 
-    if (quotation.status !== "Draft") {
+    if (
+      quotation.status !==
+      "Draft"
+    ) {
       return res.status(400).json({
-        message: "Only Draft quotations can be prepared",
+        message:
+          "Only Draft quotations can be prepared",
       });
     }
 
-    quotation.status = "Prepared";
+    quotation.status =
+      "Prepared";
 
     await quotation.save();
 
     if (quotation.itinerary) {
-      await Itinerary.findByIdAndUpdate(quotation.itinerary, {
-        status: "Planning",
-      });
+      await Itinerary.findByIdAndUpdate(
+        quotation.itinerary,
+        {
+          status:
+            "Planning",
+        }
+      );
     }
 
     if (quotation.enquiry) {
-      await Enquiry.findByIdAndUpdate(quotation.enquiry, {
-        status: "Quotation Prepared",
-      });
+      await Enquiry.findByIdAndUpdate(
+        quotation.enquiry,
+        {
+          status:
+            "Quotation Prepared",
+        }
+      );
     }
 
-    const updatedQuotation = await populateQuotation(
-      Quotation.findById(id)
-    );
+    const updatedQuotation =
+      await populateQuotation(
+        Quotation.findById(id)
+      );
 
     return res.status(200).json({
-      message: "Quotation prepared successfully",
-      quotation: updatedQuotation,
+      message:
+        "Quotation prepared successfully",
+
+      quotation:
+        updatedQuotation,
     });
   } catch (error) {
-    console.error("Prepare Quotation Error:", error);
+    console.error(
+      "Prepare Quotation Error:",
+      error
+    );
+
     return res.status(500).json({
-      message: "Failed to prepare quotation",
-      error: error.message,
+      message:
+        "Failed to prepare quotation",
+
+      error:
+        error.message,
     });
   }
 };
@@ -1346,55 +2174,91 @@ const prepareQuotation = async (req, res) => {
 // SEND QUOTATION
 // ======================================================
 
-const sendQuotation = async (req, res) => {
+const sendQuotation = async (
+  req,
+  res
+) => {
   try {
-    const { id } = req.params;
+    const { id } =
+      req.params;
 
-    const quotation = await Quotation.findById(id);
+    const quotation =
+      await Quotation.findById(id);
 
     if (!quotation) {
       return res.status(404).json({
-        message: "Quotation not found",
+        message:
+          "Quotation not found",
       });
     }
 
-    if (!["Prepared", "Viewed"].includes(quotation.status)) {
+    if (
+      ![
+        "Prepared",
+        "Viewed",
+      ].includes(
+        quotation.status
+      )
+    ) {
       return res.status(400).json({
-        message: "Only Prepared or Viewed quotations can be sent",
+        message:
+          "Only Prepared or Viewed quotations can be sent",
       });
     }
 
-    quotation.status = "Sent";
-    quotation.sentAt = new Date();
+    quotation.status =
+      "Sent";
+
+    quotation.sentAt =
+      new Date();
 
     await quotation.save();
 
     if (quotation.itinerary) {
-      await Itinerary.findByIdAndUpdate(quotation.itinerary, {
-        status: "Shared",
-        customerSharedAt: new Date(),
-      });
+      await Itinerary.findByIdAndUpdate(
+        quotation.itinerary,
+        {
+          status: "Shared",
+          customerSharedAt:
+            new Date(),
+        }
+      );
     }
 
     if (quotation.enquiry) {
-      await Enquiry.findByIdAndUpdate(quotation.enquiry, {
-        status: "Quotation Sent",
-      });
+      await Enquiry.findByIdAndUpdate(
+        quotation.enquiry,
+        {
+          status:
+            "Quotation Sent",
+        }
+      );
     }
 
-    const updatedQuotation = await populateQuotation(
-      Quotation.findById(id)
-    );
+    const updatedQuotation =
+      await populateQuotation(
+        Quotation.findById(id)
+      );
 
     return res.status(200).json({
-      message: "Quotation sent successfully",
-      quotation: updatedQuotation,
+      message:
+        "Quotation sent successfully",
+
+      quotation:
+        updatedQuotation,
     });
   } catch (error) {
-    console.error("Send Quotation Error:", error);
+    console.error(
+      "Send Quotation Error:",
+      error
+    );
+
     return res.status(500).json({
-      message: "Failed to send quotation",
-      error: error.message,
+      message:
+        "Failed to send quotation",
+
+      error:
+        error.message,
     });
   }
 };
@@ -1403,38 +2267,171 @@ const sendQuotation = async (req, res) => {
 // VIEW QUOTATION
 // ======================================================
 
-const viewQuotation = async (req, res) => {
+const viewQuotation = async (
+  req,
+  res
+) => {
   try {
-    const { id } = req.params;
+    const { id } =
+      req.params;
 
-    const quotation = await Quotation.findById(id);
+    const quotation =
+      await Quotation.findById(id);
 
     if (!quotation) {
       return res.status(404).json({
-        message: "Quotation not found",
+        message:
+          "Quotation not found",
       });
     }
 
-    if (quotation.status === "Sent") {
-      quotation.status = "Viewed";
-      quotation.viewedAt = new Date();
+    if (
+      quotation.status ===
+      "Sent"
+    ) {
+      quotation.status =
+        "Viewed";
+
+      quotation.viewedAt =
+        new Date();
 
       await quotation.save();
     }
 
-    const updatedQuotation = await populateQuotation(
-      Quotation.findById(id)
-    );
+    const updatedQuotation =
+      await populateQuotation(
+        Quotation.findById(id)
+      );
 
     return res.status(200).json({
-      message: "Quotation viewed successfully",
-      quotation: updatedQuotation,
+      message:
+        "Quotation viewed successfully",
+
+      quotation:
+        updatedQuotation,
     });
   } catch (error) {
-    console.error("View Quotation Error:", error);
+    console.error(
+      "View Quotation Error:",
+      error
+    );
+
     return res.status(500).json({
-      message: "Failed to view quotation",
-      error: error.message,
+      message:
+        "Failed to view quotation",
+
+      error:
+        error.message,
+    });
+  }
+};
+
+// ======================================================
+// NEGOTIATE QUOTATION
+// ======================================================
+
+const negotiateQuotation = async (
+  req,
+  res
+) => {
+  try {
+    const { id } =
+      req.params;
+
+    if (
+      !mongoose.Types.ObjectId.isValid(
+        id
+      )
+    ) {
+      return res.status(400).json({
+        message:
+          "Invalid quotation ID",
+      });
+    }
+
+    const quotation =
+      await Quotation.findById(id);
+
+    if (!quotation) {
+      return res.status(404).json({
+        message:
+          "Quotation not found",
+      });
+    }
+
+    /*
+      Negotiation can start only after
+      quotation has been sent/viewed.
+    */
+
+    if (
+      ![
+        "Sent",
+        "Viewed",
+      ].includes(
+        quotation.status
+      )
+    ) {
+      return res.status(400).json({
+        message:
+          "Only Sent or Viewed quotations can enter negotiation",
+      });
+    }
+
+    quotation.status =
+      "Negotiation";
+
+    await quotation.save();
+
+    /*
+      Itinerary remains Shared because
+      customer is still discussing the quotation.
+    */
+
+    if (quotation.itinerary) {
+      await Itinerary.findByIdAndUpdate(
+        quotation.itinerary,
+        {
+          status:
+            "Shared",
+        }
+      );
+    }
+
+    if (quotation.enquiry) {
+      await Enquiry.findByIdAndUpdate(
+        quotation.enquiry,
+        {
+          status:
+            "Quotation Sent",
+        }
+      );
+    }
+
+    const updatedQuotation =
+      await populateQuotation(
+        Quotation.findById(id)
+      );
+
+    return res.status(200).json({
+      message:
+        "Quotation moved to negotiation successfully",
+
+      quotation:
+        updatedQuotation,
+    });
+  } catch (error) {
+    console.error(
+      "Negotiate Quotation Error:",
+      error
+    );
+
+    return res.status(500).json({
+      message:
+        "Failed to move quotation to negotiation",
+
+      error:
+        error.message,
     });
   }
 };
@@ -1443,56 +2440,116 @@ const viewQuotation = async (req, res) => {
 // ACCEPT QUOTATION
 // ======================================================
 
-const acceptQuotation = async (req, res) => {
+const acceptQuotation = async (
+  req,
+  res
+) => {
   try {
-    const { id } = req.params;
+    const { id } =
+      req.params;
 
-    const quotation = await Quotation.findById(id);
+    if (
+      !mongoose.Types.ObjectId.isValid(
+        id
+      )
+    ) {
+      return res.status(400).json({
+        message:
+          "Invalid quotation ID",
+      });
+    }
+
+    const quotation =
+      await Quotation.findById(id);
 
     if (!quotation) {
       return res.status(404).json({
-        message: "Quotation not found",
+        message:
+          "Quotation not found",
       });
     }
 
-    if (!["Sent", "Viewed"].includes(quotation.status)) {
+    /*
+      Accepted can come from:
+
+      Sent
+      Viewed
+      Negotiation
+    */
+
+    if (
+      ![
+        "Sent",
+        "Viewed",
+        "Negotiation",
+      ].includes(
+        quotation.status
+      )
+    ) {
       return res.status(400).json({
-        message: "Only Sent or Viewed quotations can be accepted",
+        message:
+          "Only Sent, Viewed or Negotiation quotations can be accepted",
       });
     }
 
-    quotation.status = "Accepted";
-    quotation.acceptedAt = new Date();
+    quotation.status =
+      "Accepted";
+
+    quotation.acceptedAt =
+      new Date();
 
     await quotation.save();
 
     if (quotation.itinerary) {
-      await Itinerary.findByIdAndUpdate(quotation.itinerary, {
-        status: "Approved",
-        approvedBy: req.user._id,
-        approvedAt: new Date(),
-      });
+      await Itinerary.findByIdAndUpdate(
+        quotation.itinerary,
+        {
+          status:
+            "Approved",
+
+          approvedBy:
+            req.user._id,
+
+          approvedAt:
+            new Date(),
+        }
+      );
     }
 
     if (quotation.enquiry) {
-      await Enquiry.findByIdAndUpdate(quotation.enquiry, {
-        status: "Confirmed",
-      });
+      await Enquiry.findByIdAndUpdate(
+        quotation.enquiry,
+        {
+          status:
+            "Confirmed",
+        }
+      );
     }
 
-    const updatedQuotation = await populateQuotation(
-      Quotation.findById(id)
-    );
+    const updatedQuotation =
+      await populateQuotation(
+        Quotation.findById(id)
+      );
 
     return res.status(200).json({
-      message: "Quotation accepted successfully",
-      quotation: updatedQuotation,
+      message:
+        "Quotation accepted successfully",
+
+      quotation:
+        updatedQuotation,
     });
   } catch (error) {
-    console.error("Accept Quotation Error:", error);
+    console.error(
+      "Accept Quotation Error:",
+      error
+    );
+
     return res.status(500).json({
-      message: "Failed to accept quotation",
-      error: error.message,
+      message:
+        "Failed to accept quotation",
+
+      error:
+        error.message,
     });
   }
 };
@@ -1501,56 +2558,103 @@ const acceptQuotation = async (req, res) => {
 // REJECT QUOTATION
 // ======================================================
 
-const rejectQuotation = async (req, res) => {
+const rejectQuotation = async (
+  req,
+  res
+) => {
   try {
-    const { id } = req.params;
-    const { rejectionReason } = req.body;
+    const { id } =
+      req.params;
 
-    const quotation = await Quotation.findById(id);
+    const {
+      rejectionReason,
+    } = req.body;
+
+    const quotation =
+      await Quotation.findById(id);
 
     if (!quotation) {
       return res.status(404).json({
-        message: "Quotation not found",
+        message:
+          "Quotation not found",
       });
     }
 
-    if (!["Sent", "Viewed"].includes(quotation.status)) {
+    /*
+      Negotiation quotation can also
+      be rejected.
+    */
+
+    if (
+      ![
+        "Sent",
+        "Viewed",
+        "Negotiation",
+      ].includes(
+        quotation.status
+      )
+    ) {
       return res.status(400).json({
-        message: "Only Sent or Viewed quotations can be rejected",
+        message:
+          "Only Sent, Viewed or Negotiation quotations can be rejected",
       });
     }
 
-    quotation.status = "Rejected";
-    quotation.rejectedAt = new Date();
-    quotation.rejectionReason = rejectionReason || "";
+    quotation.status =
+      "Rejected";
+
+    quotation.rejectedAt =
+      new Date();
+
+    quotation.rejectionReason =
+      rejectionReason || "";
 
     await quotation.save();
 
     if (quotation.itinerary) {
-      await Itinerary.findByIdAndUpdate(quotation.itinerary, {
-        status: "Cancelled",
-      });
+      await Itinerary.findByIdAndUpdate(
+        quotation.itinerary,
+        {
+          status:
+            "Cancelled",
+        }
+      );
     }
 
     if (quotation.enquiry) {
-      await Enquiry.findByIdAndUpdate(quotation.enquiry, {
-        status: "In Progress",
-      });
+      await Enquiry.findByIdAndUpdate(
+        quotation.enquiry,
+        {
+          status:
+            "In Progress",
+        }
+      );
     }
 
-    const updatedQuotation = await populateQuotation(
-      Quotation.findById(id)
-    );
+    const updatedQuotation =
+      await populateQuotation(
+        Quotation.findById(id)
+      );
 
     return res.status(200).json({
-      message: "Quotation rejected successfully",
-      quotation: updatedQuotation,
+      message:
+        "Quotation rejected successfully",
+
+      quotation:
+        updatedQuotation,
     });
   } catch (error) {
-    console.error("Reject Quotation Error:", error);
+    console.error(
+      "Reject Quotation Error:",
+      error
+    );
+
     return res.status(500).json({
-      message: "Failed to reject quotation",
-      error: error.message,
+      message:
+        "Failed to reject quotation",
+
+      error:
+        error.message,
     });
   }
 };
@@ -1559,56 +2663,99 @@ const rejectQuotation = async (req, res) => {
 // CANCEL QUOTATION
 // ======================================================
 
-const cancelQuotation = async (req, res) => {
+const cancelQuotation = async (
+  req,
+  res
+) => {
   try {
-    const { id } = req.params;
+    const { id } =
+      req.params;
 
-    const quotation = await Quotation.findById(id);
+    const quotation =
+      await Quotation.findById(id);
 
     if (!quotation) {
       return res.status(404).json({
-        message: "Quotation not found",
+        message:
+          "Quotation not found",
       });
     }
+
+    /*
+      Accepted and Converted quotations
+      cannot be cancelled from quotation
+      workflow.
+
+      Once accepted, booking conversion
+      should happen.
+
+      Once converted, booking owns the
+      operational lifecycle.
+    */
 
     if (
-      quotation.status === "Accepted" ||
-      quotation.status === "Cancelled"
+      quotation.status ===
+        "Accepted" ||
+      quotation.status ===
+        "Converted" ||
+      quotation.status ===
+        "Cancelled"
     ) {
       return res.status(400).json({
-        message: `Quotation cannot be cancelled when status is ${quotation.status}`,
+        message:
+          `Quotation cannot be cancelled when status is ${quotation.status}`,
       });
     }
 
-    quotation.status = "Cancelled";
+    quotation.status =
+      "Cancelled";
 
     await quotation.save();
 
     if (quotation.itinerary) {
-      await Itinerary.findByIdAndUpdate(quotation.itinerary, {
-        status: "Cancelled",
-      });
+      await Itinerary.findByIdAndUpdate(
+        quotation.itinerary,
+        {
+          status:
+            "Cancelled",
+        }
+      );
     }
 
     if (quotation.enquiry) {
-      await Enquiry.findByIdAndUpdate(quotation.enquiry, {
-        status: "Cancelled",
-      });
+      await Enquiry.findByIdAndUpdate(
+        quotation.enquiry,
+        {
+          status:
+            "Cancelled",
+        }
+      );
     }
 
-    const updatedQuotation = await populateQuotation(
-      Quotation.findById(id)
-    );
+    const updatedQuotation =
+      await populateQuotation(
+        Quotation.findById(id)
+      );
 
     return res.status(200).json({
-      message: "Quotation cancelled successfully",
-      quotation: updatedQuotation,
+      message:
+        "Quotation cancelled successfully",
+
+      quotation:
+        updatedQuotation,
     });
   } catch (error) {
-    console.error("Cancel Quotation Error:", error);
+    console.error(
+      "Cancel Quotation Error:",
+      error
+    );
+
     return res.status(500).json({
-      message: "Failed to cancel quotation",
-      error: error.message,
+      message:
+        "Failed to cancel quotation",
+
+      error:
+        error.message,
     });
   }
 };
@@ -1627,7 +2774,9 @@ module.exports = {
   prepareQuotation,
   sendQuotation,
   viewQuotation,
+  negotiateQuotation,
   acceptQuotation,
   rejectQuotation,
   cancelQuotation,
 };
+

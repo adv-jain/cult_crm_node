@@ -1,25 +1,213 @@
 const mongoose = require("mongoose");
 
+/* =========================================================
+   QUOTATION ITEM SCHEMAS
+========================================================= */
+
+const hotelSchema = new mongoose.Schema(
+  {
+    hotelName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    category: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    location: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    roomType: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    rooms: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
+
+    nights: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
+
+    mealPlan: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    checkIn: {
+      type: Date,
+      default: null,
+    },
+
+    checkOut: {
+      type: Date,
+      default: null,
+    },
+
+    amount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    notes: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+  },
+  { _id: false }
+);
+
+const transportSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      trim: true,
+      default: "Other",
+    },
+
+    provider: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    route: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    travelDate: {
+      type: Date,
+      default: null,
+    },
+
+    amount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    notes: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+  },
+  { _id: false }
+);
+
+const activitySchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    location: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    date: {
+      type: Date,
+      default: null,
+    },
+
+    quantity: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
+
+    amount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    notes: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+  },
+  { _id: false }
+);
+
+const otherServiceSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    description: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    amount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+  },
+  { _id: false }
+);
+
+/* =========================================================
+   QUOTATION SCHEMA
+========================================================= */
+
 const quotationSchema = new mongoose.Schema(
   {
+    /* =====================================================
+       BASIC INFORMATION
+    ===================================================== */
+
     quotationNumber: {
       type: String,
       unique: true,
       sparse: true,
       trim: true,
+      index: true,
     },
 
     title: {
       type: String,
       required: [true, "Quotation title is required"],
       trim: true,
-      maxlength: 200,
     },
+
+    /* =====================================================
+       RELATED RECORDS
+    ===================================================== */
 
     enquiry: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Enquiry",
-      required: true,
+      required: [true, "Enquiry is required"],
     },
 
     customer: {
@@ -40,24 +228,44 @@ const quotationSchema = new mongoose.Schema(
       default: null,
     },
 
-    // Itinerary linked with this quotation
     itinerary: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Itinerary",
       default: null,
     },
 
-    // Package linked with this quotation (optional)
     package: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Package",
       default: null,
     },
 
+    /*
+     * Booking is created after quotation acceptance.
+     *
+     * Flow:
+     *
+     * Accepted Quotation
+     *        ↓
+     *     Booking
+     *        ↓
+     * Quotation = Converted
+     */
+
+    booking: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Booking",
+      default: null,
+    },
+
+    /* =====================================================
+       USERS
+    ===================================================== */
+
     preparedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      required: [true, "Prepared by user is required"],
     },
 
     assignedTo: {
@@ -65,6 +273,10 @@ const quotationSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+
+    /* =====================================================
+       TRAVEL INFORMATION
+    ===================================================== */
 
     destination: {
       type: String,
@@ -85,7 +297,7 @@ const quotationSchema = new mongoose.Schema(
     adults: {
       type: Number,
       default: 1,
-      min: 1,
+      min: 0,
     },
 
     children: {
@@ -102,181 +314,38 @@ const quotationSchema = new mongoose.Schema(
 
     currency: {
       type: String,
-      default: "INR",
       trim: true,
       uppercase: true,
+      default: "INR",
     },
 
-    // =====================================================
-    // HOTELS
-    // =====================================================
+    /* =====================================================
+       QUOTATION SERVICES
+    ===================================================== */
 
-    hotels: [
-      {
-        name: {
-          type: String,
-          trim: true,
-        },
+    hotels: {
+      type: [hotelSchema],
+      default: [],
+    },
 
-        city: {
-          type: String,
-          trim: true,
-        },
+    transport: {
+      type: [transportSchema],
+      default: [],
+    },
 
-        category: {
-          type: String,
-          trim: true,
-        },
+    activities: {
+      type: [activitySchema],
+      default: [],
+    },
 
-        roomType: {
-          type: String,
-          trim: true,
-        },
+    otherServices: {
+      type: [otherServiceSchema],
+      default: [],
+    },
 
-        nights: {
-          type: Number,
-          default: 0,
-          min: 0,
-        },
-
-        rooms: {
-          type: Number,
-          default: 1,
-          min: 1,
-        },
-
-        amount: {
-          type: Number,
-          default: 0,
-          min: 0,
-        },
-
-        inclusions: {
-          type: [String],
-          default: [],
-        },
-
-        notes: {
-          type: String,
-          trim: true,
-        },
-      },
-    ],
-
-    // =====================================================
-    // TRANSPORT
-    // =====================================================
-
-    transport: [
-      {
-        type: {
-          type: String,
-          enum: [
-            "Flight",
-            "Train",
-            "Bus",
-            "Private Cab",
-            "Rental Car",
-            "Cruise",
-            "Other",
-          ],
-        },
-
-        provider: {
-          type: String,
-          trim: true,
-        },
-
-        route: {
-          type: String,
-          trim: true,
-        },
-
-        travelDate: {
-          type: Date,
-          default: null,
-        },
-
-        amount: {
-          type: Number,
-          default: 0,
-          min: 0,
-        },
-
-        notes: {
-          type: String,
-          trim: true,
-        },
-      },
-    ],
-
-    // =====================================================
-    // ACTIVITIES
-    // =====================================================
-
-    activities: [
-      {
-        name: {
-          type: String,
-          trim: true,
-        },
-
-        location: {
-          type: String,
-          trim: true,
-        },
-
-        date: {
-          type: Date,
-          default: null,
-        },
-
-        quantity: {
-          type: Number,
-          default: 1,
-          min: 1,
-        },
-
-        amount: {
-          type: Number,
-          default: 0,
-          min: 0,
-        },
-
-        notes: {
-          type: String,
-          trim: true,
-        },
-      },
-    ],
-
-    // =====================================================
-    // OTHER SERVICES
-    // =====================================================
-
-    otherServices: [
-      {
-        name: {
-          type: String,
-          trim: true,
-        },
-
-        description: {
-          type: String,
-          trim: true,
-        },
-
-        amount: {
-          type: Number,
-          default: 0,
-          min: 0,
-        },
-      },
-    ],
-
-    // =====================================================
-    // PRICING
-    // =====================================================
+    /* =====================================================
+       PRICING
+    ===================================================== */
 
     baseAmount: {
       type: Number,
@@ -324,7 +393,6 @@ const quotationSchema = new mongoose.Schema(
       type: Number,
       default: 0,
       min: 0,
-      max: 100,
     },
 
     taxAmount: {
@@ -350,24 +418,32 @@ const quotationSchema = new mongoose.Schema(
       default: 0,
     },
 
-    // =====================================================
-    // STATUS
-    // =====================================================
+    /* =====================================================
+       QUOTATION STATUS
+    ===================================================== */
 
     status: {
       type: String,
+
       enum: [
         "Draft",
         "Prepared",
         "Sent",
         "Viewed",
+        "Negotiation",
         "Accepted",
+        "Converted",
         "Rejected",
         "Expired",
         "Cancelled",
       ],
+
       default: "Draft",
     },
+
+    /* =====================================================
+       IMPORTANT DATES
+    ===================================================== */
 
     validUntil: {
       type: Date,
@@ -394,20 +470,28 @@ const quotationSchema = new mongoose.Schema(
       default: null,
     },
 
+    /* =====================================================
+       REJECTION
+    ===================================================== */
+
     rejectionReason: {
       type: String,
       trim: true,
+      default: "",
     },
 
-    // =====================================================
-    // TERMS
-    // =====================================================
+    /* =====================================================
+       CUSTOMER COMMUNICATION
+    ===================================================== */
 
-    termsAndConditions: {
-      type: String,
-      trim: true,
-      maxlength: 10000,
+    customerSharedAt: {
+      type: Date,
+      default: null,
     },
+
+    /* =====================================================
+       QUOTATION CONTENT
+    ===================================================== */
 
     inclusions: {
       type: [String],
@@ -419,31 +503,60 @@ const quotationSchema = new mongoose.Schema(
       default: [],
     },
 
+    termsAndConditions: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
     notes: {
       type: String,
       trim: true,
-      maxlength: 5000,
+      default: "",
     },
   },
+
   {
     timestamps: true,
   }
 );
 
-// =====================================================
-// INDEXES
-// =====================================================
+/* =========================================================
+   INDEXES
+========================================================= */
 
+/*
+ * Related records
+ */
 quotationSchema.index({ enquiry: 1 });
 quotationSchema.index({ customer: 1 });
 quotationSchema.index({ lead: 1 });
 quotationSchema.index({ trip: 1 });
 quotationSchema.index({ itinerary: 1 });
 quotationSchema.index({ package: 1 });
+quotationSchema.index({ booking: 1 });
+
+/*
+ * Users
+ */
 quotationSchema.index({ preparedBy: 1 });
 quotationSchema.index({ assignedTo: 1 });
+
+/*
+ * Status
+ */
 quotationSchema.index({ status: 1 });
+
+/*
+ * Dates
+ */
 quotationSchema.index({ validUntil: 1 });
 quotationSchema.index({ createdAt: -1 });
 
-module.exports = mongoose.model("Quotation", quotationSchema);
+/* =========================================================
+   EXPORT MODEL
+========================================================= */
+
+const Quotation = mongoose.model("Quotation", quotationSchema);
+
+module.exports = Quotation;
