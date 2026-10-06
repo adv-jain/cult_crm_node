@@ -1,5 +1,5 @@
-
 const mongoose = require("mongoose");
+const crypto = require("crypto");
 
 // ============================================
 // INVOICE SCHEMA
@@ -16,7 +16,7 @@ const invoiceSchema = new mongoose.Schema(
       unique: true,
       sparse: true,
       trim: true,
-      uppercase: true
+      uppercase: true,
     },
 
     // ============================================
@@ -25,12 +25,12 @@ const invoiceSchema = new mongoose.Schema(
 
     invoiceDate: {
       type: Date,
-      default: Date.now
+      default: Date.now,
     },
 
     dueDate: {
       type: Date,
-      default: null
+      default: null,
     },
 
     // ============================================
@@ -40,32 +40,31 @@ const invoiceSchema = new mongoose.Schema(
     booking: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Booking",
-      required: [true, "Booking is required"]
+      required: [true, "Booking is required"],
     },
 
     quotation: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Quotation",
-      default: null
+      default: null,
     },
 
     customer: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Customer",
-      required: [true, "Customer is required"]
+      required: [true, "Customer is required"],
     },
 
     company: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Company",
-      default: null
+      default: null,
     },
 
-    // Deal → Trip
     trip: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Trip",
-      default: null
+      default: null,
     },
 
     // ============================================
@@ -76,7 +75,7 @@ const invoiceSchema = new mongoose.Schema(
       type: String,
       default: "INR",
       trim: true,
-      uppercase: true
+      uppercase: true,
     },
 
     // ============================================
@@ -88,7 +87,7 @@ const invoiceSchema = new mongoose.Schema(
         description: {
           type: String,
           required: [true, "Item description is required"],
-          trim: true
+          trim: true,
         },
 
         category: {
@@ -103,29 +102,29 @@ const invoiceSchema = new mongoose.Schema(
             "Insurance",
             "Package",
             "Service",
-            "Other"
+            "Other",
           ],
-          default: "Service"
+          default: "Service",
         },
 
         quantity: {
           type: Number,
           default: 1,
-          min: [1, "Quantity must be at least 1"]
+          min: [1, "Quantity must be at least 1"],
         },
 
         unitPrice: {
           type: Number,
           default: 0,
-          min: [0, "Unit price cannot be negative"]
+          min: [0, "Unit price cannot be negative"],
         },
 
         amount: {
           type: Number,
           default: 0,
-          min: [0, "Amount cannot be negative"]
-        }
-      }
+          min: [0, "Amount cannot be negative"],
+        },
+      },
     ],
 
     // ============================================
@@ -135,44 +134,44 @@ const invoiceSchema = new mongoose.Schema(
     subtotal: {
       type: Number,
       default: 0,
-      min: 0
+      min: 0,
     },
 
     discountType: {
       type: String,
       enum: ["Percentage", "Fixed"],
-      default: "Fixed"
+      default: "Fixed",
     },
 
     discountValue: {
       type: Number,
       default: 0,
-      min: 0
+      min: 0,
     },
 
     discountAmount: {
       type: Number,
       default: 0,
-      min: 0
+      min: 0,
     },
 
     taxPercentage: {
       type: Number,
       default: 0,
       min: 0,
-      max: 100
+      max: 100,
     },
 
     taxAmount: {
       type: Number,
       default: 0,
-      min: 0
+      min: 0,
     },
 
     totalAmount: {
       type: Number,
       default: 0,
-      min: 0
+      min: 0,
     },
 
     // ============================================
@@ -182,25 +181,19 @@ const invoiceSchema = new mongoose.Schema(
     amountPaid: {
       type: Number,
       default: 0,
-      min: 0
+      min: 0,
     },
 
     amountDue: {
       type: Number,
       default: 0,
-      min: 0
+      min: 0,
     },
 
     paymentStatus: {
       type: String,
-      enum: [
-        "Pending",
-        "Partially Paid",
-        "Paid",
-        "Overdue",
-        "Cancelled"
-      ],
-      default: "Pending"
+      enum: ["Pending", "Partially Paid", "Paid", "Overdue", "Cancelled"],
+      default: "Pending",
     },
 
     // ============================================
@@ -217,9 +210,9 @@ const invoiceSchema = new mongoose.Schema(
         "Partially Paid",
         "Paid",
         "Overdue",
-        "Cancelled"
+        "Cancelled",
       ],
-      default: "Draft"
+      default: "Draft",
     },
 
     // ============================================
@@ -229,34 +222,34 @@ const invoiceSchema = new mongoose.Schema(
     billingAddress: {
       name: {
         type: String,
-        trim: true
+        trim: true,
       },
 
       street: {
         type: String,
-        trim: true
+        trim: true,
       },
 
       city: {
         type: String,
-        trim: true
+        trim: true,
       },
 
       state: {
         type: String,
-        trim: true
+        trim: true,
       },
 
       country: {
         type: String,
         trim: true,
-        default: "India"
+        default: "India",
       },
 
       postalCode: {
         type: String,
-        trim: true
-      }
+        trim: true,
+      },
     },
 
     // ============================================
@@ -266,23 +259,23 @@ const invoiceSchema = new mongoose.Schema(
     notes: {
       type: String,
       trim: true,
-      maxlength: 5000
+      maxlength: 5000,
     },
 
     termsAndConditions: {
       type: String,
       trim: true,
-      maxlength: 10000
+      maxlength: 10000,
     },
 
     pdfUrl: {
       type: String,
-      trim: true
+      trim: true,
     },
 
     sentAt: {
       type: Date,
-      default: null
+      default: null,
     },
 
     // ============================================
@@ -292,30 +285,88 @@ const invoiceSchema = new mongoose.Schema(
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: [true, "Created by user is required"]
-    }
+      required: [true, "Created by user is required"],
+    },
   },
   {
-    timestamps: true
+    timestamps: true,
   }
 );
 
 // ============================================
+// STATIC — GENERATE UNIQUE RANDOM INVOICE NUMBER
+//
+// Format:
+// INV-YYYY-XXXXXXXX
+//
+// Example:
+// INV-2026-A7F39K2P
+// ============================================
+
+invoiceSchema.statics.generateInvoiceNumber = async function () {
+  const year = new Date().getFullYear();
+
+  let attempts = 0;
+
+  while (attempts < 20) {
+    const randomPart = crypto
+      .randomBytes(5)
+      .toString("hex")
+      .substring(0, 8)
+      .toUpperCase();
+
+    const invoiceNumber = `INV-${year}-${randomPart}`;
+
+    const exists = await this.exists({
+      invoiceNumber,
+    });
+
+    if (!exists) {
+      return invoiceNumber;
+    }
+
+    attempts++;
+  }
+
+  // Extremely unlikely fallback
+  const fallbackRandom = crypto
+    .randomBytes(8)
+    .toString("hex")
+    .toUpperCase();
+
+  return `INV-${year}-${fallbackRandom}`;
+};
+
+// ============================================
+// PRE-SAVE #1
+// AUTO-GENERATE RANDOM INVOICE NUMBER
+// ============================================
+
+invoiceSchema.pre("save", async function () {
+  if (!this.isNew) return;
+
+  if (this.invoiceNumber && String(this.invoiceNumber).trim()) {
+    return;
+  }
+
+  this.invoiceNumber =
+    await this.constructor.generateInvoiceNumber();
+});
+
+// ============================================
+// PRE-SAVE #2
 // CALCULATE INVOICE TOTALS
 // ============================================
 
 invoiceSchema.pre("save", function () {
-  // --------------------------------------------
   // Ensure items is an array
-  // --------------------------------------------
-
   if (!Array.isArray(this.items)) {
     this.items = [];
   }
 
-  // --------------------------------------------
-  // Calculate item amounts
-  // --------------------------------------------
+  // ============================================
+  // CALCULATE ITEM AMOUNTS
+  // ============================================
 
   this.items = this.items.map((item) => {
     const quantity = Number(item.quantity || 1);
@@ -328,9 +379,9 @@ invoiceSchema.pre("save", function () {
     return item;
   });
 
-  // --------------------------------------------
-  // Calculate subtotal
-  // --------------------------------------------
+  // ============================================
+  // CALCULATE SUBTOTAL
+  // ============================================
 
   this.subtotal = Number(
     this.items
@@ -341,9 +392,9 @@ invoiceSchema.pre("save", function () {
       .toFixed(2)
   );
 
-  // --------------------------------------------
-  // Calculate discount
-  // --------------------------------------------
+  // ============================================
+  // CALCULATE DISCOUNT
+  // ============================================
 
   if (this.discountType === "Percentage") {
     this.discountAmount = Number(
@@ -362,18 +413,18 @@ invoiceSchema.pre("save", function () {
     );
   }
 
-  // --------------------------------------------
-  // Calculate taxable amount
-  // --------------------------------------------
+  // ============================================
+  // CALCULATE TAXABLE AMOUNT
+  // ============================================
 
   const taxableAmount = Math.max(
     0,
     this.subtotal - this.discountAmount
   );
 
-  // --------------------------------------------
-  // Calculate tax
-  // --------------------------------------------
+  // ============================================
+  // CALCULATE TAX
+  // ============================================
 
   this.taxAmount = Number(
     (
@@ -383,17 +434,17 @@ invoiceSchema.pre("save", function () {
     ).toFixed(2)
   );
 
-  // --------------------------------------------
-  // Calculate total amount
-  // --------------------------------------------
+  // ============================================
+  // CALCULATE TOTAL
+  // ============================================
 
   this.totalAmount = Number(
     (taxableAmount + this.taxAmount).toFixed(2)
   );
 
-  // --------------------------------------------
-  // Calculate amount due
-  // --------------------------------------------
+  // ============================================
+  // CALCULATE AMOUNT DUE
+  // ============================================
 
   this.amountDue = Number(
     Math.max(
@@ -403,9 +454,9 @@ invoiceSchema.pre("save", function () {
     ).toFixed(2)
   );
 
-  // --------------------------------------------
-  // Calculate payment status
-  // --------------------------------------------
+  // ============================================
+  // CALCULATE PAYMENT STATUS
+  // ============================================
 
   if (this.status === "Cancelled") {
     this.paymentStatus = "Cancelled";
@@ -416,49 +467,21 @@ invoiceSchema.pre("save", function () {
   } else {
     this.paymentStatus = "Paid";
   }
-
-  // No next() required here.
 });
 
 // ============================================
 // INDEXES
 // ============================================
 
-invoiceSchema.index({
-  booking: 1
-});
-
-invoiceSchema.index({
-  quotation: 1
-});
-
-invoiceSchema.index({
-  customer: 1
-});
-
-invoiceSchema.index({
-  company: 1
-});
-
-invoiceSchema.index({
-  trip: 1
-});
-
-invoiceSchema.index({
-  invoiceDate: -1
-});
-
-invoiceSchema.index({
-  dueDate: 1
-});
-
-invoiceSchema.index({
-  paymentStatus: 1
-});
-
-invoiceSchema.index({
-  status: 1
-});
+invoiceSchema.index({ booking: 1 });
+invoiceSchema.index({ quotation: 1 });
+invoiceSchema.index({ customer: 1 });
+invoiceSchema.index({ company: 1 });
+invoiceSchema.index({ trip: 1 });
+invoiceSchema.index({ invoiceDate: -1 });
+invoiceSchema.index({ dueDate: 1 });
+invoiceSchema.index({ paymentStatus: 1 });
+invoiceSchema.index({ status: 1 });
 
 // ============================================
 // MODEL
@@ -467,4 +490,3 @@ invoiceSchema.index({
 module.exports =
   mongoose.models.Invoice ||
   mongoose.model("Invoice", invoiceSchema);
-

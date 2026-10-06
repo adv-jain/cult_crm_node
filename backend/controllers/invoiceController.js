@@ -32,39 +32,7 @@ const customerPopulate = {
 
 const tripPopulate = {
   path: "trip",
-  select:
-    "tripCode destination title name",
-};
-
-// ============================================
-// GENERATE INVOICE NUMBER
-// ============================================
-
-const generateInvoiceNumber = async () => {
-  const year = new Date().getFullYear();
-
-  const lastInvoice = await Invoice.findOne({
-    invoiceNumber: {
-      $regex: `^INV-${year}-`,
-    },
-  })
-    .sort({ createdAt: -1 })
-    .select("invoiceNumber");
-
-  let nextNumber = 1;
-
-  if (lastInvoice && lastInvoice.invoiceNumber) {
-    const lastNumber = parseInt(
-      lastInvoice.invoiceNumber.split("-").pop(),
-      10
-    );
-
-    if (!isNaN(lastNumber)) {
-      nextNumber = lastNumber + 1;
-    }
-  }
-
-  return `INV-${year}-${String(nextNumber).padStart(4, "0")}`;
+  select: "tripCode destination title name",
 };
 
 // ============================================
@@ -83,9 +51,7 @@ const calculateTotals = (
     const quantity = Number(item.quantity || 1);
     const unitPrice = Number(item.unitPrice || 0);
 
-    const amount = Number(
-      (quantity * unitPrice).toFixed(2)
-    );
+    const amount = Number((quantity * unitPrice).toFixed(2));
 
     subtotal += amount;
 
@@ -103,36 +69,21 @@ const calculateTotals = (
 
   if (discountType === "Percentage") {
     discountAmount = Number(
-      (
-        (subtotal * Number(discountValue || 0)) /
-        100
-      ).toFixed(2)
+      ((subtotal * Number(discountValue || 0)) / 100).toFixed(2)
     );
   } else {
     discountAmount = Number(
-      Math.min(
-        Number(discountValue || 0),
-        subtotal
-      ).toFixed(2)
+      Math.min(Number(discountValue || 0), subtotal).toFixed(2)
     );
   }
 
-  const taxableAmount = Math.max(
-    0,
-    subtotal - discountAmount
-  );
+  const taxableAmount = Math.max(0, subtotal - discountAmount);
 
   const taxAmount = Number(
-    (
-      (taxableAmount *
-        Number(taxPercentage || 0)) /
-      100
-    ).toFixed(2)
+    ((taxableAmount * Number(taxPercentage || 0)) / 100).toFixed(2)
   );
 
-  const totalAmount = Number(
-    (taxableAmount + taxAmount).toFixed(2)
-  );
+  const totalAmount = Number((taxableAmount + taxAmount).toFixed(2));
 
   return {
     calculatedItems,
@@ -189,8 +140,7 @@ const createInvoice = async (req, res) => {
 
     if (bookingData.status === "Cancelled") {
       return res.status(400).json({
-        message:
-          "Cannot create invoice for a cancelled booking",
+        message: "Cannot create invoice for a cancelled booking",
       });
     }
 
@@ -204,8 +154,7 @@ const createInvoice = async (req, res) => {
       });
     }
 
-    const customerData =
-      await Customer.findById(customer);
+    const customerData = await Customer.findById(customer);
 
     if (!customerData) {
       return res.status(404).json({
@@ -213,15 +162,12 @@ const createInvoice = async (req, res) => {
       });
     }
 
-    // Customer should match booking
     if (
       bookingData.customer &&
-      bookingData.customer.toString() !==
-        customer.toString()
+      bookingData.customer.toString() !== customer.toString()
     ) {
       return res.status(400).json({
-        message:
-          "Customer does not match booking customer",
+        message: "Customer does not match booking customer",
       });
     }
 
@@ -230,16 +176,13 @@ const createInvoice = async (req, res) => {
     // ============================================
 
     if (quotation) {
-      if (
-        !mongoose.Types.ObjectId.isValid(quotation)
-      ) {
+      if (!mongoose.Types.ObjectId.isValid(quotation)) {
         return res.status(400).json({
           message: "Invalid quotation ID",
         });
       }
 
-      const quotationData =
-        await Quotation.findById(quotation);
+      const quotationData = await Quotation.findById(quotation);
 
       if (!quotationData) {
         return res.status(404).json({
@@ -253,16 +196,13 @@ const createInvoice = async (req, res) => {
     // ============================================
 
     if (trip) {
-      if (
-        !mongoose.Types.ObjectId.isValid(trip)
-      ) {
+      if (!mongoose.Types.ObjectId.isValid(trip)) {
         return res.status(400).json({
           message: "Invalid trip ID",
         });
       }
 
-      const tripData =
-        await Trip.findById(trip);
+      const tripData = await Trip.findById(trip);
 
       if (!tripData) {
         return res.status(404).json({
@@ -275,13 +215,9 @@ const createInvoice = async (req, res) => {
     // ITEMS VALIDATION
     // ============================================
 
-    if (
-      !Array.isArray(items) ||
-      items.length === 0
-    ) {
+    if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({
-        message:
-          "At least one invoice item is required",
+        message: "At least one invoice item is required",
       });
     }
 
@@ -304,28 +240,20 @@ const createInvoice = async (req, res) => {
 
     const paidAmount = Number(amountPaid || 0);
 
-    if (
-      !Number.isFinite(paidAmount) ||
-      paidAmount < 0
-    ) {
+    if (!Number.isFinite(paidAmount) || paidAmount < 0) {
       return res.status(400).json({
-        message:
-          "Amount paid cannot be negative",
+        message: "Amount paid cannot be negative",
       });
     }
 
     if (paidAmount > totalAmount) {
       return res.status(400).json({
-        message:
-          "Amount paid cannot exceed invoice total",
+        message: "Amount paid cannot exceed invoice total",
       });
     }
 
     const amountDue = Number(
-      Math.max(
-        0,
-        totalAmount - paidAmount
-      ).toFixed(2)
+      Math.max(0, totalAmount - paidAmount).toFixed(2)
     );
 
     // ============================================
@@ -343,96 +271,46 @@ const createInvoice = async (req, res) => {
     }
 
     // ============================================
-    // GENERATE INVOICE NUMBER
-    // ============================================
-
-    const invoiceNumber =
-      await generateInvoiceNumber();
-
-    // ============================================
     // CREATE INVOICE
     // ============================================
+    //
+    // NOTE: invoiceNumber is auto-generated by the
+    // Invoice model's pre-save hook (format INV-YYYY-XXXXXXXX)
+    // Do NOT pass invoiceNumber here.
 
     const invoice = await Invoice.create({
-      invoiceNumber,
-
       booking,
-
-      quotation:
-        quotation || null,
-
+      quotation: quotation || null,
       customer,
-
-      company:
-        company ||
-        bookingData.company ||
-        null,
-
-      trip:
-        trip ||
-        bookingData.trip ||
-        null,
-
-      invoiceDate:
-        invoiceDate || new Date(),
-
-      dueDate:
-        dueDate || null,
-
-      currency:
-        currency || "INR",
-
-      items:
-        calculatedItems,
-
+      company: company || bookingData.company || null,
+      trip: trip || bookingData.trip || null,
+      invoiceDate: invoiceDate || new Date(),
+      dueDate: dueDate || null,
+      currency: currency || "INR",
+      items: calculatedItems,
       subtotal,
-
-      discountType:
-        discountType || "Fixed",
-
-      discountValue:
-        Number(discountValue || 0),
-
+      discountType: discountType || "Fixed",
+      discountValue: Number(discountValue || 0),
       discountAmount,
-
-      taxPercentage:
-        Number(taxPercentage || 0),
-
+      taxPercentage: Number(taxPercentage || 0),
       taxAmount,
-
       totalAmount,
-
-      amountPaid:
-        paidAmount,
-
+      amountPaid: paidAmount,
       amountDue,
-
       paymentStatus,
-
       status:
-        paidAmount >= totalAmount &&
-        totalAmount > 0
+        paidAmount >= totalAmount && totalAmount > 0
           ? "Paid"
           : paidAmount > 0
-            ? "Partially Paid"
-            : "Draft",
-
-      billingAddress:
-        billingAddress || {
-          name:
-            `${customerData.firstName || ""} ${
-              customerData.lastName || ""
-            }`.trim(),
-          country: "India",
-        },
-
+          ? "Partially Paid"
+          : "Draft",
+      billingAddress: billingAddress || {
+        name: `${customerData.firstName || ""} ${customerData.lastName || ""}`.trim(),
+        country: "India",
+      },
       notes,
-
       termsAndConditions,
-
-      pdfUrl:
-        pdfUrl || null,
-
+      pdfUrl: pdfUrl || null,
       createdBy: req.user.id,
     });
 
@@ -440,38 +318,24 @@ const createInvoice = async (req, res) => {
     // POPULATED RESPONSE
     // ============================================
 
-    const populatedInvoice =
-      await Invoice.findById(invoice._id)
-        .populate(bookingPopulate)
-        .populate(customerPopulate)
-        .populate("quotation")
-        .populate("company")
-        .populate(tripPopulate)
-        .populate(
-          "createdBy",
-          "name email role"
-        );
+    const populatedInvoice = await Invoice.findById(invoice._id)
+      .populate(bookingPopulate)
+      .populate(customerPopulate)
+      .populate("quotation")
+      .populate("company")
+      .populate(tripPopulate)
+      .populate("createdBy", "name email role");
 
     return res.status(201).json({
-      message:
-        "Invoice created successfully",
-
-      invoice:
-        populatedInvoice,
+      message: "Invoice created successfully",
+      invoice: populatedInvoice,
     });
-
   } catch (error) {
-    console.error(
-      "Create Invoice Error:",
-      error
-    );
+    console.error("Create Invoice Error:", error);
 
     return res.status(500).json({
-      message:
-        "Failed to create invoice",
-
-      error:
-        error.message,
+      message: "Failed to create invoice",
+      error: error.message,
     });
   }
 };
@@ -480,10 +344,7 @@ const createInvoice = async (req, res) => {
 // GET ALL INVOICES
 // ============================================
 
-const getInvoices = async (
-  req,
-  res
-) => {
+const getInvoices = async (req, res) => {
   try {
     const {
       booking,
@@ -500,34 +361,13 @@ const getInvoices = async (
 
     const filter = {};
 
-    if (booking) {
-      filter.booking = booking;
-    }
-
-    if (customer) {
-      filter.customer = customer;
-    }
-
-    if (quotation) {
-      filter.quotation = quotation;
-    }
-
-    if (company) {
-      filter.company = company;
-    }
-
-    if (trip) {
-      filter.trip = trip;
-    }
-
-    if (status) {
-      filter.status = status;
-    }
-
-    if (paymentStatus) {
-      filter.paymentStatus =
-        paymentStatus;
-    }
+    if (booking) filter.booking = booking;
+    if (customer) filter.customer = customer;
+    if (quotation) filter.quotation = quotation;
+    if (company) filter.company = company;
+    if (trip) filter.trip = trip;
+    if (status) filter.status = status;
+    if (paymentStatus) filter.paymentStatus = paymentStatus;
 
     // ============================================
     // SEARCH
@@ -548,53 +388,23 @@ const getInvoices = async (
     // PAGINATION
     // ============================================
 
-    const pageNumber = Math.max(
-      1,
-      Number(page)
-    );
-
-    const limitNumber = Math.min(
-      100,
-      Math.max(1, Number(limit))
-    );
-
-    const skip =
-      (pageNumber - 1) *
-      limitNumber;
+    const pageNumber = Math.max(1, Number(page));
+    const limitNumber = Math.min(100, Math.max(1, Number(limit)));
+    const skip = (pageNumber - 1) * limitNumber;
 
     // ============================================
     // FETCH INVOICES
     // ============================================
 
-    const [
-      invoices,
-      total,
-    ] = await Promise.all([
+    const [invoices, total] = await Promise.all([
       Invoice.find(filter)
-        .populate(
-          bookingPopulate
-        )
-        .populate(
-          customerPopulate
-        )
-        .populate(
-          "quotation",
-          "title totalAmount"
-        )
-        .populate(
-          "company",
-          "name"
-        )
-        .populate(
-          tripPopulate
-        )
-        .populate(
-          "createdBy",
-          "name email role"
-        )
-        .sort({
-          createdAt: -1,
-        })
+        .populate(bookingPopulate)
+        .populate(customerPopulate)
+        .populate("quotation", "title totalAmount")
+        .populate("company", "name")
+        .populate(tripPopulate)
+        .populate("createdBy", "name email role")
+        .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNumber),
 
@@ -605,69 +415,37 @@ const getInvoices = async (
     // TOTALS
     // ============================================
 
-    const totals =
-      await Invoice.aggregate([
-        {
-          $match: filter,
+    const totals = await Invoice.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: null,
+          totalInvoiceAmount: { $sum: "$totalAmount" },
+          totalPaid: { $sum: "$amountPaid" },
+          totalDue: { $sum: "$amountDue" },
         },
-        {
-          $group: {
-            _id: null,
-
-            totalInvoiceAmount: {
-              $sum: "$totalAmount",
-            },
-
-            totalPaid: {
-              $sum: "$amountPaid",
-            },
-
-            totalDue: {
-              $sum: "$amountDue",
-            },
-          },
-        },
-      ]);
+      },
+    ]);
 
     return res.status(200).json({
-      message:
-        "Invoices fetched successfully",
-
+      message: "Invoices fetched successfully",
       total,
-
-      page:
-        pageNumber,
-
-      limit:
-        limitNumber,
-
-      totalPages:
-        Math.ceil(
-          total / limitNumber
-        ),
-
-      totals:
-        totals[0] || {
-          totalInvoiceAmount: 0,
-          totalPaid: 0,
-          totalDue: 0,
-        },
-
+      page: pageNumber,
+      limit: limitNumber,
+      totalPages: Math.ceil(total / limitNumber),
+      totals: totals[0] || {
+        totalInvoiceAmount: 0,
+        totalPaid: 0,
+        totalDue: 0,
+      },
       invoices,
     });
-
   } catch (error) {
-    console.error(
-      "Get Invoices Error:",
-      error
-    );
+    console.error("Get Invoices Error:", error);
 
     return res.status(500).json({
-      message:
-        "Failed to fetch invoices",
-
-      error:
-        error.message,
+      message: "Failed to fetch invoices",
+      error: error.message,
     });
   }
 };
@@ -676,61 +454,40 @@ const getInvoices = async (
 // GET SINGLE INVOICE
 // ============================================
 
-const getInvoiceById = async (
-  req,
-  res
-) => {
+const getInvoiceById = async (req, res) => {
   try {
-    const { id } =
-      req.params;
+    const { id } = req.params;
 
-    if (
-      !mongoose.Types.ObjectId.isValid(id)
-    ) {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
-        message:
-          "Invalid invoice ID",
+        message: "Invalid invoice ID",
       });
     }
 
-    const invoice =
-      await Invoice.findById(id)
-        .populate(bookingPopulate)
-        .populate(customerPopulate)
-        .populate("quotation")
-        .populate("company")
-        .populate(tripPopulate)
-        .populate(
-          "createdBy",
-          "name email role"
-        );
+    const invoice = await Invoice.findById(id)
+      .populate(bookingPopulate)
+      .populate(customerPopulate)
+      .populate("quotation")
+      .populate("company")
+      .populate(tripPopulate)
+      .populate("createdBy", "name email role");
 
     if (!invoice) {
       return res.status(404).json({
-        message:
-          "Invoice not found",
+        message: "Invoice not found",
       });
     }
 
     return res.status(200).json({
-      message:
-        "Invoice fetched successfully",
-
+      message: "Invoice fetched successfully",
       invoice,
     });
-
   } catch (error) {
-    console.error(
-      "Get Invoice Error:",
-      error
-    );
+    console.error("Get Invoice Error:", error);
 
     return res.status(500).json({
-      message:
-        "Failed to fetch invoice",
-
-      error:
-        error.message,
+      message: "Failed to fetch invoice",
+      error: error.message,
     });
   }
 };
@@ -739,30 +496,21 @@ const getInvoiceById = async (
 // UPDATE INVOICE
 // ============================================
 
-const updateInvoice = async (
-  req,
-  res
-) => {
+const updateInvoice = async (req, res) => {
   try {
-    const { id } =
-      req.params;
+    const { id } = req.params;
 
-    if (
-      !mongoose.Types.ObjectId.isValid(id)
-    ) {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
-        message:
-          "Invalid invoice ID",
+        message: "Invalid invoice ID",
       });
     }
 
-    const invoice =
-      await Invoice.findById(id);
+    const invoice = await Invoice.findById(id);
 
     if (!invoice) {
       return res.status(404).json({
-        message:
-          "Invoice not found",
+        message: "Invoice not found",
       });
     }
 
@@ -770,13 +518,9 @@ const updateInvoice = async (
     // LOCK PAID / CANCELLED INVOICE
     // ============================================
 
-    if (
-      invoice.status === "Paid" ||
-      invoice.status === "Cancelled"
-    ) {
+    if (invoice.status === "Paid" || invoice.status === "Cancelled") {
       return res.status(400).json({
-        message:
-          `Cannot update invoice with status ${invoice.status}`,
+        message: `Cannot update invoice with status ${invoice.status}`,
       });
     }
 
@@ -798,16 +542,11 @@ const updateInvoice = async (
       "pdfUrl",
     ];
 
-    allowedFields.forEach(
-      (field) => {
-        if (
-          req.body[field] !== undefined
-        ) {
-          invoice[field] =
-            req.body[field];
-        }
+    allowedFields.forEach((field) => {
+      if (req.body[field] !== undefined) {
+        invoice[field] = req.body[field];
       }
-    );
+    });
 
     // ============================================
     // RECALCULATE
@@ -832,44 +571,22 @@ const updateInvoice = async (
         invoice.taxPercentage
       );
 
-      invoice.items =
-        calculatedItems;
+      invoice.items = calculatedItems;
+      invoice.subtotal = subtotal;
+      invoice.discountAmount = discountAmount;
+      invoice.taxAmount = taxAmount;
+      invoice.totalAmount = totalAmount;
 
-      invoice.subtotal =
-        subtotal;
+      invoice.amountDue = Number(
+        Math.max(0, totalAmount - invoice.amountPaid).toFixed(2)
+      );
 
-      invoice.discountAmount =
-        discountAmount;
-
-      invoice.taxAmount =
-        taxAmount;
-
-      invoice.totalAmount =
-        totalAmount;
-
-      invoice.amountDue =
-        Number(
-          Math.max(
-            0,
-            totalAmount -
-              invoice.amountPaid
-          ).toFixed(2)
-        );
-
-      if (
-        invoice.amountPaid <= 0
-      ) {
-        invoice.paymentStatus =
-          "Pending";
-      } else if (
-        invoice.amountPaid <
-        totalAmount
-      ) {
-        invoice.paymentStatus =
-          "Partially Paid";
+      if (invoice.amountPaid <= 0) {
+        invoice.paymentStatus = "Pending";
+      } else if (invoice.amountPaid < totalAmount) {
+        invoice.paymentStatus = "Partially Paid";
       } else {
-        invoice.paymentStatus =
-          "Paid";
+        invoice.paymentStatus = "Paid";
       }
     }
 
@@ -879,40 +596,24 @@ const updateInvoice = async (
     // UPDATED POPULATED INVOICE
     // ============================================
 
-    const updatedInvoice =
-      await Invoice.findById(
-        invoice._id
-      )
-        .populate(bookingPopulate)
-        .populate(customerPopulate)
-        .populate("quotation")
-        .populate("company")
-        .populate(tripPopulate)
-        .populate(
-          "createdBy",
-          "name email role"
-        );
+    const updatedInvoice = await Invoice.findById(invoice._id)
+      .populate(bookingPopulate)
+      .populate(customerPopulate)
+      .populate("quotation")
+      .populate("company")
+      .populate(tripPopulate)
+      .populate("createdBy", "name email role");
 
     return res.status(200).json({
-      message:
-        "Invoice updated successfully",
-
-      invoice:
-        updatedInvoice,
+      message: "Invoice updated successfully",
+      invoice: updatedInvoice,
     });
-
   } catch (error) {
-    console.error(
-      "Update Invoice Error:",
-      error
-    );
+    console.error("Update Invoice Error:", error);
 
     return res.status(500).json({
-      message:
-        "Failed to update invoice",
-
-      error:
-        error.message,
+      message: "Failed to update invoice",
+      error: error.message,
     });
   }
 };
@@ -921,58 +622,37 @@ const updateInvoice = async (
 // ISSUE INVOICE
 // ============================================
 
-const issueInvoice = async (
-  req,
-  res
-) => {
+const issueInvoice = async (req, res) => {
   try {
-    const invoice =
-      await Invoice.findById(
-        req.params.id
-      );
+    const invoice = await Invoice.findById(req.params.id);
 
     if (!invoice) {
       return res.status(404).json({
-        message:
-          "Invoice not found",
+        message: "Invoice not found",
       });
     }
 
-    if (
-      invoice.status !== "Draft"
-    ) {
+    if (invoice.status !== "Draft") {
       return res.status(400).json({
-        message:
-          `Only Draft invoice can be issued. Current status: ${invoice.status}`,
+        message: `Only Draft invoice can be issued. Current status: ${invoice.status}`,
       });
     }
 
-    invoice.status =
-      "Issued";
-
+    invoice.status = "Issued";
     invoice.sentAt = null;
 
     await invoice.save();
 
     return res.status(200).json({
-      message:
-        "Invoice issued successfully",
-
+      message: "Invoice issued successfully",
       invoice,
     });
-
   } catch (error) {
-    console.error(
-      "Issue Invoice Error:",
-      error
-    );
+    console.error("Issue Invoice Error:", error);
 
     return res.status(500).json({
-      message:
-        "Failed to issue invoice",
-
-      error:
-        error.message,
+      message: "Failed to issue invoice",
+      error: error.message,
     });
   }
 };
@@ -981,62 +661,37 @@ const issueInvoice = async (
 // SEND INVOICE
 // ============================================
 
-const sendInvoice = async (
-  req,
-  res
-) => {
+const sendInvoice = async (req, res) => {
   try {
-    const invoice =
-      await Invoice.findById(
-        req.params.id
-      );
+    const invoice = await Invoice.findById(req.params.id);
 
     if (!invoice) {
       return res.status(404).json({
-        message:
-          "Invoice not found",
+        message: "Invoice not found",
       });
     }
 
-    if (
-      ![
-        "Issued",
-        "Viewed",
-      ].includes(invoice.status)
-    ) {
+    if (!["Issued", "Viewed"].includes(invoice.status)) {
       return res.status(400).json({
-        message:
-          "Only Issued or Viewed invoice can be sent",
+        message: "Only Issued or Viewed invoice can be sent",
       });
     }
 
-    invoice.status =
-      "Sent";
-
-    invoice.sentAt =
-      new Date();
+    invoice.status = "Sent";
+    invoice.sentAt = new Date();
 
     await invoice.save();
 
     return res.status(200).json({
-      message:
-        "Invoice sent successfully",
-
+      message: "Invoice sent successfully",
       invoice,
     });
-
   } catch (error) {
-    console.error(
-      "Send Invoice Error:",
-      error
-    );
+    console.error("Send Invoice Error:", error);
 
     return res.status(500).json({
-      message:
-        "Failed to send invoice",
-
-      error:
-        error.message,
+      message: "Failed to send invoice",
+      error: error.message,
     });
   }
 };
@@ -1045,51 +700,31 @@ const sendInvoice = async (
 // MARK INVOICE AS VIEWED
 // ============================================
 
-const markInvoiceViewed = async (
-  req,
-  res
-) => {
+const markInvoiceViewed = async (req, res) => {
   try {
-    const invoice =
-      await Invoice.findById(
-        req.params.id
-      );
+    const invoice = await Invoice.findById(req.params.id);
 
     if (!invoice) {
       return res.status(404).json({
-        message:
-          "Invoice not found",
+        message: "Invoice not found",
       });
     }
 
-    if (
-      invoice.status === "Sent"
-    ) {
-      invoice.status =
-        "Viewed";
-
+    if (invoice.status === "Sent") {
+      invoice.status = "Viewed";
       await invoice.save();
     }
 
     return res.status(200).json({
-      message:
-        "Invoice marked as viewed",
-
+      message: "Invoice marked as viewed",
       invoice,
     });
-
   } catch (error) {
-    console.error(
-      "View Invoice Error:",
-      error
-    );
+    console.error("View Invoice Error:", error);
 
     return res.status(500).json({
-      message:
-        "Failed to update invoice",
-
-      error:
-        error.message,
+      message: "Failed to update invoice",
+      error: error.message,
     });
   }
 };
@@ -1101,20 +736,11 @@ const markInvoiceViewed = async (
 // NOTE:
 // Central payment flow should use /api/payments.
 // This function is kept for backward compatibility.
-// Do not call this from Payment.jsx if /api/payments
-// is already the source of truth.
-//
 
-const recordInvoicePayment = async (
-  req,
-  res
-) => {
+const recordInvoicePayment = async (req, res) => {
   try {
-    const amount =
-      req.body?.amount;
-
-    const paymentAmount =
-      Number(amount);
+    const amount = req.body?.amount;
+    const paymentAmount = Number(amount);
 
     // ============================================
     // VALIDATE AMOUNT
@@ -1128,8 +754,7 @@ const recordInvoicePayment = async (
       paymentAmount <= 0
     ) {
       return res.status(400).json({
-        message:
-          "Valid payment amount is required",
+        message: "Valid payment amount is required",
       });
     }
 
@@ -1137,143 +762,79 @@ const recordInvoicePayment = async (
     // FIND INVOICE
     // ============================================
 
-    const invoice =
-      await Invoice.findById(
-        req.params.id
-      );
+    const invoice = await Invoice.findById(req.params.id);
 
     if (!invoice) {
       return res.status(404).json({
-        message:
-          "Invoice not found",
+        message: "Invoice not found",
       });
     }
 
-    // ============================================
-    // CANCELLED CHECK
-    // ============================================
-
-    if (
-      invoice.status === "Cancelled"
-    ) {
+    if (invoice.status === "Cancelled") {
       return res.status(400).json({
-        message:
-          "Cannot record payment for cancelled invoice",
+        message: "Cannot record payment for cancelled invoice",
       });
     }
 
-    // ============================================
-    // ALREADY PAID CHECK
-    // ============================================
-
-    if (
-      Number(invoice.amountDue || 0) <= 0
-    ) {
+    if (Number(invoice.amountDue || 0) <= 0) {
       return res.status(400).json({
-        message:
-          "Invoice is already fully paid",
+        message: "Invoice is already fully paid",
       });
     }
 
-    // ============================================
-    // PAYMENT CANNOT EXCEED DUE
-    // ============================================
-
-    if (
-      paymentAmount >
-      Number(invoice.amountDue || 0)
-    ) {
+    if (paymentAmount > Number(invoice.amountDue || 0)) {
       return res.status(400).json({
-        message:
-          `Payment cannot exceed amount due. Amount due: ${invoice.amountDue}`,
+        message: `Payment cannot exceed amount due. Amount due: ${invoice.amountDue}`,
       });
     }
 
     // ============================================
-    // UPDATE AMOUNT PAID
+    // UPDATE
     // ============================================
 
-    invoice.amountPaid =
-      Number(
-        (
-          Number(invoice.amountPaid || 0) +
-          paymentAmount
-        ).toFixed(2)
-      );
+    invoice.amountPaid = Number(
+      (Number(invoice.amountPaid || 0) + paymentAmount).toFixed(2)
+    );
 
-    // ============================================
-    // UPDATE AMOUNT DUE
-    // ============================================
+    invoice.amountDue = Number(
+      Math.max(
+        0,
+        Number(invoice.totalAmount || 0) - invoice.amountPaid
+      ).toFixed(2)
+    );
 
-    invoice.amountDue =
-      Number(
-        Math.max(
-          0,
-          Number(invoice.totalAmount || 0) -
-            invoice.amountPaid
-        ).toFixed(2)
-      );
-
-    // ============================================
-    // UPDATE STATUS
-    // ============================================
-
-    if (
-      invoice.amountDue === 0
-    ) {
-      invoice.paymentStatus =
-        "Paid";
-
-      invoice.status =
-        "Paid";
+    if (invoice.amountDue === 0) {
+      invoice.paymentStatus = "Paid";
+      invoice.status = "Paid";
     } else {
-      invoice.paymentStatus =
-        "Partially Paid";
-
-      invoice.status =
-        "Partially Paid";
+      invoice.paymentStatus = "Partially Paid";
+      invoice.status = "Partially Paid";
     }
 
     await invoice.save();
 
     // ============================================
-    // UPDATED POPULATED INVOICE
+    // POPULATED RESPONSE
     // ============================================
 
-    const updatedInvoice =
-      await Invoice.findById(
-        invoice._id
-      )
-        .populate(bookingPopulate)
-        .populate(customerPopulate)
-        .populate("quotation")
-        .populate("company")
-        .populate(tripPopulate)
-        .populate(
-          "createdBy",
-          "name email role"
-        );
+    const updatedInvoice = await Invoice.findById(invoice._id)
+      .populate(bookingPopulate)
+      .populate(customerPopulate)
+      .populate("quotation")
+      .populate("company")
+      .populate(tripPopulate)
+      .populate("createdBy", "name email role");
 
     return res.status(200).json({
-      message:
-        "Invoice payment recorded successfully",
-
-      invoice:
-        updatedInvoice,
+      message: "Invoice payment recorded successfully",
+      invoice: updatedInvoice,
     });
-
   } catch (error) {
-    console.error(
-      "Record Invoice Payment Error:",
-      error
-    );
+    console.error("Record Invoice Payment Error:", error);
 
     return res.status(500).json({
-      message:
-        "Failed to record invoice payment",
-
-      error:
-        error.message,
+      message: "Failed to record invoice payment",
+      error: error.message,
     });
   }
 };
@@ -1282,68 +843,43 @@ const recordInvoicePayment = async (
 // CANCEL INVOICE
 // ============================================
 
-const cancelInvoice = async (
-  req,
-  res
-) => {
+const cancelInvoice = async (req, res) => {
   try {
-    const invoice =
-      await Invoice.findById(
-        req.params.id
-      );
+    const invoice = await Invoice.findById(req.params.id);
 
     if (!invoice) {
       return res.status(404).json({
-        message:
-          "Invoice not found",
+        message: "Invoice not found",
       });
     }
 
-    if (
-      invoice.status === "Paid"
-    ) {
+    if (invoice.status === "Paid") {
       return res.status(400).json({
-        message:
-          "Paid invoice cannot be cancelled",
+        message: "Paid invoice cannot be cancelled",
       });
     }
 
-    if (
-      invoice.status === "Cancelled"
-    ) {
+    if (invoice.status === "Cancelled") {
       return res.status(400).json({
-        message:
-          "Invoice is already cancelled",
+        message: "Invoice is already cancelled",
       });
     }
 
-    invoice.status =
-      "Cancelled";
-
-    invoice.paymentStatus =
-      "Cancelled";
+    invoice.status = "Cancelled";
+    invoice.paymentStatus = "Cancelled";
 
     await invoice.save();
 
     return res.status(200).json({
-      message:
-        "Invoice cancelled successfully",
-
+      message: "Invoice cancelled successfully",
       invoice,
     });
-
   } catch (error) {
-    console.error(
-      "Cancel Invoice Error:",
-      error
-    );
+    console.error("Cancel Invoice Error:", error);
 
     return res.status(500).json({
-      message:
-        "Failed to cancel invoice",
-
-      error:
-        error.message,
+      message: "Failed to cancel invoice",
+      error: error.message,
     });
   }
 };
@@ -1352,20 +888,13 @@ const cancelInvoice = async (
 // DELETE INVOICE
 // ============================================
 
-const deleteInvoice = async (
-  req,
-  res
-) => {
+const deleteInvoice = async (req, res) => {
   try {
-    const invoice =
-      await Invoice.findById(
-        req.params.id
-      );
+    const invoice = await Invoice.findById(req.params.id);
 
     if (!invoice) {
       return res.status(404).json({
-        message:
-          "Invoice not found",
+        message: "Invoice not found",
       });
     }
 
@@ -1377,32 +906,21 @@ const deleteInvoice = async (
       invoice.status === "Paid"
     ) {
       return res.status(400).json({
-        message:
-          "Issued/sent/paid invoice cannot be deleted",
+        message: "Issued/sent/paid invoice cannot be deleted",
       });
     }
 
-    await Invoice.findByIdAndDelete(
-      req.params.id
-    );
+    await Invoice.findByIdAndDelete(req.params.id);
 
     return res.status(200).json({
-      message:
-        "Invoice deleted successfully",
+      message: "Invoice deleted successfully",
     });
-
   } catch (error) {
-    console.error(
-      "Delete Invoice Error:",
-      error
-    );
+    console.error("Delete Invoice Error:", error);
 
     return res.status(500).json({
-      message:
-        "Failed to delete invoice",
-
-      error:
-        error.message,
+      message: "Failed to delete invoice",
+      error: error.message,
     });
   }
 };

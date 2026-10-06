@@ -77,6 +77,22 @@ const emptyForm = () => ({
 });
 
 /* =====================================================
+   COMPANY DETAILS
+===================================================== */
+
+const COMPANY = {
+  name: "Cult Holidays",
+  addressLines: [
+    "4th Floor, A-122, Main Uttam Nagar Rd,",
+    "New Delhi, India - 110059",
+  ],
+  phone: "+91 921-7154-515",
+  email: "hello@cultholidays.com",
+  website: "www.cultholidays.com",
+  logo: "/images/cult-holidays-logo.webp",
+};
+
+/* =====================================================
    HELPERS
 ===================================================== */
 
@@ -120,15 +136,18 @@ const getCustomerName = (c) => {
 
 const getBookingLabel = (b) => {
   if (!b) return "-";
-  if (typeof b === "string") return b;
-  return b.bookingNumber || b.bookingCode ||
-    b.referenceNumber || b._id || "-";
-};
-
-const getTripLabel = (t) => {
-  if (!t) return "-";
-  if (typeof t === "string") return t;
-  return t.title || t.name || t.tripCode || t._id || "-";
+  if (typeof b === "string") {
+    return b.length === 24 ? `${b.slice(0, 6)}…${b.slice(-4)}` : b;
+  }
+  return (
+    b.bookingNumber ||
+    b.bookingCode ||
+    b.referenceNumber ||
+    b.code ||
+    (b._id
+      ? `${String(b._id).slice(0, 6)}…${String(b._id).slice(-4)}`
+      : "-")
+  );
 };
 
 const getTravellerText = (b) => {
@@ -159,21 +178,6 @@ const getStatusClasses = (status) => {
       return "bg-indigo-50 text-indigo-700 border-indigo-200";
     case "Viewed":
       return "bg-purple-50 text-purple-700 border-purple-200";
-    default:
-      return "bg-gray-50 text-gray-700 border-gray-200";
-  }
-};
-
-const getPaymentClasses = (status) => {
-  switch (status) {
-    case "Paid":
-      return "bg-emerald-50 text-emerald-700 border-emerald-200";
-    case "Partially Paid":
-      return "bg-amber-50 text-amber-700 border-amber-200";
-    case "Overdue":
-      return "bg-red-50 text-red-700 border-red-200";
-    case "Cancelled":
-      return "bg-gray-100 text-gray-600 border-gray-200";
     default:
       return "bg-gray-50 text-gray-700 border-gray-200";
   }
@@ -217,7 +221,7 @@ function Invoice() {
   });
 
   /* =====================================================
-     FETCH INVOICES
+     FETCH
   ===================================================== */
 
   const fetchInvoices = async (page = currentPage) => {
@@ -291,7 +295,6 @@ function Invoice() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, search, statusFilter, paymentStatusFilter]);
 
-  /* Auto-dismiss alerts */
   useEffect(() => {
     if (!successMessage && !errorMessage) return;
     const timer = setTimeout(() => {
@@ -301,7 +304,6 @@ function Invoice() {
     return () => clearTimeout(timer);
   }, [successMessage, errorMessage]);
 
-  /* Filter outside click */
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (filterRef.current && !filterRef.current.contains(e.target)) {
@@ -461,6 +463,7 @@ function Invoice() {
       setSaving(true);
       setErrorMessage("");
 
+      // invoiceNumber backend auto-generates (INV-YYYY-XXXXXXXX)
       await api.post("/invoices", {
         booking: form.booking,
         quotation: form.quotation || null,
@@ -561,9 +564,37 @@ function Invoice() {
     }
   };
 
-  const handleDownload = (inv) => {
-    if (inv.pdfUrl) return window.open(inv.pdfUrl, "_blank");
-    window.print();
+  const handleDownload = async (inv) => {
+    if (inv.pdfUrl) {
+      window.open(inv.pdfUrl, "_blank");
+      return;
+    }
+
+    const element = document.getElementById("invoice-print-area");
+    if (!element) {
+      window.print();
+      return;
+    }
+
+    try {
+      const html2pdf = (await import("html2pdf.js")).default;
+
+      const filename = `${inv.invoiceNumber || "invoice"}.pdf`;
+
+      const options = {
+        margin: 0,
+        filename,
+        image: { type: "jpeg", quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+        pagebreak: { mode: ["css", "legacy"] },
+      };
+
+      await html2pdf().set(options).from(element).save();
+    } catch (err) {
+      console.error("PDF generation error:", err);
+      window.print();
+    }
   };
 
   const handleClearFilters = () => {
@@ -628,9 +659,7 @@ function Invoice() {
             {showFilters && (
               <div className="absolute left-0 top-full mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-lg z-30 overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                  <h3 className="text-sm font-semibold text-gray-900">
-                    Filters
-                  </h3>
+                  <h3 className="text-sm font-semibold text-gray-900">Filters</h3>
                   {dropdownFilterCount > 0 && (
                     <button
                       type="button"
@@ -748,9 +777,7 @@ function Invoice() {
         />
         <SummaryCard
           title="Overdue"
-          value={
-            invoices.filter((i) => i.paymentStatus === "Overdue").length
-          }
+          value={invoices.filter((i) => i.paymentStatus === "Overdue").length}
           icon={<FiAlertCircle size={16} />}
           iconClass="bg-red-50 text-red-600"
         />
@@ -832,30 +859,19 @@ function Invoice() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[1100px]">
+            <table className="w-full text-sm" style={{ minWidth: "1250px" }}>
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50/60">
-                  {[
-                    "Invoice",
-                    "Booking",
-                    "Customer",
-                    "Travel",
-                    "Date",
-                    "Total",
-                    "Paid",
-                    "Due",
-                    "Status",
-                    "Actions",
-                  ].map((heading, i) => (
-                    <th
-                      key={i}
-                      className={`px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide ${
-                        heading === "Actions" ? "text-right" : "text-left"
-                      }`}
-                    >
-                      {heading}
-                    </th>
-                  ))}
+                  <th className="px-4 py-3 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider" style={{ width: "150px" }}>Invoice</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider" style={{ width: "160px" }}>Booking</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider" style={{ width: "180px" }}>Customer</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider" style={{ width: "220px" }}>Travel</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: "110px" }}>Date</th>
+                  <th className="px-4 py-3 text-right text-[10px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: "110px" }}>Total</th>
+                  <th className="px-4 py-3 text-right text-[10px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: "110px" }}>Paid</th>
+                  <th className="px-4 py-3 text-right text-[10px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: "110px" }}>Due</th>
+                  <th className="px-4 py-3 text-center text-[10px] font-semibold text-gray-500 uppercase tracking-wider" style={{ width: "130px" }}>Status</th>
+                  <th className="px-4 py-3 text-right text-[10px] font-semibold text-gray-500 uppercase tracking-wider" style={{ width: "80px" }}>Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -881,13 +897,9 @@ function Invoice() {
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-gray-500">
             Showing{" "}
-            <span className="font-medium text-gray-700">
-              {invoices.length}
-            </span>{" "}
+            <span className="font-medium text-gray-700">{invoices.length}</span>{" "}
             of{" "}
-            <span className="font-medium text-gray-700">
-              {totalInvoices}
-            </span>{" "}
+            <span className="font-medium text-gray-700">{totalInvoices}</span>{" "}
             {totalInvoices === 1 ? "invoice" : "invoices"}
           </p>
 
@@ -895,9 +907,7 @@ function Invoice() {
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
-                onClick={() =>
-                  currentPage > 1 && setCurrentPage((p) => p - 1)
-                }
+                onClick={() => currentPage > 1 && setCurrentPage((p) => p - 1)}
                 disabled={currentPage === 1 || loading}
                 className="w-8 h-8 inline-flex items-center justify-center text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-40"
               >
@@ -969,9 +979,7 @@ function SummaryCard({ title, value, icon, iconClass }) {
           <p className="text-xs font-medium text-gray-500">{title}</p>
           <h3 className="mt-1.5 text-lg font-bold text-gray-800">{value}</h3>
         </div>
-        <div
-          className={`flex h-9 w-9 items-center justify-center rounded-lg ${iconClass}`}
-        >
+        <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${iconClass}`}>
           {icon}
         </div>
       </div>
@@ -979,12 +987,9 @@ function SummaryCard({ title, value, icon, iconClass }) {
   );
 }
 
-function InvoiceRow({
-  invoice, onView, onIssue, onSend, onCancel, onDelete,
-}) {
+function InvoiceRow({ invoice, onView, onIssue, onSend, onCancel, onDelete }) {
   const isDraft = invoice.status === "Draft";
-  const isPaid =
-    invoice.status === "Paid" || invoice.paymentStatus === "Paid";
+  const isPaid = invoice.status === "Paid" || invoice.paymentStatus === "Paid";
   const canCancel = !isPaid && invoice.status !== "Cancelled";
   const canDelete = isDraft;
   const booking = invoice.booking;
@@ -994,106 +999,95 @@ function InvoiceRow({
       onClick={() => onView(invoice)}
       className="hover:bg-brand-blue-50/40 transition-colors cursor-pointer"
     >
-      <td className="px-5 py-4">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-brand-blue-50 text-brand-blue flex items-center justify-center shrink-0">
-            <FiFileText size={16} />
+      <td className="px-4 py-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-brand-blue-50 text-brand-blue flex items-center justify-center shrink-0">
+            <FiFileText size={14} />
           </div>
           <div className="min-w-0">
-            <p className="font-semibold text-gray-800 truncate max-w-[160px]">
+            <p className="text-[13px] font-semibold text-gray-800 truncate">
               {invoice.invoiceNumber || "-"}
             </p>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-[10px] text-gray-400 mt-0.5">
               {invoice.currency || "INR"}
             </p>
           </div>
         </div>
       </td>
 
-      <td className="px-5 py-4">
-        <p className="font-medium text-brand-blue truncate max-w-[150px]">
+      <td className="px-4 py-4">
+        <p className="text-[12px] font-semibold text-gray-700 font-mono truncate">
           {getBookingLabel(booking)}
         </p>
         {booking?.destination && (
-          <p className="text-xs text-gray-500 mt-0.5 truncate max-w-[150px]">
+          <p className="text-[11px] text-gray-400 mt-0.5 truncate">
             {booking.destination}
           </p>
         )}
       </td>
 
-      <td className="px-5 py-4">
+      <td className="px-4 py-4">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center shrink-0">
-            <FiUser size={13} />
+            <FiUser size={12} />
           </div>
-          <p className="font-medium text-gray-800 truncate max-w-[170px]">
+          <p className="text-[12px] font-medium text-gray-800 truncate">
             {getCustomerName(invoice.customer)}
           </p>
         </div>
       </td>
 
-      <td className="px-5 py-4">
+      <td className="px-4 py-4">
         {booking ? (
           <div className="space-y-0.5">
-            <p className="flex items-center gap-1.5 text-xs text-gray-700">
-              <FiMapPin size={13} className="text-gray-400 shrink-0" />
-              <span className="truncate max-w-[150px]">
-                {booking.destination || "-"}
-              </span>
+            <p className="flex items-center gap-1.5 text-[11px] text-gray-700">
+              <FiMapPin size={11} className="text-gray-400 shrink-0" />
+              <span className="truncate">{booking.destination || "-"}</span>
             </p>
-            <p className="flex items-center gap-1.5 text-xs text-gray-500">
-              <FiCalendar size={13} className="text-gray-400 shrink-0" />
-              <span className="truncate max-w-[150px]">
+            <p className="flex items-center gap-1.5 text-[11px] text-gray-500">
+              <FiCalendar size={11} className="text-gray-400 shrink-0" />
+              <span className="truncate">
                 {formatDateRange(booking.travelDate, booking.returnDate)}
               </span>
             </p>
-            <p className="text-xs text-gray-500 truncate max-w-[150px]">
+            <p className="text-[11px] text-gray-500 truncate">
               {getTravellerText(booking)}
             </p>
           </div>
         ) : (
-          <span className="text-xs text-gray-400">-</span>
+          <span className="text-[11px] text-gray-400">-</span>
         )}
       </td>
 
-      <td className="px-5 py-4 text-gray-700">
+      <td className="px-4 py-4 text-gray-700 text-[12px] whitespace-nowrap">
         {formatDate(invoice.invoiceDate)}
       </td>
 
-      <td className="px-5 py-4 font-semibold text-gray-800">
+      <td className="px-4 py-4 text-right font-semibold text-gray-800 text-[12px] whitespace-nowrap">
         {formatCurrency(invoice.totalAmount, invoice.currency || "INR")}
       </td>
 
-      <td className="px-5 py-4 font-medium text-emerald-600">
+      <td className="px-4 py-4 text-right font-medium text-emerald-600 text-[12px] whitespace-nowrap">
         {formatCurrency(invoice.amountPaid, invoice.currency || "INR")}
       </td>
 
-      <td className="px-5 py-4 font-medium text-amber-600">
+      <td className="px-4 py-4 text-right font-medium text-amber-600 text-[12px] whitespace-nowrap">
         {formatCurrency(invoice.amountDue, invoice.currency || "INR")}
       </td>
 
-      <td className="px-5 py-4">
-        <div className="flex flex-col items-start gap-1.5">
-          <span
-            className={`inline-flex items-center px-2.5 py-1 rounded-full border text-[11px] font-semibold ${getStatusClasses(
-              invoice.status
-            )}`}
-          >
-            {invoice.status || "Draft"}
-          </span>
-          <span
-            className={`inline-flex items-center px-2.5 py-1 rounded-full border text-[11px] font-semibold ${getPaymentClasses(
-              invoice.paymentStatus
-            )}`}
-          >
-            {invoice.paymentStatus || "Pending"}
-          </span>
-        </div>
+      <td className="px-4 py-4 text-center">
+        <span
+          className={`inline-flex items-center justify-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold whitespace-nowrap ${getStatusClasses(
+            invoice.status
+          )}`}
+        >
+          {invoice.status || "Draft"}
+        </span>
       </td>
 
-      <td className="px-5 py-4">
+      <td className="px-4 py-4">
         <div
-          className="flex items-center justify-end gap-1"
+          className="flex items-center justify-end gap-0.5"
           onClick={(e) => e.stopPropagation()}
         >
           <ActionButton title="View" onClick={() => onView(invoice)}>
@@ -1113,21 +1107,13 @@ function InvoiceRow({
           )}
 
           {canCancel && (
-            <ActionButton
-              title="Cancel"
-              danger
-              onClick={() => onCancel(invoice)}
-            >
+            <ActionButton title="Cancel" danger onClick={() => onCancel(invoice)}>
               <FiX size={15} />
             </ActionButton>
           )}
 
           {canDelete && (
-            <ActionButton
-              title="Delete"
-              danger
-              onClick={() => onDelete(invoice)}
-            >
+            <ActionButton title="Delete" danger onClick={() => onDelete(invoice)}>
               <FiTrash2 size={15} />
             </ActionButton>
           )}
@@ -1202,7 +1188,6 @@ function CreateInvoiceModal({
         onSubmit={onSubmit}
         className="space-y-6 p-6"
       >
-        {/* Booking */}
         <section>
           <SectionTitle icon={<FiFileText size={14} />} title="Booking Information" />
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -1269,7 +1254,6 @@ function CreateInvoiceModal({
           )}
         </section>
 
-        {/* Billing */}
         <section>
           <SectionTitle icon={<FiDollarSign size={14} />} title="Billing Information" />
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -1323,7 +1307,6 @@ function CreateInvoiceModal({
           </div>
         </section>
 
-        {/* Items */}
         <section>
           <div className="flex items-center justify-between">
             <SectionTitle icon={<FiFileText size={14} />} title="Invoice Items" />
@@ -1423,7 +1406,6 @@ function CreateInvoiceModal({
           </div>
         </section>
 
-        {/* Discount & Tax */}
         <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div>
             <SectionTitle icon={<FiDollarSign size={14} />} title="Discount & Tax" />
@@ -1481,7 +1463,6 @@ function CreateInvoiceModal({
           </div>
         </section>
 
-        {/* Notes */}
         <section>
           <SectionTitle icon={<FiFileText size={14} />} title="Notes & Terms" />
           <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -1510,7 +1491,7 @@ function CreateInvoiceModal({
 }
 
 /* =====================================================
-   VIEW MODAL
+   VIEW MODAL — A4 INVOICE (clean, no fake data)
 ===================================================== */
 
 function InvoiceViewModal({
@@ -1522,19 +1503,28 @@ function InvoiceViewModal({
   const canSend = invoice.status === "Issued" || invoice.status === "Viewed";
   const canCancel = !isPaid && invoice.status !== "Cancelled";
   const booking = invoice.booking;
-  const travellerText = getTravellerText(booking);
+
+  const subtotal = Number(invoice.subtotal || 0);
+  const discountAmount = Number(invoice.discountAmount || 0);
+  const taxAmount = Number(invoice.taxAmount || 0);
+  const taxPercentage = Number(invoice.taxPercentage || 0);
+  const totalAmount = Number(invoice.totalAmount || 0);
+  const amountPaid = Number(invoice.amountPaid || 0);
+  const amountDue = Number(invoice.amountDue ?? totalAmount - amountPaid);
+
+  const hasMultipleItems = (invoice.items || []).length > 1;
 
   return (
     <ModalShell
       title={`Invoice ${invoice.invoiceNumber}`}
-      subtitle="Professional invoice preview"
+      subtitle="A4 invoice preview"
       onClose={onClose}
       headerExtra={
         <button
           onClick={() => onDownload(invoice)}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 h-8 text-xs font-medium text-gray-600 hover:bg-gray-50"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-brand-blue px-3 h-8 text-xs font-semibold text-white hover:bg-brand-blue-dark"
         >
-          <FiDownload size={14} /> PDF
+          <FiDownload size={14} /> Download PDF
         </button>
       }
       footer={
@@ -1567,282 +1557,275 @@ function InvoiceViewModal({
       }
     >
       <div className="bg-gray-100 p-4 md:p-6">
-        <div className="mx-auto max-w-4xl bg-white shadow-sm">
-          <div className="p-5 md:p-8">
-            {/* Brand + meta */}
-            <div className="flex flex-col justify-between gap-6 border-b border-gray-200 pb-6 sm:flex-row">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-blue text-white">
-                  <FiFileText size={18} />
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold text-gray-800">
-                    CultHolidays
-                  </h1>
-                  <p className="text-[10px] font-medium uppercase tracking-wider text-brand-blue">
-                    Travel & Holidays
-                  </p>
-                </div>
-              </div>
-              <div className="text-left sm:text-right">
-                <span className="inline-flex rounded-lg bg-brand-blue-50 px-3 py-1 text-xs font-bold tracking-wider text-brand-blue">
-                  INVOICE
+        <div
+          id="invoice-print-area"
+          className="mx-auto bg-white shadow-sm"
+          style={{
+            width: "210mm",
+            minHeight: "297mm",
+            padding: "22mm 18mm",
+            fontFamily:
+              "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+          }}
+        >
+          {/* ============ HEADER: LOGO + TITLE ============ */}
+          <div className="flex items-start justify-between gap-6 pb-8">
+            <img
+              src={COMPANY.logo}
+              alt={COMPANY.name}
+              className="h-14 w-auto object-contain"
+              crossOrigin="anonymous"
+            />
+            <h1 className="text-2xl font-bold text-gray-900 pt-2">
+              Travel Agency Invoice
+            </h1>
+          </div>
+
+          {/* ============ INVOICE META (right-aligned) ============ */}
+          <div className="flex justify-end pb-8">
+            <div className="w-64 text-[10px]">
+              <div className="flex justify-between py-1">
+                <span className="text-gray-500">Invoice no.:</span>
+                <span className="font-semibold text-gray-800">
+                  {invoice.invoiceNumber || "-"}
                 </span>
-                <p className="mt-2 text-lg font-bold text-gray-800">
-                  {invoice.invoiceNumber}
-                </p>
-                <div className="mt-3 space-y-1 text-xs text-gray-500">
-                  <p>
-                    Invoice Date:{" "}
-                    <span className="font-medium text-gray-700">
-                      {formatDate(invoice.invoiceDate)}
-                    </span>
-                  </p>
-                  <p>
-                    Due Date:{" "}
-                    <span className="font-medium text-gray-700">
-                      {invoice.dueDate
-                        ? formatDate(invoice.dueDate)
-                        : isPaid
-                        ? "Paid"
-                        : "-"}
-                    </span>
-                  </p>
-                </div>
+              </div>
+              <div className="flex justify-between py-1">
+                <span className="text-gray-500">Invoice date:</span>
+                <span className="font-semibold text-gray-800">
+                  {formatDate(invoice.invoiceDate)}
+                </span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span className="text-gray-500">Due:</span>
+                <span className="font-semibold text-gray-800">
+                  {invoice.dueDate ? formatDate(invoice.dueDate) : "-"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* ============ FROM / BILL TO / SHIP TO ============ */}
+          <div className="grid grid-cols-2 gap-6 pb-10">
+            {/* LEFT — FROM */}
+            <div>
+              <p className="text-[12px] font-bold text-gray-900 mb-1.5">
+                From
+              </p>
+              <p className="text-[13px] font-bold text-gray-900">
+                {COMPANY.name}
+              </p>
+              <div className="mt-1 text-[10px] leading-[16px] text-gray-500">
+                {COMPANY.addressLines.map((line, i) => (
+                  <p key={i}>{line}</p>
+                ))}
+                <p className="mt-1">{COMPANY.email}</p>
+                <p>{COMPANY.phone}</p>
               </div>
             </div>
 
-            {/* Bill To + Booking */}
-            <div className="grid grid-cols-1 gap-4 border-b border-gray-200 py-6 md:grid-cols-2">
-              <div className="rounded-xl bg-gray-50 p-4">
-                <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                  Bill To
-                </p>
-                <h3 className="text-sm font-bold text-gray-800">
-                  {getCustomerName(invoice.customer)}
-                </h3>
-                {invoice.customer?.email && (
-                  <p className="mt-0.5 text-xs text-gray-500">
-                    {invoice.customer.email}
+            {/* RIGHT — BILL TO + SHIP TO */}
+            <div className="text-right">
+              <p className="text-[12px] font-bold text-gray-900 mb-1.5">
+                Bill to
+              </p>
+              <p className="text-[13px] font-bold text-gray-900">
+                {getCustomerName(invoice.customer) || "Customer"}
+              </p>
+              <div className="mt-1 text-[10px] leading-[16px] text-gray-500">
+                {invoice.customer?.email && <p>{invoice.customer.email}</p>}
+                {invoice.customer?.phone && <p>{invoice.customer.phone}</p>}
+                {invoice.billingAddress?.street && (
+                  <p>{invoice.billingAddress.street}</p>
+                )}
+                {(invoice.billingAddress?.city ||
+                  invoice.billingAddress?.state) && (
+                  <p>
+                    {[invoice.billingAddress.city, invoice.billingAddress.state]
+                      .filter(Boolean)
+                      .join(", ")}
                   </p>
                 )}
-                {invoice.customer?.phone && (
-                  <p className="text-xs text-gray-500">
-                    {invoice.customer.phone}
+                {invoice.billingAddress?.country && (
+                  <p>
+                    {[
+                      invoice.billingAddress.country,
+                      invoice.billingAddress.postalCode,
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
                   </p>
-                )}
-                {invoice.billingAddress && (
-                  <div className="mt-2 text-xs leading-5 text-gray-500">
-                    {invoice.billingAddress.street && (
-                      <p>{invoice.billingAddress.street}</p>
-                    )}
-                    <p>
-                      {[
-                        invoice.billingAddress.city,
-                        invoice.billingAddress.state,
-                      ]
-                        .filter(Boolean)
-                        .join(", ")}
-                    </p>
-                    <p>
-                      {[
-                        invoice.billingAddress.country,
-                        invoice.billingAddress.postalCode,
-                      ]
-                        .filter(Boolean)
-                        .join(" - ")}
-                    </p>
-                  </div>
                 )}
               </div>
 
-              <div className="rounded-xl border border-gray-200 p-4">
-                <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                  Booking Details
-                </p>
-                <div className="space-y-2">
-                  <DetailLine label="Booking No." value={getBookingLabel(booking)} />
-                  <DetailLine label="Destination" value={booking?.destination || "-"} />
-                  <DetailLine
-                    label="Travel Dates"
-                    value={formatDateRange(booking?.travelDate, booking?.returnDate)}
-                  />
-                  <DetailLine label="Travellers" value={travellerText} />
-                  <DetailLine label="Travel Type" value={booking?.travelType || "-"} />
+              {booking && (
+                <div className="mt-5">
+                  <p className="text-[12px] font-bold text-gray-900 mb-1.5">
+                    Ship to
+                  </p>
+                  <p className="text-[10px] leading-[16px] text-gray-500">
+                    {booking.destination || "-"}
+                  </p>
+                  <p className="text-[10px] leading-[16px] text-gray-500">
+                    {formatDateRange(booking.travelDate, booking.returnDate)}
+                  </p>
+                  <p className="text-[10px] text-gray-500">
+                    {getTravellerText(booking)}
+                  </p>
                 </div>
-              </div>
+              )}
             </div>
+          </div>
 
-            {/* Trip strip */}
-            {(invoice.trip || booking) && (
-              <div className="border-b border-gray-200 py-5">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <InvoiceInfoBox
-                    label="Booking Reference"
-                    value={getBookingLabel(booking)}
-                  />
-                  <InvoiceInfoBox
-                    label="Trip"
-                    value={getTripLabel(invoice.trip)}
-                  />
-                  <InvoiceInfoBox label="Travellers" value={travellerText} />
-                </div>
-              </div>
-            )}
+          {/* ============ ITEMS TABLE ============ */}
+          <div className="mt-2">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr style={{ backgroundColor: "#2563eb" }}>
+                  <th className="py-2.5 px-3 text-left text-[10px] font-bold uppercase tracking-wider text-white w-[35%]">
+                    Description
+                  </th>
+                  <th className="py-2.5 px-3 text-right text-[10px] font-bold uppercase tracking-wider text-white w-[20%]">
+                    Rate
+                  </th>
+                  <th className="py-2.5 px-3 text-center text-[10px] font-bold uppercase tracking-wider text-white w-[10%]">
+                    Qty
+                  </th>
+                  <th className="py-2.5 px-3 text-center text-[10px] font-bold uppercase tracking-wider text-white w-[10%]">
+                    Tax
+                  </th>
+                  <th className="py-2.5 px-3 text-center text-[10px] font-bold uppercase tracking-wider text-white w-[10%]">
+                    Disc
+                  </th>
+                  <th className="py-2.5 px-3 text-right text-[10px] font-bold uppercase tracking-wider text-white w-[15%]">
+                    Amount
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {(invoice.items || []).map((item, i) => {
+                  const qty = Number(item.quantity || 1);
+                  const rate = Number(item.unitPrice || 0);
+                  const amount = Number(item.amount ?? qty * rate);
+                  const isEven = i % 2 === 0;
 
-            {/* Items */}
-            <div className="py-6">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[650px]">
-                  <thead>
-                    <tr className="border-b-2 border-gray-200 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                      <th className="pb-2.5">Description</th>
-                      <th className="pb-2.5">Category</th>
-                      <th className="pb-2.5 text-center">Qty</th>
-                      <th className="pb-2.5 text-right">Unit Price</th>
-                      <th className="pb-2.5 text-right">Amount</th>
+                  return (
+                    <tr
+                      key={i}
+                      style={{
+                        backgroundColor: isEven ? "#f9fafb" : "#ffffff",
+                      }}
+                    >
+                      <td className="py-3 px-3 text-[11px] text-gray-800 align-top">
+                        <p className="font-semibold">{item.description}</p>
+                        {item.category && (
+                          <p className="mt-0.5 text-[10px] text-gray-400">
+                            {item.category}
+                          </p>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-right text-[11px] text-gray-700 align-top whitespace-nowrap">
+                        {formatCurrency(rate, invoice.currency)}
+                      </td>
+                      <td className="py-3 px-3 text-center text-[11px] text-gray-700 align-top whitespace-nowrap">
+                        {qty}
+                      </td>
+                      <td className="py-3 px-3 text-center text-[11px] text-gray-700 align-top whitespace-nowrap">
+                        {taxPercentage > 0 ? `${taxPercentage}%` : "-"}
+                      </td>
+                      <td className="py-3 px-3 text-center text-[11px] text-gray-700 align-top whitespace-nowrap">
+                        {discountAmount > 0 ? "Yes" : "-"}
+                      </td>
+                      <td className="py-3 px-3 text-right text-[11px] font-semibold text-gray-800 align-top whitespace-nowrap">
+                        {formatCurrency(amount, invoice.currency)}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {(invoice.items || []).map((item, i) => (
-                      <tr key={i}>
-                        <td className="py-3 text-xs font-semibold text-gray-700">
-                          {item.description}
-                        </td>
-                        <td className="py-3 text-xs text-gray-500">
-                          {item.category}
-                        </td>
-                        <td className="py-3 text-center text-xs text-gray-600">
-                          {item.quantity}
-                        </td>
-                        <td className="py-3 text-right text-xs text-gray-600">
-                          {formatCurrency(item.unitPrice, invoice.currency)}
-                        </td>
-                        <td className="py-3 text-right text-xs font-bold text-gray-700">
-                          {formatCurrency(item.amount, invoice.currency)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
-            {/* Totals */}
-            <div className="flex justify-end border-t border-gray-200 pt-6">
-              <div className="w-full max-w-sm space-y-2.5 text-sm">
-                <TotalRow label="Subtotal" value={invoice.subtotal} />
-                {Number(invoice.discountAmount || 0) > 0 && (
-                  <TotalRow
-                    label="Discount"
-                    value={-invoice.discountAmount}
-                    negative
-                  />
-                )}
-                <TotalRow
-                  label={`Tax (${invoice.taxPercentage || 0}%)`}
-                  value={invoice.taxAmount}
-                />
-                <div className="rounded-xl bg-gray-50 p-3">
-                  <TotalRow
-                    label="Total Amount"
-                    value={invoice.totalAmount}
-                    strong
-                  />
+          {/* ============ TOTALS ============ */}
+          <div className="mt-8 grid grid-cols-2 gap-8">
+            {/* LEFT — empty spacer (payment instructions removed) */}
+            <div />
+
+            {/* RIGHT — Totals */}
+            <div>
+              <div className="text-[11px] space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Subtotal:</span>
+                  <span className="font-semibold text-gray-800">
+                    {formatCurrency(subtotal, invoice.currency)}
+                  </span>
                 </div>
-                <TotalRow
-                  label="Amount Paid"
-                  value={invoice.amountPaid}
-                  valueClass="text-emerald-600"
-                />
-                <TotalRow
-                  label="Amount Due"
-                  value={invoice.amountDue}
-                  valueClass="text-amber-600"
-                  strong
-                />
-              </div>
-            </div>
 
-            {/* Payment status */}
-            <div className="mt-6">
-              <div
-                className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${
-                  isPaid
-                    ? "border-emerald-200 bg-emerald-50"
-                    : invoice.paymentStatus === "Partially Paid"
-                    ? "border-amber-200 bg-amber-50"
-                    : "border-gray-200 bg-gray-50"
-                }`}
-              >
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                    Payment Status
-                  </p>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                    <span
-                      className={`inline-flex items-center px-2.5 py-1 rounded-full border text-[11px] font-semibold ${getStatusClasses(
-                        invoice.status
-                      )}`}
-                    >
-                      {invoice.status}
-                    </span>
-                    <span
-                      className={`inline-flex items-center px-2.5 py-1 rounded-full border text-[11px] font-semibold ${getPaymentClasses(
-                        invoice.paymentStatus
-                      )}`}
-                    >
-                      {invoice.paymentStatus}
+                {discountAmount > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Discount:</span>
+                    <span className="font-semibold text-red-500">
+                      - {formatCurrency(discountAmount, invoice.currency)}
                     </span>
                   </div>
-                </div>
-                {isPaid && (
-                  <div className="flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white">
-                    <FiCheck size={14} /> PAID IN FULL
-                  </div>
                 )}
-              </div>
-            </div>
 
-            {/* Notes */}
-            {(invoice.notes || invoice.termsAndConditions) && (
-              <div className="mt-7 grid grid-cols-1 gap-5 border-t border-gray-200 pt-6 sm:grid-cols-2">
-                {invoice.notes && (
-                  <div>
-                    <h4 className="text-[10px] font-bold uppercase tracking-wide text-gray-400">
-                      Notes
-                    </h4>
-                    <p className="mt-1.5 whitespace-pre-line text-xs leading-5 text-gray-500">
-                      {invoice.notes}
-                    </p>
+                {taxAmount > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">
+                      Tax {taxPercentage > 0 && `(${taxPercentage}%)`}:
+                    </span>
+                    <span className="font-semibold text-gray-800">
+                      {formatCurrency(taxAmount, invoice.currency)}
+                    </span>
                   </div>
                 )}
-                {invoice.termsAndConditions && (
-                  <div>
-                    <h4 className="text-[10px] font-bold uppercase tracking-wide text-gray-400">
-                      Terms & Conditions
-                    </h4>
-                    <p className="mt-1.5 whitespace-pre-line text-xs leading-5 text-gray-500">
-                      {invoice.termsAndConditions}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
 
-            {/* Footer */}
-            <div className="mt-8 border-t border-gray-200 pt-5">
-              <div className="flex flex-col justify-between gap-4 text-[10px] text-gray-400 sm:flex-row">
-                <div>
-                  <p className="font-semibold text-gray-500">CultHolidays</p>
-                  <p>Travel & Holidays</p>
+                <div className="flex justify-between border-t border-gray-200 pt-1.5">
+                  <span className="font-bold text-gray-800">Total:</span>
+                  <span className="font-bold text-gray-900">
+                    {formatCurrency(totalAmount, invoice.currency)}
+                  </span>
                 </div>
-                <div className="sm:text-right">
-                  <p>This is a computer-generated invoice.</p>
-                  <p className="mt-0.5">Thank you for choosing CultHolidays.</p>
+
+                {amountPaid > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Amount paid:</span>
+                    <span className="font-semibold text-emerald-600">
+                      {formatCurrency(amountPaid, invoice.currency)}
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex justify-between bg-gray-100 px-2 py-1.5 mt-1">
+                  <span className="font-bold text-gray-800">
+                    Balance Due:
+                  </span>
+                  <span className="font-bold text-gray-900">
+                    {formatCurrency(amountDue, invoice.currency)}
+                  </span>
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* ============ NOTES ============ */}
+          {invoice.notes && (
+            <div className="mt-10">
+              <p className="text-[11px] font-bold text-gray-900 mb-2">
+                Notes
+              </p>
+              <p className="text-[10px] leading-[16px] text-gray-500 max-w-md whitespace-pre-line">
+                {invoice.notes}
+              </p>
+            </div>
+          )}
+
+          {/* ============ FOOTER ============ */}
+          <div className="mt-16 border-t border-gray-200 pt-4">
+            <p className="text-[10px] text-gray-500">
+              {COMPANY.website}
+            </p>
           </div>
         </div>
       </div>
@@ -1902,28 +1885,6 @@ function InfoMiniCard({ icon, label, value }) {
           </p>
         </div>
       </div>
-    </div>
-  );
-}
-
-function InvoiceInfoBox({ label, value }) {
-  return (
-    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-      <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">
-        {label}
-      </p>
-      <p className="mt-0.5 text-xs font-bold text-gray-700">{value || "-"}</p>
-    </div>
-  );
-}
-
-function DetailLine({ label, value }) {
-  return (
-    <div className="flex items-start justify-between gap-4 text-xs">
-      <span className="text-gray-400">{label}</span>
-      <span className="text-right font-semibold text-gray-700">
-        {value || "-"}
-      </span>
     </div>
   );
 }
