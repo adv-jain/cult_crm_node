@@ -1,4 +1,3 @@
-
 const mongoose = require("mongoose");
 
 const Refund = require("../models/Refund");
@@ -22,12 +21,11 @@ const REFUND_STATUSES = {
   CANCELLED: "Cancelled",
 };
 
-const ACTIVE_REFUND_STATUSES = [
+const PENDING_REFUND_STATUSES = [
   REFUND_STATUSES.REQUESTED,
   REFUND_STATUSES.UNDER_REVIEW,
   REFUND_STATUSES.APPROVED,
   REFUND_STATUSES.PROCESSING,
-  REFUND_STATUSES.COMPLETED,
 ];
 
 const COMPLETED_REFUND_STATUS = REFUND_STATUSES.COMPLETED;
@@ -63,37 +61,23 @@ const INVOICE_STATUSES = {
 // HELPERS
 // =====================================================
 
-const isValidObjectId = (id) => {
-  return mongoose.Types.ObjectId.isValid(id);
-};
+const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
-const toObjectId = (id) => {
-  return new mongoose.Types.ObjectId(id);
-};
+const toObjectId = (id) => new mongoose.Types.ObjectId(id);
 
-const roundMoney = (value) => {
-  return Number(Number(value || 0).toFixed(2));
-};
+const roundMoney = (value) => Number(Number(value || 0).toFixed(2));
 
-const isPositiveNumber = (value) => {
-  return Number.isFinite(Number(value)) && Number(value) > 0;
-};
+const isPositiveNumber = (value) =>
+  Number.isFinite(Number(value)) && Number(value) > 0;
 
 const normalizeString = (value) => {
   if (value === undefined || value === null) return null;
-
   const normalized = String(value).trim();
-
   return normalized.length ? normalized : null;
 };
 
-const escapeRegex = (value) => {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-};
-
-// =====================================================
-// REFUND NUMBER GENERATOR
-// =====================================================
+const escapeRegex = (value) =>
+  String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const generateRefundNumber = async (session = null) => {
   const year = new Date().getFullYear();
@@ -103,9 +87,7 @@ const generateRefundNumber = async (session = null) => {
     refundNumber: new RegExp(`^${prefix}\\d+$`, "i"),
   }).sort({ refundNumber: -1 });
 
-  if (session) {
-    query.session(session);
-  }
+  if (session) query.session(session);
 
   const latestRefund = await query.lean();
 
@@ -113,25 +95,18 @@ const generateRefundNumber = async (session = null) => {
 
   if (latestRefund?.refundNumber) {
     const match = latestRefund.refundNumber.match(/(\d+)$/);
-
-    if (match) {
-      nextNumber = Number(match[1]) + 1;
-    }
+    if (match) nextNumber = Number(match[1]) + 1;
   }
 
   return `${prefix}${String(nextNumber).padStart(4, "0")}`;
 };
 
-// =====================================================
-// POPULATE REFUND
-// =====================================================
-
-const populateRefund = (query) => {
-  return query
+const populateRefund = (query) =>
+  query
     .populate({
       path: "booking",
       select:
-        "bookingNumber destination departureCity travelDate returnDate adults children infants travelType totalAmount amountPaid amountDue paymentStatus status customer",
+        "bookingNumber destination departureCity travelDate returnDate adults children infants travelType totalAmount amountPaid amountDue paymentStatus status customer refundAmount refundStatus refundProcessedAt",
     })
     .populate({
       path: "payment",
@@ -150,8 +125,7 @@ const populateRefund = (query) => {
     })
     .populate({
       path: "trip",
-      select:
-        "tripCode title name destination departureCity travelDate returnDate status",
+      select: "tripCode title name destination departureCity travelDate returnDate status",
     })
     .populate({
       path: "requestedBy",
@@ -165,11 +139,6 @@ const populateRefund = (query) => {
       path: "processedBy",
       select: "name firstName lastName email role",
     });
-};
-
-// =====================================================
-// CALCULATE COMPLETED REFUNDS
-// =====================================================
 
 const getCompletedRefundAmount = async ({
   booking = null,
@@ -178,54 +147,52 @@ const getCompletedRefundAmount = async ({
   excludeRefundId = null,
   session = null,
 }) => {
-  const match = {
-    status: COMPLETED_REFUND_STATUS,
-  };
+  const match = { status: COMPLETED_REFUND_STATUS };
 
-  if (booking) {
-    match.booking = booking;
-  }
-
-  if (payment) {
-    match.payment = payment;
-  }
-
-  if (invoice) {
-    match.invoice = invoice;
-  }
-
+  if (booking) match.booking = booking;
+  if (payment) match.payment = payment;
+  if (invoice) match.invoice = invoice;
   if (excludeRefundId && isValidObjectId(excludeRefundId)) {
-    match._id = {
-      $ne: toObjectId(excludeRefundId),
-    };
+    match._id = { $ne: toObjectId(excludeRefundId) };
   }
 
   const aggregate = Refund.aggregate([
-    {
-      $match: match,
-    },
-    {
-      $group: {
-        _id: null,
-        total: {
-          $sum: "$amount",
-        },
-      },
-    },
+    { $match: match },
+    { $group: { _id: null, total: { $sum: "$amount" } } },
   ]);
 
-  if (session) {
-    aggregate.session(session);
-  }
+  if (session) aggregate.session(session);
 
   const result = await aggregate;
-
   return roundMoney(result[0]?.total || 0);
 };
 
-// =====================================================
-// GET TOTAL REFUNDS FOR BOOKING
-// =====================================================
+const getActiveRefundAmount = async ({
+  booking = null,
+  payment = null,
+  invoice = null,
+  excludeRefundId = null,
+  session = null,
+}) => {
+  const match = { status: { $in: PENDING_REFUND_STATUSES } };
+
+  if (booking) match.booking = booking;
+  if (payment) match.payment = payment;
+  if (invoice) match.invoice = invoice;
+  if (excludeRefundId && isValidObjectId(excludeRefundId)) {
+    match._id = { $ne: toObjectId(excludeRefundId) };
+  }
+
+  const aggregate = Refund.aggregate([
+    { $match: match },
+    { $group: { _id: null, total: { $sum: "$amount" } } },
+  ]);
+
+  if (session) aggregate.session(session);
+
+  const result = await aggregate;
+  return roundMoney(result[0]?.total || 0);
+};
 
 const getBookingRefundSummary = async (bookingId, session = null) => {
   const aggregate = Refund.aggregate([
@@ -235,44 +202,36 @@ const getBookingRefundSummary = async (bookingId, session = null) => {
         status: COMPLETED_REFUND_STATUS,
       },
     },
-    {
-      $group: {
-        _id: null,
-        total: {
-          $sum: "$amount",
-        },
-      },
-    },
+    { $group: { _id: null, total: { $sum: "$amount" } } },
   ]);
 
-  if (session) {
-    aggregate.session(session);
-  }
+  if (session) aggregate.session(session);
 
   const result = await aggregate;
-
   return roundMoney(result[0]?.total || 0);
 };
 
 // =====================================================
-// UPDATE BOOKING FINANCIAL STATE
+// FINANCIAL SYNC HELPERS
 // =====================================================
 
-const syncBookingFinancialState = async (booking, session = null) => {
-  const grossPaid = roundMoney(booking.amountPaid || 0);
+const syncBookingFinancialState = async (
+  booking,
+  currentRefundAmount = 0,
+  session = null
+) => {
+  // booking.amountPaid is already NET amount retained.
+  const previousNetPaid = roundMoney(booking.amountPaid || 0);
+  const refundAmount = roundMoney(currentRefundAmount);
 
+  const netPaid = roundMoney(Math.max(0, previousNetPaid - refundAmount));
+  const totalAmount = roundMoney(booking.totalAmount || 0);
+  const amountDue = roundMoney(Math.max(0, totalAmount - netPaid));
+
+  // Total completed refunds used only for reporting/refund status.
   const completedRefundAmount = await getBookingRefundSummary(
     booking._id,
     session
-  );
-
-  // amountPaid in Booking represents net money currently retained.
-  const netPaid = roundMoney(Math.max(0, grossPaid - completedRefundAmount));
-
-  const totalAmount = roundMoney(booking.totalAmount || 0);
-
-  const amountDue = roundMoney(
-    Math.max(0, totalAmount - netPaid)
   );
 
   booking.amountPaid = netPaid;
@@ -302,30 +261,28 @@ const syncBookingFinancialState = async (booking, session = null) => {
     }
   }
 
-  await booking.save({
-    session,
-    validateBeforeSave: false,
-  });
+  if (booking.refundProcessedAt !== undefined) {
+    booking.refundProcessedAt = new Date();
+  }
+
+  await booking.save({ session, validateBeforeSave: false });
 
   return {
-    grossPaid,
+    previousNetPaid,
     refundedAmount: completedRefundAmount,
+    currentRefundAmount: refundAmount,
     netPaid,
     amountDue,
   };
 };
 
-// =====================================================
-// UPDATE PAYMENT FINANCIAL STATE
-// =====================================================
-
 const syncPaymentFinancialState = async (payment, session = null) => {
+  // Payment.amount remains ORIGINAL payment amount.
+  const originalAmount = roundMoney(payment.amount);
   const totalRefunded = await getCompletedRefundAmount({
     payment: payment._id,
     session,
   });
-
-  const originalAmount = roundMoney(payment.amount);
 
   if (totalRefunded >= originalAmount) {
     payment.status = PAYMENT_STATUSES.REFUNDED;
@@ -335,42 +292,33 @@ const syncPaymentFinancialState = async (payment, session = null) => {
     payment.status = PAYMENT_STATUSES.COMPLETED;
   }
 
-  await payment.save({
-    session,
-    validateBeforeSave: false,
-  });
+  await payment.save({ session, validateBeforeSave: false });
 
   return {
     originalAmount,
     refundedAmount: totalRefunded,
-    remainingAmount: roundMoney(
-      Math.max(0, originalAmount - totalRefunded)
-    ),
+    remainingAmount: roundMoney(Math.max(0, originalAmount - totalRefunded)),
     status: payment.status,
   };
 };
 
-// =====================================================
-// UPDATE INVOICE FINANCIAL STATE
-// =====================================================
+const syncInvoiceFinancialState = async (
+  invoice,
+  currentRefundAmount = 0,
+  session = null
+) => {
+  // invoice.amountPaid already represents NET amount.
+  const previousNetPaid = roundMoney(invoice.amountPaid || 0);
+  const refundAmount = roundMoney(currentRefundAmount);
 
-const syncInvoiceFinancialState = async (invoice, session = null) => {
-  const originalPaid = roundMoney(invoice.amountPaid || 0);
+  const netPaid = roundMoney(Math.max(0, previousNetPaid - refundAmount));
+  const totalAmount = roundMoney(invoice.totalAmount || 0);
+  const amountDue = roundMoney(Math.max(0, totalAmount - netPaid));
 
   const totalRefunded = await getCompletedRefundAmount({
     invoice: invoice._id,
     session,
   });
-
-  const totalAmount = roundMoney(invoice.totalAmount || 0);
-
-  const netPaid = roundMoney(
-    Math.max(0, originalPaid - totalRefunded)
-  );
-
-  const amountDue = roundMoney(
-    Math.max(0, totalAmount - netPaid)
-  );
 
   invoice.amountPaid = netPaid;
   invoice.amountDue = amountDue;
@@ -379,7 +327,6 @@ const syncInvoiceFinancialState = async (invoice, session = null) => {
     if (netPaid <= 0) {
       invoice.paymentStatus = INVOICE_PAYMENT_STATUSES.PENDING;
 
-      // Do not destroy invoice history.
       if (
         invoice.status === INVOICE_STATUSES.PAID ||
         invoice.status === INVOICE_STATUSES.PARTIALLY_PAID
@@ -387,31 +334,114 @@ const syncInvoiceFinancialState = async (invoice, session = null) => {
         invoice.status = INVOICE_STATUSES.ISSUED;
       }
     } else if (netPaid < totalAmount) {
-      invoice.paymentStatus =
-        INVOICE_PAYMENT_STATUSES.PARTIALLY_PAID;
-
+      invoice.paymentStatus = INVOICE_PAYMENT_STATUSES.PARTIALLY_PAID;
       invoice.status = INVOICE_STATUSES.PARTIALLY_PAID;
     } else {
       invoice.paymentStatus = INVOICE_PAYMENT_STATUSES.PAID;
-
       invoice.status = INVOICE_STATUSES.PAID;
     }
   }
 
-  await invoice.save({
-    session,
-    validateBeforeSave: false,
-  });
+  await invoice.save({ session, validateBeforeSave: false });
 
   return {
     totalAmount,
-    originalPaid,
+    previousNetPaid,
     refundedAmount: totalRefunded,
+    currentRefundAmount: refundAmount,
     netPaid,
     amountDue,
     paymentStatus: invoice.paymentStatus,
     status: invoice.status,
   };
+};
+
+// =====================================================
+// REFUND ELIGIBILITY HELPERS
+// =====================================================
+
+const checkPaymentRefundLimit = async ({
+  payment,
+  refundAmount,
+  excludeRefundId = null,
+  session = null,
+}) => {
+  const completed = await getCompletedRefundAmount({
+    payment: payment._id,
+    excludeRefundId,
+    session,
+  });
+
+  const active = await getActiveRefundAmount({
+    payment: payment._id,
+    excludeRefundId,
+    session,
+  });
+
+  const remaining = roundMoney(
+    Math.max(0, payment.amount - completed - active)
+  );
+
+  if (refundAmount > remaining) {
+    return {
+      valid: false,
+      message: `Refund amount cannot exceed remaining refundable payment amount of ${remaining}.`,
+    };
+  }
+
+  return { valid: true, remaining };
+};
+
+const checkBookingRefundLimit = async ({
+  booking,
+  refundAmount,
+  excludeRefundId = null,
+  session = null,
+}) => {
+  // booking.amountPaid is already NET; completed refunds are NOT subtracted again.
+  const bookingPaid = roundMoney(booking.amountPaid || 0);
+  const active = await getActiveRefundAmount({
+    booking: booking._id,
+    excludeRefundId,
+    session,
+  });
+
+  const remaining = roundMoney(Math.max(0, bookingPaid - active));
+
+  if (refundAmount > remaining) {
+    return {
+      valid: false,
+      message: `Refund amount cannot exceed remaining refundable booking amount of ${remaining}.`,
+    };
+  }
+
+  return { valid: true, remaining };
+};
+
+const checkInvoiceRefundLimit = async ({
+  invoice,
+  refundAmount,
+  excludeRefundId = null,
+  session = null,
+}) => {
+  // invoice.amountPaid is already NET.
+  const invoicePaid = roundMoney(invoice.amountPaid || 0);
+  const active = await getActiveRefundAmount({
+    invoice: invoice._id,
+    excludeRefundId,
+    session,
+  });
+
+  const remaining = roundMoney(Math.max(0, invoicePaid - active));
+
+  if (refundAmount > remaining) {
+    return {
+      valid: false,
+      message: `Refund amount cannot exceed remaining refundable invoice amount of ${remaining}.`,
+    };
+  }
+
+  return { valid: true, remaining };
 };
 
 // =====================================================
@@ -507,7 +537,6 @@ const createRefund = async (req, res) => {
 
     if (!bookingDoc) {
       await session.abortTransaction();
-
       return res.status(404).json({
         success: false,
         message: "Booking not found.",
@@ -516,7 +545,6 @@ const createRefund = async (req, res) => {
 
     if (bookingDoc.status === "Cancelled") {
       await session.abortTransaction();
-
       return res.status(400).json({
         success: false,
         message: "Refund cannot be created for a cancelled booking.",
@@ -531,7 +559,6 @@ const createRefund = async (req, res) => {
 
     if (!customerDoc) {
       await session.abortTransaction();
-
       return res.status(404).json({
         success: false,
         message: "Customer not found.",
@@ -543,7 +570,6 @@ const createRefund = async (req, res) => {
       String(bookingDoc.customer) !== String(customer)
     ) {
       await session.abortTransaction();
-
       return res.status(400).json({
         success: false,
         message: "Customer does not belong to this booking.",
@@ -561,7 +587,6 @@ const createRefund = async (req, res) => {
 
       if (!paymentDoc) {
         await session.abortTransaction();
-
         return res.status(404).json({
           success: false,
           message: "Payment not found.",
@@ -570,7 +595,6 @@ const createRefund = async (req, res) => {
 
       if (String(paymentDoc.booking) !== String(booking)) {
         await session.abortTransaction();
-
         return res.status(400).json({
           success: false,
           message: "Payment does not belong to this booking.",
@@ -582,7 +606,6 @@ const createRefund = async (req, res) => {
         String(paymentDoc.customer) !== String(customer)
       ) {
         await session.abortTransaction();
-
         return res.status(400).json({
           success: false,
           message: "Payment does not belong to this customer.",
@@ -591,7 +614,6 @@ const createRefund = async (req, res) => {
 
       if (paymentDoc.status === PAYMENT_STATUSES.FAILED) {
         await session.abortTransaction();
-
         return res.status(400).json({
           success: false,
           message: "Failed payments cannot be refunded.",
@@ -600,28 +622,23 @@ const createRefund = async (req, res) => {
 
       if (paymentDoc.status === PAYMENT_STATUSES.PENDING) {
         await session.abortTransaction();
-
         return res.status(400).json({
           success: false,
           message: "Pending payments cannot be refunded.",
         });
       }
 
-      const paymentRefunded = await getCompletedRefundAmount({
-        payment: paymentDoc._id,
+      const paymentCheck = await checkPaymentRefundLimit({
+        payment: paymentDoc,
+        refundAmount,
         session,
       });
 
-      const paymentRemaining = roundMoney(
-        Math.max(0, paymentDoc.amount - paymentRefunded)
-      );
-
-      if (refundAmount > paymentRemaining) {
+      if (!paymentCheck.valid) {
         await session.abortTransaction();
-
         return res.status(400).json({
           success: false,
-          message: `Refund amount cannot exceed remaining refundable payment amount of ${paymentRemaining}.`,
+          message: paymentCheck.message,
         });
       }
     }
@@ -630,23 +647,17 @@ const createRefund = async (req, res) => {
     // BOOKING REFUND LIMIT
     // ---------------------------------------------
 
-    const bookingRefunded = await getBookingRefundSummary(
-      bookingDoc._id,
-      session
-    );
+    const bookingCheck = await checkBookingRefundLimit({
+      booking: bookingDoc,
+      refundAmount,
+      session,
+    });
 
-    const bookingPaid = roundMoney(bookingDoc.amountPaid || 0);
-
-    const bookingRefundableAmount = roundMoney(
-      Math.max(0, bookingPaid - bookingRefunded)
-    );
-
-    if (refundAmount > bookingRefundableAmount) {
+    if (!bookingCheck.valid) {
       await session.abortTransaction();
-
       return res.status(400).json({
         success: false,
-        message: `Refund amount cannot exceed remaining refundable booking amount of ${bookingRefundableAmount}.`,
+        message: bookingCheck.message,
       });
     }
 
@@ -661,7 +672,6 @@ const createRefund = async (req, res) => {
 
       if (!invoiceDoc) {
         await session.abortTransaction();
-
         return res.status(404).json({
           success: false,
           message: "Invoice not found.",
@@ -670,7 +680,6 @@ const createRefund = async (req, res) => {
 
       if (String(invoiceDoc.booking) !== String(booking)) {
         await session.abortTransaction();
-
         return res.status(400).json({
           success: false,
           message: "Invoice does not belong to this booking.",
@@ -682,7 +691,6 @@ const createRefund = async (req, res) => {
         String(invoiceDoc.customer) !== String(customer)
       ) {
         await session.abortTransaction();
-
         return res.status(400).json({
           success: false,
           message: "Invoice does not belong to this customer.",
@@ -691,30 +699,23 @@ const createRefund = async (req, res) => {
 
       if (invoiceDoc.status === INVOICE_STATUSES.CANCELLED) {
         await session.abortTransaction();
-
         return res.status(400).json({
           success: false,
           message: "Cancelled invoice cannot be refunded.",
         });
       }
 
-      const invoiceRefunded = await getCompletedRefundAmount({
-        invoice: invoiceDoc._id,
+      const invoiceCheck = await checkInvoiceRefundLimit({
+        invoice: invoiceDoc,
+        refundAmount,
         session,
       });
 
-      const invoicePaid = roundMoney(invoiceDoc.amountPaid || 0);
-
-      const invoiceRefundableAmount = roundMoney(
-        Math.max(0, invoicePaid - invoiceRefunded)
-      );
-
-      if (refundAmount > invoiceRefundableAmount) {
+      if (!invoiceCheck.valid) {
         await session.abortTransaction();
-
         return res.status(400).json({
           success: false,
-          message: `Refund amount cannot exceed remaining refundable invoice amount of ${invoiceRefundableAmount}.`,
+          message: invoiceCheck.message,
         });
       }
     }
@@ -728,7 +729,6 @@ const createRefund = async (req, res) => {
 
       if (!tripDoc) {
         await session.abortTransaction();
-
         return res.status(404).json({
           success: false,
           message: "Trip not found.",
@@ -740,8 +740,7 @@ const createRefund = async (req, res) => {
     // TRANSACTION ID DUPLICATE CHECK
     // ---------------------------------------------
 
-    const normalizedTransactionId =
-      normalizeString(transactionId);
+    const normalizedTransactionId = normalizeString(transactionId);
 
     if (normalizedTransactionId) {
       const existingRefund = await Refund.findOne({
@@ -750,7 +749,6 @@ const createRefund = async (req, res) => {
 
       if (existingRefund) {
         await session.abortTransaction();
-
         return res.status(409).json({
           success: false,
           message: "A refund with this transaction ID already exists.",
@@ -775,29 +773,17 @@ const createRefund = async (req, res) => {
       invoice: invoiceDoc?._id || null,
       customer: customerDoc._id,
       trip: trip || null,
-
       amount: refundAmount,
-
       currency: String(
         currency || paymentDoc?.currency || invoiceDoc?.currency || "INR"
       ).toUpperCase(),
-
-      refundDate: refundDate
-        ? new Date(refundDate)
-        : new Date(),
-
+      refundDate: refundDate ? new Date(refundDate) : new Date(),
       reason: String(reason).trim(),
-
       refundMethod,
-
       transactionId: normalizedTransactionId,
-
       referenceNumber: normalizeString(referenceNumber),
-
       status: REFUND_STATUSES.REQUESTED,
-
       requestedBy: req.user._id,
-
       notes: String(notes || "").trim(),
     });
 
@@ -809,9 +795,7 @@ const createRefund = async (req, res) => {
     // RESPONSE
     // ---------------------------------------------
 
-    const populatedRefund = await populateRefund(
-      Refund.findById(refund._id)
-    );
+    const populatedRefund = await populateRefund(Refund.findById(refund._id));
 
     return res.status(201).json({
       success: true,
@@ -820,7 +804,6 @@ const createRefund = async (req, res) => {
     });
   } catch (error) {
     await session.abortTransaction();
-
     console.error("Create refund error:", error);
 
     return res.status(500).json({
@@ -856,129 +839,64 @@ const getRefunds = async (req, res) => {
 
     const filter = {};
 
-    if (booking) {
-      if (!isValidObjectId(booking)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid booking ID.",
-        });
+    const idFilters = { booking, payment, invoice, customer, trip };
+
+    for (const [key, value] of Object.entries(idFilters)) {
+      if (value) {
+        if (!isValidObjectId(value)) {
+          return res.status(400).json({
+            success: false,
+            message: `Invalid ${key} ID.`,
+          });
+        }
+        filter[key] = value;
       }
-
-      filter.booking = booking;
     }
 
-    if (payment) {
-      if (!isValidObjectId(payment)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid payment ID.",
-        });
-      }
-
-      filter.payment = payment;
-    }
-
-    if (invoice) {
-      if (!isValidObjectId(invoice)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid invoice ID.",
-        });
-      }
-
-      filter.invoice = invoice;
-    }
-
-    if (customer) {
-      if (!isValidObjectId(customer)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid customer ID.",
-        });
-      }
-
-      filter.customer = customer;
-    }
-
-    if (trip) {
-      if (!isValidObjectId(trip)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid trip ID.",
-        });
-      }
-
-      filter.trip = trip;
-    }
-
-    if (status) {
-      filter.status = status;
-    }
-
-    if (refundMethod) {
-      filter.refundMethod = refundMethod;
-    }
+    if (status) filter.status = status;
+    if (refundMethod) filter.refundMethod = refundMethod;
 
     if (startDate || endDate) {
       filter.refundDate = {};
 
       if (startDate) {
         const start = new Date(startDate);
-
         if (Number.isNaN(start.getTime())) {
           return res.status(400).json({
             success: false,
             message: "Invalid startDate.",
           });
         }
-
         start.setHours(0, 0, 0, 0);
         filter.refundDate.$gte = start;
       }
 
       if (endDate) {
         const end = new Date(endDate);
-
         if (Number.isNaN(end.getTime())) {
           return res.status(400).json({
             success: false,
             message: "Invalid endDate.",
           });
         }
-
         end.setHours(23, 59, 59, 999);
         filter.refundDate.$lte = end;
       }
     }
 
     if (search) {
-      const searchRegex = new RegExp(
-        escapeRegex(search.trim()),
-        "i"
-      );
+      const searchRegex = new RegExp(escapeRegex(search.trim()), "i");
 
       filter.$or = [
-        {
-          refundNumber: searchRegex,
-        },
-        {
-          transactionId: searchRegex,
-        },
-        {
-          referenceNumber: searchRegex,
-        },
-        {
-          reason: searchRegex,
-        },
+        { refundNumber: searchRegex },
+        { transactionId: searchRegex },
+        { referenceNumber: searchRegex },
+        { reason: searchRegex },
       ];
     }
 
     const currentPage = Math.max(1, Number(page) || 1);
-    const currentLimit = Math.min(
-      100,
-      Math.max(1, Number(limit) || 10)
-    );
-
+    const currentLimit = Math.min(100, Math.max(1, Number(limit) || 10));
     const skip = (currentPage - 1) * currentLimit;
 
     const [refunds, total, summary] = await Promise.all([
@@ -988,50 +906,26 @@ const getRefunds = async (req, res) => {
           .skip(skip)
           .limit(currentLimit)
       ),
-
       Refund.countDocuments(filter),
-
       Refund.aggregate([
-        {
-          $match: filter,
-        },
+        { $match: filter },
         {
           $group: {
             _id: null,
-
-            totalRefundAmount: {
-              $sum: "$amount",
-            },
-
+            totalRefundAmount: { $sum: "$amount" },
             completedRefundAmount: {
               $sum: {
                 $cond: [
-                  {
-                    $eq: [
-                      "$status",
-                      REFUND_STATUSES.COMPLETED,
-                    ],
-                  },
+                  { $eq: ["$status", REFUND_STATUSES.COMPLETED] },
                   "$amount",
                   0,
                 ],
               },
             },
-
             pendingRefundAmount: {
               $sum: {
                 $cond: [
-                  {
-                    $in: [
-                      "$status",
-                      [
-                        REFUND_STATUSES.REQUESTED,
-                        REFUND_STATUSES.UNDER_REVIEW,
-                        REFUND_STATUSES.APPROVED,
-                        REFUND_STATUSES.PROCESSING,
-                      ],
-                    ],
-                  },
+                  { $in: ["$status", PENDING_REFUND_STATUSES] },
                   "$amount",
                   0,
                 ],
@@ -1058,20 +952,13 @@ const getRefunds = async (req, res) => {
         totalPages: Math.ceil(total / currentLimit),
       },
       summary: {
-        totalRefundAmount: roundMoney(
-          summaryData.totalRefundAmount
-        ),
-        completedRefundAmount: roundMoney(
-          summaryData.completedRefundAmount
-        ),
-        pendingRefundAmount: roundMoney(
-          summaryData.pendingRefundAmount
-        ),
+        totalRefundAmount: roundMoney(summaryData.totalRefundAmount),
+        completedRefundAmount: roundMoney(summaryData.completedRefundAmount),
+        pendingRefundAmount: roundMoney(summaryData.pendingRefundAmount),
       },
     });
   } catch (error) {
     console.error("Get refunds error:", error);
-
     return res.status(500).json({
       success: false,
       message: "Failed to fetch refunds.",
@@ -1095,9 +982,7 @@ const getRefundById = async (req, res) => {
       });
     }
 
-    const refund = await populateRefund(
-      Refund.findById(id)
-    );
+    const refund = await populateRefund(Refund.findById(id));
 
     if (!refund) {
       return res.status(404).json({
@@ -1112,7 +997,6 @@ const getRefundById = async (req, res) => {
     });
   } catch (error) {
     console.error("Get refund error:", error);
-
     return res.status(500).json({
       success: false,
       message: "Failed to fetch refund.",
@@ -1146,15 +1030,13 @@ const updateRefund = async (req, res) => {
     }
 
     if (
-      ![
-        REFUND_STATUSES.REQUESTED,
-        REFUND_STATUSES.UNDER_REVIEW,
-      ].includes(refund.status)
+      ![REFUND_STATUSES.REQUESTED, REFUND_STATUSES.UNDER_REVIEW].includes(
+        refund.status
+      )
     ) {
       return res.status(400).json({
         success: false,
-        message:
-          "Only Requested or Under Review refunds can be edited.",
+        message: "Only Requested or Under Review refunds can be edited.",
       });
     }
 
@@ -1175,10 +1057,6 @@ const updateRefund = async (req, res) => {
       }
     }
 
-    // ---------------------------------------------
-    // VALIDATE AMOUNT
-    // ---------------------------------------------
-
     if (!isPositiveNumber(refund.amount)) {
       return res.status(400).json({
         success: false,
@@ -1193,27 +1071,23 @@ const updateRefund = async (req, res) => {
     // ---------------------------------------------
 
     if (refund.transactionId) {
-      refund.transactionId =
-        String(refund.transactionId).trim();
+      refund.transactionId = String(refund.transactionId).trim();
 
       const duplicate = await Refund.findOne({
         transactionId: refund.transactionId,
-        _id: {
-          $ne: refund._id,
-        },
+        _id: { $ne: refund._id },
       });
 
       if (duplicate) {
         return res.status(409).json({
           success: false,
-          message:
-            "A refund with this transaction ID already exists.",
+          message: "A refund with this transaction ID already exists.",
         });
       }
     }
 
     // ---------------------------------------------
-    // RECHECK REFUND LIMIT
+    // PAYMENT LIMIT
     // ---------------------------------------------
 
     const payment = refund.payment
@@ -1221,22 +1095,23 @@ const updateRefund = async (req, res) => {
       : null;
 
     if (payment) {
-      const refundedAmount = await getCompletedRefundAmount({
-        payment: payment._id,
+      const check = await checkPaymentRefundLimit({
+        payment,
+        refundAmount: refund.amount,
         excludeRefundId: refund._id,
       });
 
-      const remaining = roundMoney(
-        Math.max(0, payment.amount - refundedAmount)
-      );
-
-      if (refund.amount > remaining) {
+      if (!check.valid) {
         return res.status(400).json({
           success: false,
-          message: `Refund amount cannot exceed remaining refundable payment amount of ${remaining}.`,
+          message: check.message,
         });
       }
     }
+
+    // ---------------------------------------------
+    // BOOKING LIMIT
+    // ---------------------------------------------
 
     const booking = await Booking.findById(refund.booking);
 
@@ -1247,70 +1122,49 @@ const updateRefund = async (req, res) => {
       });
     }
 
-    const bookingRefunded = await getCompletedRefundAmount({
-      booking: booking._id,
+    const bookingCheck = await checkBookingRefundLimit({
+      booking,
+      refundAmount: refund.amount,
       excludeRefundId: refund._id,
     });
 
-    const bookingPaid = roundMoney(
-      booking.amountPaid || 0
-    );
-
-    const bookingRemaining = roundMoney(
-      Math.max(0, bookingPaid - bookingRefunded)
-    );
-
-    if (refund.amount > bookingRemaining) {
+    if (!bookingCheck.valid) {
       return res.status(400).json({
         success: false,
-        message: `Refund amount cannot exceed remaining refundable booking amount of ${bookingRemaining}.`,
+        message: bookingCheck.message,
       });
     }
+
+    // ---------------------------------------------
+    // INVOICE LIMIT
+    // ---------------------------------------------
 
     const invoice = refund.invoice
       ? await Invoice.findById(refund.invoice)
       : null;
 
     if (invoice) {
-      const invoiceRefunded =
-        await getCompletedRefundAmount({
-          invoice: invoice._id,
-          excludeRefundId: refund._id,
-        });
+      const invoiceCheck = await checkInvoiceRefundLimit({
+        invoice,
+        refundAmount: refund.amount,
+        excludeRefundId: refund._id,
+      });
 
-      const invoicePaid = roundMoney(
-        invoice.amountPaid || 0
-      );
-
-      const invoiceRemaining = roundMoney(
-        Math.max(0, invoicePaid - invoiceRefunded)
-      );
-
-      if (refund.amount > invoiceRemaining) {
+      if (!invoiceCheck.valid) {
         return res.status(400).json({
           success: false,
-          message: `Refund amount cannot exceed remaining refundable invoice amount of ${invoiceRemaining}.`,
+          message: invoiceCheck.message,
         });
       }
     }
 
-    refund.currency = String(
-      refund.currency || "INR"
-    ).toUpperCase();
-
-    refund.reason = String(
-      refund.reason || ""
-    ).trim();
-
-    refund.notes = String(
-      refund.notes || ""
-    ).trim();
+    refund.currency = String(refund.currency || "INR").toUpperCase();
+    refund.reason = String(refund.reason || "").trim();
+    refund.notes = String(refund.notes || "").trim();
 
     await refund.save();
 
-    const populatedRefund = await populateRefund(
-      Refund.findById(refund._id)
-    );
+    const populatedRefund = await populateRefund(Refund.findById(refund._id));
 
     return res.status(200).json({
       success: true,
@@ -1319,7 +1173,6 @@ const updateRefund = async (req, res) => {
     });
   } catch (error) {
     console.error("Update refund error:", error);
-
     return res.status(500).json({
       success: false,
       message: "Failed to update refund.",
@@ -1329,10 +1182,18 @@ const updateRefund = async (req, res) => {
 };
 
 // =====================================================
-// REVIEW REFUND
+// STATUS TRANSITION HELPER
 // =====================================================
 
-const reviewRefund = async (req, res) => {
+const transitionRefundStatus = async ({
+  req,
+  res,
+  fromStatuses,
+  toStatus,
+  successMessage,
+  errorMessage,
+  extraUpdates = {},
+}) => {
   try {
     const { id } = req.params;
 
@@ -1352,101 +1213,68 @@ const reviewRefund = async (req, res) => {
       });
     }
 
-    if (refund.status !== REFUND_STATUSES.REQUESTED) {
+    if (!fromStatuses.includes(refund.status)) {
       return res.status(400).json({
         success: false,
-        message:
-          "Only Requested refunds can be moved to Under Review.",
+        message: errorMessage,
       });
     }
 
-    refund.status = REFUND_STATUSES.UNDER_REVIEW;
+    refund.status = toStatus;
+
+    Object.assign(refund, extraUpdates);
 
     await refund.save();
 
-    const populatedRefund = await populateRefund(
-      Refund.findById(refund._id)
-    );
+    const populatedRefund = await populateRefund(Refund.findById(refund._id));
 
     return res.status(200).json({
       success: true,
-      message: "Refund moved to Under Review.",
+      message: successMessage,
       data: populatedRefund,
     });
   } catch (error) {
-    console.error("Review refund error:", error);
-
+    console.error("Refund status transition error:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to review refund.",
+      message: "Failed to update refund status.",
       error: error.message,
     });
   }
 };
+
+// =====================================================
+// REVIEW REFUND
+// =====================================================
+
+const reviewRefund = (req, res) =>
+  transitionRefundStatus({
+    req,
+    res,
+    fromStatuses: [REFUND_STATUSES.REQUESTED],
+    toStatus: REFUND_STATUSES.UNDER_REVIEW,
+    successMessage: "Refund moved to Under Review.",
+    errorMessage: "Only Requested refunds can be moved to Under Review.",
+  });
 
 // =====================================================
 // APPROVE REFUND
 // =====================================================
 
-const approveRefund = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    if (!isValidObjectId(id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid refund ID.",
-      });
-    }
-
-    const refund = await Refund.findById(id);
-
-    if (!refund) {
-      return res.status(404).json({
-        success: false,
-        message: "Refund not found.",
-      });
-    }
-
-    if (
-      ![
-        REFUND_STATUSES.REQUESTED,
-        REFUND_STATUSES.UNDER_REVIEW,
-      ].includes(refund.status)
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Only Requested or Under Review refunds can be approved.",
-      });
-    }
-
-    refund.status = REFUND_STATUSES.APPROVED;
-    refund.approvedBy = req.user._id;
-    refund.approvedAt = new Date();
-    refund.rejectionReason = null;
-
-    await refund.save();
-
-    const populatedRefund = await populateRefund(
-      Refund.findById(refund._id)
-    );
-
-    return res.status(200).json({
-      success: true,
-      message: "Refund approved successfully.",
-      data: populatedRefund,
-    });
-  } catch (error) {
-    console.error("Approve refund error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to approve refund.",
-      error: error.message,
-    });
-  }
-};
+const approveRefund = (req, res) =>
+  transitionRefundStatus({
+    req,
+    res,
+    fromStatuses: [REFUND_STATUSES.REQUESTED, REFUND_STATUSES.UNDER_REVIEW],
+    toStatus: REFUND_STATUSES.APPROVED,
+    successMessage: "Refund approved successfully.",
+    errorMessage: "Only Requested or Under Review refunds can be approved.",
+    extraUpdates: {
+      approvedBy: req.user._id,
+      approvedAt: new Date(),
+      rejectionReason: null,
+    },
+  });
 
 // =====================================================
 // REJECT REFUND
@@ -1455,7 +1283,6 @@ const approveRefund = async (req, res) => {
 const rejectRefund = async (req, res) => {
   try {
     const { id } = req.params;
-
     const { rejectionReason } = req.body;
 
     if (!isValidObjectId(id)) {
@@ -1465,10 +1292,7 @@ const rejectRefund = async (req, res) => {
       });
     }
 
-    if (
-      !rejectionReason ||
-      !String(rejectionReason).trim()
-    ) {
+    if (!rejectionReason || !String(rejectionReason).trim()) {
       return res.status(400).json({
         success: false,
         message: "Rejection reason is required.",
@@ -1485,29 +1309,24 @@ const rejectRefund = async (req, res) => {
     }
 
     if (
-      ![
-        REFUND_STATUSES.REQUESTED,
-        REFUND_STATUSES.UNDER_REVIEW,
-      ].includes(refund.status)
+      ![REFUND_STATUSES.REQUESTED, REFUND_STATUSES.UNDER_REVIEW].includes(
+        refund.status
+      )
     ) {
       return res.status(400).json({
         success: false,
-        message:
-          "Only Requested or Under Review refunds can be rejected.",
+        message: "Only Requested or Under Review refunds can be rejected.",
       });
     }
 
     refund.status = REFUND_STATUSES.REJECTED;
     refund.approvedBy = req.user._id;
     refund.approvedAt = new Date();
-    refund.rejectionReason =
-      String(rejectionReason).trim();
+    refund.rejectionReason = String(rejectionReason).trim();
 
     await refund.save();
 
-    const populatedRefund = await populateRefund(
-      Refund.findById(refund._id)
-    );
+    const populatedRefund = await populateRefund(Refund.findById(refund._id));
 
     return res.status(200).json({
       success: true,
@@ -1516,7 +1335,6 @@ const rejectRefund = async (req, res) => {
     });
   } catch (error) {
     console.error("Reject refund error:", error);
-
     return res.status(500).json({
       success: false,
       message: "Failed to reject refund.",
@@ -1529,57 +1347,15 @@ const rejectRefund = async (req, res) => {
 // PROCESS REFUND
 // =====================================================
 
-const processRefund = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    if (!isValidObjectId(id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid refund ID.",
-      });
-    }
-
-    const refund = await Refund.findById(id);
-
-    if (!refund) {
-      return res.status(404).json({
-        success: false,
-        message: "Refund not found.",
-      });
-    }
-
-    if (refund.status !== REFUND_STATUSES.APPROVED) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Only Approved refunds can move to Processing.",
-      });
-    }
-
-    refund.status = REFUND_STATUSES.PROCESSING;
-
-    await refund.save();
-
-    const populatedRefund = await populateRefund(
-      Refund.findById(refund._id)
-    );
-
-    return res.status(200).json({
-      success: true,
-      message: "Refund moved to Processing.",
-      data: populatedRefund,
-    });
-  } catch (error) {
-    console.error("Process refund error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to process refund.",
-      error: error.message,
-    });
-  }
-};
+const processRefund = (req, res) =>
+  transitionRefundStatus({
+    req,
+    res,
+    fromStatuses: [REFUND_STATUSES.APPROVED],
+    toStatus: REFUND_STATUSES.PROCESSING,
+    successMessage: "Refund moved to Processing.",
+    errorMessage: "Only Approved refunds can move to Processing.",
+  });
 
 // =====================================================
 // COMPLETE REFUND
@@ -1590,12 +1366,7 @@ const completeRefund = async (req, res) => {
 
   try {
     const { id } = req.params;
-
-    const {
-      transactionId,
-      referenceNumber,
-      notes,
-    } = req.body;
+    const { transactionId, referenceNumber, notes } = req.body;
 
     if (!isValidObjectId(id)) {
       return res.status(400).json({
@@ -1614,7 +1385,6 @@ const completeRefund = async (req, res) => {
 
     if (!refund) {
       await session.abortTransaction();
-
       return res.status(404).json({
         success: false,
         message: "Refund not found.",
@@ -1623,11 +1393,9 @@ const completeRefund = async (req, res) => {
 
     if (refund.status !== REFUND_STATUSES.PROCESSING) {
       await session.abortTransaction();
-
       return res.status(400).json({
         success: false,
-        message:
-          "Only Processing refunds can be marked as Completed.",
+        message: "Only Processing refunds can be marked as Completed.",
       });
     }
 
@@ -1635,24 +1403,19 @@ const completeRefund = async (req, res) => {
     // DUPLICATE TRANSACTION CHECK
     // ---------------------------------------------
 
-    const normalizedTransactionId =
-      normalizeString(transactionId);
+    const normalizedTransactionId = normalizeString(transactionId);
 
     if (normalizedTransactionId) {
       const existingRefund = await Refund.findOne({
         transactionId: normalizedTransactionId,
-        _id: {
-          $ne: refund._id,
-        },
+        _id: { $ne: refund._id },
       }).session(session);
 
       if (existingRefund) {
         await session.abortTransaction();
-
         return res.status(409).json({
           success: false,
-          message:
-            "A refund with this transaction ID already exists.",
+          message: "A refund with this transaction ID already exists.",
         });
       }
     }
@@ -1661,13 +1424,10 @@ const completeRefund = async (req, res) => {
     // RELOAD BOOKING
     // ---------------------------------------------
 
-    const booking = await Booking.findById(
-      refund.booking
-    ).session(session);
+    const booking = await Booking.findById(refund.booking).session(session);
 
     if (!booking) {
       await session.abortTransaction();
-
       return res.status(404).json({
         success: false,
         message: "Associated booking not found.",
@@ -1681,13 +1441,10 @@ const completeRefund = async (req, res) => {
     let payment = null;
 
     if (refund.payment) {
-      payment = await Payment.findById(
-        refund.payment
-      ).session(session);
+      payment = await Payment.findById(refund.payment).session(session);
 
       if (!payment) {
         await session.abortTransaction();
-
         return res.status(404).json({
           success: false,
           message: "Associated payment not found.",
@@ -1696,11 +1453,9 @@ const completeRefund = async (req, res) => {
 
       if (String(payment.booking) !== String(booking._id)) {
         await session.abortTransaction();
-
         return res.status(400).json({
           success: false,
-          message:
-            "Payment does not belong to the refund booking.",
+          message: "Payment does not belong to the refund booking.",
         });
       }
     }
@@ -1712,13 +1467,10 @@ const completeRefund = async (req, res) => {
     let invoice = null;
 
     if (refund.invoice) {
-      invoice = await Invoice.findById(
-        refund.invoice
-      ).session(session);
+      invoice = await Invoice.findById(refund.invoice).session(session);
 
       if (!invoice) {
         await session.abortTransaction();
-
         return res.status(404).json({
           success: false,
           message: "Associated invoice not found.",
@@ -1727,37 +1479,62 @@ const completeRefund = async (req, res) => {
 
       if (String(invoice.booking) !== String(booking._id)) {
         await session.abortTransaction();
-
         return res.status(400).json({
           success: false,
-          message:
-            "Invoice does not belong to the refund booking.",
+          message: "Invoice does not belong to the refund booking.",
         });
       }
     }
 
     // ---------------------------------------------
-    // FINAL REFUND LIMIT CHECK
+    // FINAL REFUND LIMIT CHECKS
     // ---------------------------------------------
 
     if (payment) {
-      const paymentRefunded =
-        await getCompletedRefundAmount({
-          payment: payment._id,
-          excludeRefundId: refund._id,
-          session,
-        });
+      const check = await checkPaymentRefundLimit({
+        payment,
+        refundAmount: refund.amount,
+        excludeRefundId: refund._id,
+        session,
+      });
 
-      const paymentRemaining = roundMoney(
-        Math.max(0, payment.amount - paymentRefunded)
-      );
-
-      if (refund.amount > paymentRemaining) {
+      if (!check.valid) {
         await session.abortTransaction();
-
         return res.status(400).json({
           success: false,
-          message: `Refund amount exceeds remaining payment refundable amount of ${paymentRemaining}.`,
+          message: check.message,
+        });
+      }
+    }
+
+    const bookingCheck = await checkBookingRefundLimit({
+      booking,
+      refundAmount: refund.amount,
+      excludeRefundId: refund._id,
+      session,
+    });
+
+    if (!bookingCheck.valid) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: bookingCheck.message,
+      });
+    }
+
+    if (invoice) {
+      const invoiceCheck = await checkInvoiceRefundLimit({
+        invoice,
+        refundAmount: refund.amount,
+        excludeRefundId: refund._id,
+        session,
+      });
+
+      if (!invoiceCheck.valid) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: invoiceCheck.message,
         });
       }
     }
@@ -1767,15 +1544,11 @@ const completeRefund = async (req, res) => {
     // ---------------------------------------------
 
     refund.status = REFUND_STATUSES.COMPLETED;
-
     refund.transactionId =
-      normalizedTransactionId ||
-      refund.transactionId ||
-      null;
+      normalizedTransactionId || refund.transactionId || null;
 
     if (referenceNumber !== undefined) {
-      refund.referenceNumber =
-        normalizeString(referenceNumber);
+      refund.referenceNumber = normalizeString(referenceNumber);
     }
 
     if (notes !== undefined) {
@@ -1788,46 +1561,30 @@ const completeRefund = async (req, res) => {
     await refund.save({ session });
 
     // ---------------------------------------------
-    // SYNC PAYMENT
+    // SYNC FINANCIAL RECORDS
     // ---------------------------------------------
 
     let paymentSummary = null;
 
     if (payment) {
-      paymentSummary =
-        await syncPaymentFinancialState(
-          payment,
-          session
-        );
+      paymentSummary = await syncPaymentFinancialState(payment, session);
     }
 
-    // ---------------------------------------------
-    // SYNC BOOKING
-    // ---------------------------------------------
-
-    const bookingSummary =
-      await syncBookingFinancialState(
-        booking,
-        session
-      );
-
-    // ---------------------------------------------
-    // SYNC INVOICE
-    // ---------------------------------------------
+    const bookingSummary = await syncBookingFinancialState(
+      booking,
+      refund.amount,
+      session
+    );
 
     let invoiceSummary = null;
 
     if (invoice) {
-      invoiceSummary =
-        await syncInvoiceFinancialState(
-          invoice,
-          session
-        );
+      invoiceSummary = await syncInvoiceFinancialState(
+        invoice,
+        refund.amount,
+        session
+      );
     }
-
-    // ---------------------------------------------
-    // COMMIT
-    // ---------------------------------------------
 
     await session.commitTransaction();
 
@@ -1835,29 +1592,21 @@ const completeRefund = async (req, res) => {
     // POPULATED RESPONSE
     // ---------------------------------------------
 
-    const populatedRefund = await populateRefund(
-      Refund.findById(refund._id)
-    );
+    const populatedRefund = await populateRefund(Refund.findById(refund._id));
 
     return res.status(200).json({
       success: true,
-      message:
-        "Refund completed successfully and financial records updated.",
+      message: "Refund completed successfully and financial records updated.",
       data: populatedRefund,
-
       financialSummary: {
         refundAmount: refund.amount,
-
         booking: bookingSummary,
-
         payment: paymentSummary,
-
         invoice: invoiceSummary,
       },
     });
   } catch (error) {
     await session.abortTransaction();
-
     console.error("Complete refund error:", error);
 
     return res.status(500).json({
@@ -1874,63 +1623,20 @@ const completeRefund = async (req, res) => {
 // CANCEL REFUND
 // =====================================================
 
-const cancelRefund = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    if (!isValidObjectId(id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid refund ID.",
-      });
-    }
-
-    const refund = await Refund.findById(id);
-
-    if (!refund) {
-      return res.status(404).json({
-        success: false,
-        message: "Refund not found.",
-      });
-    }
-
-    if (
-      [
-        REFUND_STATUSES.COMPLETED,
-        REFUND_STATUSES.REJECTED,
-        REFUND_STATUSES.CANCELLED,
-      ].includes(refund.status)
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "This refund cannot be cancelled in its current status.",
-      });
-    }
-
-    refund.status = REFUND_STATUSES.CANCELLED;
-
-    await refund.save();
-
-    const populatedRefund = await populateRefund(
-      Refund.findById(refund._id)
-    );
-
-    return res.status(200).json({
-      success: true,
-      message: "Refund cancelled successfully.",
-      data: populatedRefund,
-    });
-  } catch (error) {
-    console.error("Cancel refund error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to cancel refund.",
-      error: error.message,
-    });
-  }
-};
+const cancelRefund = (req, res) =>
+  transitionRefundStatus({
+    req,
+    res,
+    fromStatuses: [
+      REFUND_STATUSES.REQUESTED,
+      REFUND_STATUSES.UNDER_REVIEW,
+      REFUND_STATUSES.APPROVED,
+      REFUND_STATUSES.PROCESSING,
+    ],
+    toStatus: REFUND_STATUSES.CANCELLED,
+    successMessage: "Refund cancelled successfully.",
+    errorMessage: "This refund cannot be cancelled in its current status.",
+  });
 
 // =====================================================
 // DELETE REFUND
@@ -1965,8 +1671,7 @@ const deleteRefund = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message:
-          "Approved, Processing or Completed refunds cannot be deleted.",
+        message: "Approved, Processing or Completed refunds cannot be deleted.",
       });
     }
 
@@ -1978,7 +1683,6 @@ const deleteRefund = async (req, res) => {
     });
   } catch (error) {
     console.error("Delete refund error:", error);
-
     return res.status(500).json({
       success: false,
       message: "Failed to delete refund.",
@@ -2004,4 +1708,3 @@ module.exports = {
   cancelRefund,
   deleteRefund,
 };
-

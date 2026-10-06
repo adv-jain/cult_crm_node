@@ -1,4 +1,3 @@
-
 const express = require("express");
 
 const {
@@ -18,7 +17,11 @@ const authorize = require("../middleware/roleMiddleware");
 
 const router = express.Router();
 
-// Create
+/*
+|--------------------------------------------------------------------------
+| Create Commission
+|--------------------------------------------------------------------------
+*/
 router.post(
   "/",
   protect,
@@ -26,7 +29,11 @@ router.post(
   createCommission
 );
 
-// Get All
+/*
+|--------------------------------------------------------------------------
+| Get All Commissions
+|--------------------------------------------------------------------------
+*/
 router.get(
   "/",
   protect,
@@ -40,7 +47,11 @@ router.get(
   getCommissions
 );
 
-// Get By ID
+/*
+|--------------------------------------------------------------------------
+| Get Commission By ID
+|--------------------------------------------------------------------------
+*/
 router.get(
   "/:id",
   protect,
@@ -54,7 +65,11 @@ router.get(
   getCommissionById
 );
 
-// Update
+/*
+|--------------------------------------------------------------------------
+| Update Commission
+|--------------------------------------------------------------------------
+*/
 router.put(
   "/:id",
   protect,
@@ -62,7 +77,12 @@ router.put(
   updateCommission
 );
 
-// Approve
+/*
+|--------------------------------------------------------------------------
+| Approve Commission
+| Pending → Approved
+|--------------------------------------------------------------------------
+*/
 router.put(
   "/:id/approve",
   protect,
@@ -70,7 +90,12 @@ router.put(
   approveCommission
 );
 
-// Mark Payable
+/*
+|--------------------------------------------------------------------------
+| Mark Commission Payable
+| Approved → Payable
+|--------------------------------------------------------------------------
+*/
 router.put(
   "/:id/payable",
   protect,
@@ -78,7 +103,12 @@ router.put(
   markCommissionPayable
 );
 
-// Mark Paid
+/*
+|--------------------------------------------------------------------------
+| Mark Commission Paid
+| Payable → Paid
+|--------------------------------------------------------------------------
+*/
 router.put(
   "/:id/pay",
   protect,
@@ -86,7 +116,11 @@ router.put(
   markCommissionPaid
 );
 
-// Cancel
+/*
+|--------------------------------------------------------------------------
+| Cancel Commission
+|--------------------------------------------------------------------------
+*/
 router.put(
   "/:id/cancel",
   protect,
@@ -94,7 +128,11 @@ router.put(
   cancelCommission
 );
 
-// Delete
+/*
+|--------------------------------------------------------------------------
+| Delete Commission
+|--------------------------------------------------------------------------
+*/
 router.delete(
   "/:id",
   protect,
@@ -103,4 +141,3 @@ router.delete(
 );
 
 module.exports = router;
-

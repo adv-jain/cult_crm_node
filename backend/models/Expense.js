@@ -7,20 +7,21 @@ const expenseSchema = new mongoose.Schema(
       unique: true,
       sparse: true,
       trim: true,
-      uppercase: true
+      uppercase: true,
     },
 
     title: {
       type: String,
       required: [true, "Expense title is required"],
       trim: true,
-      maxlength: 200
+      maxlength: 200,
     },
 
     description: {
       type: String,
       trim: true,
-      maxlength: 3000
+      maxlength: 3000,
+      default: "",
     },
 
     category: {
@@ -39,34 +40,36 @@ const expenseSchema = new mongoose.Schema(
         "Agent Commission",
         "Marketing",
         "Office",
-        "Refund",
-        "Other"
+        "Other",
       ],
-      required: true
+      required: [true, "Expense category is required"],
     },
 
     subCategory: {
       type: String,
       trim: true,
-      maxlength: 100
+      maxlength: 100,
+      default: "",
     },
 
     amount: {
       type: Number,
       required: [true, "Expense amount is required"],
-      min: 0
+      min: [0.01, "Expense amount must be greater than 0"],
     },
 
     currency: {
       type: String,
       default: "INR",
       trim: true,
-      uppercase: true
+      uppercase: true,
+      minlength: 3,
+      maxlength: 3,
     },
 
     expenseDate: {
       type: Date,
-      default: Date.now
+      default: Date.now,
     },
 
     paymentMethod: {
@@ -80,79 +83,82 @@ const expenseSchema = new mongoose.Schema(
         "Bank Transfer",
         "Cheque",
         "Wallet",
-        "Other"
+        "Other",
       ],
-      default: "Bank Transfer"
+      default: "Bank Transfer",
     },
 
     transactionId: {
       type: String,
       trim: true,
-      maxlength: 200
+      maxlength: 200,
+      default: "",
     },
 
     receiptNumber: {
       type: String,
       trim: true,
-      maxlength: 200
+      maxlength: 200,
+      default: "",
     },
 
     receiptUrl: {
       type: String,
-      trim: true
+      trim: true,
+      default: "",
     },
 
     supplier: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Supplier",
-      default: null
+      default: null,
     },
 
     hotel: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Hotel",
-      default: null
+      default: null,
     },
 
     transport: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Transport",
-      default: null
+      default: null,
     },
 
     booking: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Booking",
-      default: null
+      default: null,
     },
 
     quotation: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Quotation",
-      default: null
+      default: null,
     },
 
     trip: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Deal",
-      default: null
+      ref: "Trip",
+      default: null,
     },
 
     customer: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Customer",
-      default: null
+      default: null,
     },
 
     approvedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      default: null
+      default: null,
     },
 
     approvedAt: {
       type: Date,
-      default: null
+      default: null,
     },
 
     status: {
@@ -162,35 +168,35 @@ const expenseSchema = new mongoose.Schema(
         "Approved",
         "Rejected",
         "Paid",
-        "Cancelled"
+        "Cancelled",
       ],
-      default: "Pending"
+      default: "Pending",
+      index: true,
     },
 
     isBillable: {
       type: Boolean,
-      default: false
+      default: false,
     },
 
     notes: {
       type: String,
       trim: true,
-      maxlength: 5000
+      maxlength: 5000,
+      default: "",
     },
 
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true
-    }
+      required: [true, "Created by user is required"],
+    },
   },
   {
-    timestamps: true
+    timestamps: true,
   }
 );
 
-
-// Indexes
 expenseSchema.index({ category: 1 });
 expenseSchema.index({ expenseDate: -1 });
 expenseSchema.index({ supplier: 1 });
@@ -200,8 +206,7 @@ expenseSchema.index({ booking: 1 });
 expenseSchema.index({ quotation: 1 });
 expenseSchema.index({ trip: 1 });
 expenseSchema.index({ customer: 1 });
-expenseSchema.index({ status: 1 });
-expenseSchema.index({ createdBy: 1 });
 
+expenseSchema.index({ createdBy: 1 });
 
 module.exports = mongoose.model("Expense", expenseSchema);

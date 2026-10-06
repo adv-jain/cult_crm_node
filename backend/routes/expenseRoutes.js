@@ -9,6 +9,7 @@ const {
   approveExpense,
   rejectExpense,
   markExpensePaid,
+  cancelExpense,
   getBookingExpenseSummary,
 } = require("../controllers/expenseController");
 
@@ -17,93 +18,162 @@ const authorize = require("../middleware/roleMiddleware");
 
 const router = express.Router();
 
-// ==========================================
-// CREATE EXPENSE
-// ==========================================
+/* =========================================================
+   CREATE
+========================================================= */
+
 router.post(
   "/",
   protect,
-  authorize("admin", "manager", "operations", "accounts"),
+  authorize(
+    "admin",
+    "manager",
+    "operations",
+    "accounts"
+  ),
   createExpense
 );
 
-// ==========================================
-// GET ALL EXPENSES
-// ==========================================
+/* =========================================================
+   LIST
+========================================================= */
+
 router.get(
   "/",
   protect,
-  authorize("admin", "manager", "sales", "operations", "accounts"),
+  authorize(
+    "admin",
+    "manager",
+    "sales",
+    "operations",
+    "accounts"
+  ),
   getExpenses
 );
 
-// ==========================================
-// BOOKING EXPENSE SUMMARY
-// ==========================================
+/* =========================================================
+   BOOKING SUMMARY
+   IMPORTANT: Keep this BEFORE /:id
+========================================================= */
+
 router.get(
   "/booking/:bookingId/summary",
   protect,
-  authorize("admin", "manager", "sales", "operations", "accounts"),
+  authorize(
+    "admin",
+    "manager",
+    "sales",
+    "operations",
+    "accounts"
+  ),
   getBookingExpenseSummary
 );
 
-// ==========================================
-// GET EXPENSE BY ID
-// ==========================================
+/* =========================================================
+   GET SINGLE
+========================================================= */
+
 router.get(
   "/:id",
   protect,
-  authorize("admin", "manager", "sales", "operations", "accounts"),
+  authorize(
+    "admin",
+    "manager",
+    "sales",
+    "operations",
+    "accounts"
+  ),
   getExpenseById
 );
 
-// ==========================================
-// UPDATE EXPENSE
-// ==========================================
+/* =========================================================
+   UPDATE
+========================================================= */
+
 router.put(
   "/:id",
   protect,
-  authorize("admin", "manager", "operations", "accounts"),
+  authorize(
+    "admin",
+    "manager",
+    "operations",
+    "accounts"
+  ),
   updateExpense
 );
 
-// ==========================================
-// APPROVE EXPENSE
-// ==========================================
+/* =========================================================
+   APPROVE
+========================================================= */
+
 router.put(
   "/:id/approve",
   protect,
-  authorize("admin", "manager", "accounts"),
+  authorize(
+    "admin",
+    "manager",
+    "accounts"
+  ),
   approveExpense
 );
 
-// ==========================================
-// REJECT EXPENSE
-// ==========================================
+/* =========================================================
+   REJECT
+========================================================= */
+
 router.put(
   "/:id/reject",
   protect,
-  authorize("admin", "manager", "accounts"),
+  authorize(
+    "admin",
+    "manager",
+    "accounts"
+  ),
   rejectExpense
 );
 
-// ==========================================
-// MARK EXPENSE PAID
-// ==========================================
+/* =========================================================
+   PAY
+========================================================= */
+
 router.put(
   "/:id/pay",
   protect,
-  authorize("admin", "manager", "accounts"),
+  authorize(
+    "admin",
+    "manager",
+    "accounts"
+  ),
   markExpensePaid
 );
 
-// ==========================================
-// DELETE EXPENSE
-// ==========================================
+/* =========================================================
+   CANCEL
+========================================================= */
+
+router.put(
+  "/:id/cancel",
+  protect,
+  authorize(
+    "admin",
+    "manager",
+    "accounts"
+  ),
+  cancelExpense
+);
+
+/* =========================================================
+   DELETE
+========================================================= */
+
 router.delete(
   "/:id",
   protect,
-  authorize("admin", "manager", "accounts"),
+  authorize(
+    "admin",
+    "manager",
+    "accounts"
+  ),
   deleteExpense
 );
 

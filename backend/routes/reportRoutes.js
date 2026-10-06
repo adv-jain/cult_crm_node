@@ -1,7 +1,7 @@
-
 const express = require("express");
 
 const {
+  getOverviewReport,
   getSalesReport,
   getBookingReport,
   getRevenueReport,
@@ -10,7 +10,7 @@ const {
   getCommissionReport,
   getProfitLossReport,
   getAgentPerformanceReport,
-  getDestinationReport
+  getDestinationReport,
 } = require("../controllers/reportController");
 
 const protect = require("../middleware/authMiddleware");
@@ -18,65 +18,67 @@ const authorize = require("../middleware/roleMiddleware");
 
 const router = express.Router();
 
+const ALL_ROLES = [
+  "admin",
+  "manager",
+  "sales",
+  "operations",
+  "accounts",
+];
 
-// =====================================================
-// SALES REPORT
-// =====================================================
+/*
+|--------------------------------------------------------------------------
+| Reports Overview
+|--------------------------------------------------------------------------
+*/
+router.get(
+  "/overview",
+  protect,
+  authorize(...ALL_ROLES),
+  getOverviewReport
+);
 
+/*
+|--------------------------------------------------------------------------
+| Sales Report
+|--------------------------------------------------------------------------
+*/
 router.get(
   "/sales",
   protect,
-  authorize(
-    "admin",
-    "manager",
-    "sales",
-    "operations",
-    "accounts"
-  ),
+  authorize(...ALL_ROLES),
   getSalesReport
 );
 
-
-// =====================================================
-// BOOKING REPORT
-// =====================================================
-
+/*
+|--------------------------------------------------------------------------
+| Booking Report
+|--------------------------------------------------------------------------
+*/
 router.get(
   "/bookings",
   protect,
-  authorize(
-    "admin",
-    "manager",
-    "sales",
-    "operations",
-    "accounts"
-  ),
+  authorize(...ALL_ROLES),
   getBookingReport
 );
 
-
-// =====================================================
-// REVENUE REPORT
-// =====================================================
-
+/*
+|--------------------------------------------------------------------------
+| Revenue Report
+|--------------------------------------------------------------------------
+*/
 router.get(
   "/revenue",
   protect,
-  authorize(
-    "admin",
-    "manager",
-    "sales",
-    "operations",
-    "accounts"
-  ),
+  authorize(...ALL_ROLES),
   getRevenueReport
 );
 
-
-// =====================================================
-// EXPENSE REPORT
-// =====================================================
-
+/*
+|--------------------------------------------------------------------------
+| Expense Report
+|--------------------------------------------------------------------------
+*/
 router.get(
   "/expenses",
   protect,
@@ -89,47 +91,35 @@ router.get(
   getExpenseReport
 );
 
-
-// =====================================================
-// REFUND REPORT
-// =====================================================
-
+/*
+|--------------------------------------------------------------------------
+| Refund Report
+|--------------------------------------------------------------------------
+*/
 router.get(
   "/refunds",
   protect,
-  authorize(
-    "admin",
-    "manager",
-    "sales",
-    "operations",
-    "accounts"
-  ),
+  authorize(...ALL_ROLES),
   getRefundReport
 );
 
-
-// =====================================================
-// COMMISSION REPORT
-// =====================================================
-
+/*
+|--------------------------------------------------------------------------
+| Commission Report
+|--------------------------------------------------------------------------
+*/
 router.get(
   "/commissions",
   protect,
-  authorize(
-    "admin",
-    "manager",
-    "sales",
-    "operations",
-    "accounts"
-  ),
+  authorize(...ALL_ROLES),
   getCommissionReport
 );
 
-
-// =====================================================
-// PROFIT & LOSS
-// =====================================================
-
+/*
+|--------------------------------------------------------------------------
+| Profit & Loss Report
+|--------------------------------------------------------------------------
+*/
 router.get(
   "/profit-loss",
   protect,
@@ -142,11 +132,11 @@ router.get(
   getProfitLossReport
 );
 
-
-// =====================================================
-// AGENT PERFORMANCE
-// =====================================================
-
+/*
+|--------------------------------------------------------------------------
+| Agent Performance
+|--------------------------------------------------------------------------
+*/
 router.get(
   "/agent-performance",
   protect,
@@ -158,24 +148,16 @@ router.get(
   getAgentPerformanceReport
 );
 
-
-// =====================================================
-// DESTINATION REPORT
-// =====================================================
-
+/*
+|--------------------------------------------------------------------------
+| Destination Report
+|--------------------------------------------------------------------------
+*/
 router.get(
   "/destinations",
   protect,
-  authorize(
-    "admin",
-    "manager",
-    "sales",
-    "operations",
-    "accounts"
-  ),
+  authorize(...ALL_ROLES),
   getDestinationReport
 );
 
-
 module.exports = router;
-

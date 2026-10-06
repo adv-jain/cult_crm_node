@@ -6,14 +6,35 @@ const Supplier = require("../models/Supplier");
 const Hotel = require("../models/Hotel");
 const Transport = require("../models/Transport");
 const Quotation = require("../models/Quotation");
-const Deal = require("../models/Trip");
+const Trip = require("../models/Trip");
 const Customer = require("../models/Customer");
 
-const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
+const isValidObjectId = (id) =>
+  mongoose.Types.ObjectId.isValid(id);
 
-// ==========================================
-// GENERATE EXPENSE NUMBER
-// ==========================================
+const populateExpense = (query) => {
+  return query
+    .populate("supplier")
+    .populate("hotel")
+    .populate("transport")
+    .populate("booking")
+    .populate("quotation")
+    .populate("trip")
+    .populate("customer")
+    .populate("createdBy", "name email role")
+    .populate("approvedBy", "name email role");
+};
+
+const validateOptionalObjectId = (value, fieldName) => {
+  if (!value) return null;
+
+  if (!isValidObjectId(value)) {
+    return `${fieldName} ID is invalid`;
+  }
+
+  return null;
+};
+
 const generateExpenseNumber = async () => {
   const year = new Date().getFullYear();
 
@@ -39,9 +60,10 @@ const generateExpenseNumber = async () => {
   return `EXP-${year}-${String(nextNumber).padStart(4, "0")}`;
 };
 
-// ==========================================
-// CREATE EXPENSE
-// ==========================================
+/* =========================================================
+   CREATE EXPENSE
+========================================================= */
+
 const createExpense = async (req, res) => {
   try {
     const {
@@ -67,7 +89,6 @@ const createExpense = async (req, res) => {
       notes,
     } = req.body;
 
-    // Required fields
     if (!title?.trim()) {
       return res.status(400).json({
         message: "Expense title is required",
@@ -80,113 +101,125 @@ const createExpense = async (req, res) => {
       });
     }
 
-    if (amount === undefined || amount === null || Number(amount) < 0) {
+    const numericAmount = Number(amount);
+
+    if (
+      amount === undefined ||
+      amount === null ||
+      !Number.isFinite(numericAmount) ||
+      numericAmount <= 0
+    ) {
       return res.status(400).json({
-        message: "Valid expense amount is required",
+        message: "Expense amount must be greater than 0",
       });
     }
 
-    // Validate references
-    if (supplier && !isValidObjectId(supplier)) {
-      return res.status(400).json({
-        message: "Invalid supplier ID",
-      });
+    const references = [
+      [supplier, "Supplier"],
+      [hotel, "Hotel"],
+      [transport, "Transport"],
+      [booking, "Booking"],
+      [quotation, "Quotation"],
+      [trip, "Trip"],
+      [customer, "Customer"],
+    ];
+
+    for (const [value, fieldName] of references) {
+      const error = validateOptionalObjectId(
+        value,
+        fieldName
+      );
+
+      if (error) {
+        return res.status(400).json({
+          message: error,
+        });
+      }
     }
 
-    if (hotel && !isValidObjectId(hotel)) {
-      return res.status(400).json({
-        message: "Invalid hotel ID",
-      });
-    }
-
-    if (transport && !isValidObjectId(transport)) {
-      return res.status(400).json({
-        message: "Invalid transport ID",
-      });
-    }
-
-    if (booking && !isValidObjectId(booking)) {
-      return res.status(400).json({
-        message: "Invalid booking ID",
-      });
-    }
-
-    if (quotation && !isValidObjectId(quotation)) {
-      return res.status(400).json({
-        message: "Invalid quotation ID",
-      });
-    }
-
-    if (trip && !isValidObjectId(trip)) {
-      return res.status(400).json({
-        message: "Invalid trip ID",
-      });
-    }
-
-    if (customer && !isValidObjectId(customer)) {
-      return res.status(400).json({
-        message: "Invalid customer ID",
-      });
-    }
-
-    // Validate referenced documents
-    if (supplier && !(await Supplier.exists({ _id: supplier }))) {
+    if (
+      supplier &&
+      !(await Supplier.exists({ _id: supplier }))
+    ) {
       return res.status(404).json({
         message: "Supplier not found",
       });
     }
 
-    if (hotel && !(await Hotel.exists({ _id: hotel }))) {
+    if (
+      hotel &&
+      !(await Hotel.exists({ _id: hotel }))
+    ) {
       return res.status(404).json({
         message: "Hotel not found",
       });
     }
 
-    if (transport && !(await Transport.exists({ _id: transport }))) {
+    if (
+      transport &&
+      !(await Transport.exists({ _id: transport }))
+    ) {
       return res.status(404).json({
         message: "Transport not found",
       });
     }
 
-    if (booking && !(await Booking.exists({ _id: booking }))) {
+    if (
+      booking &&
+      !(await Booking.exists({ _id: booking }))
+    ) {
       return res.status(404).json({
         message: "Booking not found",
       });
     }
 
-    if (quotation && !(await Quotation.exists({ _id: quotation }))) {
+    if (
+      quotation &&
+      !(await Quotation.exists({ _id: quotation }))
+    ) {
       return res.status(404).json({
         message: "Quotation not found",
       });
     }
 
-    if (trip && !(await Deal.exists({ _id: trip }))) {
+    if (
+      trip &&
+      !(await Trip.exists({ _id: trip }))
+    ) {
       return res.status(404).json({
         message: "Trip not found",
       });
     }
 
-    if (customer && !(await Customer.exists({ _id: customer }))) {
+    if (
+      customer &&
+      !(await Customer.exists({ _id: customer }))
+    ) {
       return res.status(404).json({
         message: "Customer not found",
       });
     }
 
-    const expenseNumber = await generateExpenseNumber();
+    const expenseNumber =
+      await generateExpenseNumber();
 
     const expense = await Expense.create({
       expenseNumber,
       title: title.trim(),
-      description: description || "",
+      description: description?.trim() || "",
       category,
-      subCategory: subCategory || "",
-      amount: Number(amount),
+      subCategory: subCategory?.trim() || "",
+      amount: numericAmount,
       currency: currency || "INR",
       expenseDate: expenseDate || new Date(),
-      paymentMethod: paymentMethod || "Bank Transfer",
-      transactionId: transactionId || "",
-      receiptNumber: receiptNumber || "",
-      receiptUrl: receiptUrl || "",
+      paymentMethod:
+        paymentMethod || "Bank Transfer",
+      transactionId:
+        transactionId?.trim() || "",
+      receiptNumber:
+        receiptNumber?.trim() || "",
+      receiptUrl:
+        receiptUrl?.trim() || "",
       supplier: supplier || null,
       hotel: hotel || null,
       transport: transport || null,
@@ -195,20 +228,14 @@ const createExpense = async (req, res) => {
       trip: trip || null,
       customer: customer || null,
       isBillable: Boolean(isBillable),
-      notes: notes || "",
+      notes: notes?.trim() || "",
+      status: "Pending",
       createdBy: req.user.id,
     });
 
-    const populatedExpense = await Expense.findById(expense._id)
-      .populate("supplier")
-      .populate("hotel")
-      .populate("transport")
-      .populate("booking")
-      .populate("quotation")
-      .populate("trip")
-      .populate("customer")
-      .populate("createdBy", "name email role")
-      .populate("approvedBy", "name email role");
+    const populatedExpense = await populateExpense(
+      Expense.findById(expense._id)
+    );
 
     return res.status(201).json({
       message: "Expense created successfully",
@@ -224,9 +251,10 @@ const createExpense = async (req, res) => {
   }
 };
 
-// ==========================================
-// GET ALL EXPENSES
-// ==========================================
+/* =========================================================
+   GET ALL EXPENSES
+========================================================= */
+
 const getExpenses = async (req, res) => {
   try {
     const {
@@ -249,125 +277,140 @@ const getExpenses = async (req, res) => {
 
     const filter = {};
 
-    if (category) filter.category = category;
-    if (status) filter.status = status;
-
-    if (booking) {
-      if (!isValidObjectId(booking)) {
-        return res.status(400).json({
-          message: "Invalid booking ID",
-        });
-      }
-
-      filter.booking = booking;
+    if (category) {
+      filter.category = category;
     }
 
-    if (quotation) {
-      if (!isValidObjectId(quotation)) {
-        return res.status(400).json({
-          message: "Invalid quotation ID",
-        });
-      }
-
-      filter.quotation = quotation;
+    if (status) {
+      filter.status = status;
     }
 
-    if (trip) {
-      if (!isValidObjectId(trip)) {
-        return res.status(400).json({
-          message: "Invalid trip ID",
-        });
+    const objectFilters = [
+      ["booking", booking],
+      ["quotation", quotation],
+      ["trip", trip],
+      ["customer", customer],
+      ["supplier", supplier],
+      ["hotel", hotel],
+      ["transport", transport],
+    ];
+
+    for (const [field, value] of objectFilters) {
+      if (value) {
+        if (!isValidObjectId(value)) {
+          return res.status(400).json({
+            message: `Invalid ${field} ID`,
+          });
+        }
+
+        filter[field] = value;
       }
-
-      filter.trip = trip;
-    }
-
-    if (customer) {
-      if (!isValidObjectId(customer)) {
-        return res.status(400).json({
-          message: "Invalid customer ID",
-        });
-      }
-
-      filter.customer = customer;
-    }
-
-    if (supplier) {
-      if (!isValidObjectId(supplier)) {
-        return res.status(400).json({
-          message: "Invalid supplier ID",
-        });
-      }
-
-      filter.supplier = supplier;
-    }
-
-    if (hotel) {
-      if (!isValidObjectId(hotel)) {
-        return res.status(400).json({
-          message: "Invalid hotel ID",
-        });
-      }
-
-      filter.hotel = hotel;
-    }
-
-    if (transport) {
-      if (!isValidObjectId(transport)) {
-        return res.status(400).json({
-          message: "Invalid transport ID",
-        });
-      }
-
-      filter.transport = transport;
     }
 
     if (isBillable !== undefined) {
-      filter.isBillable = isBillable === "true";
+      filter.isBillable =
+        isBillable === "true";
     }
 
     if (startDate || endDate) {
       filter.expenseDate = {};
 
       if (startDate) {
-        filter.expenseDate.$gte = new Date(startDate);
+        const start = new Date(startDate);
+
+        if (Number.isNaN(start.getTime())) {
+          return res.status(400).json({
+            message: "Invalid startDate",
+          });
+        }
+
+        filter.expenseDate.$gte = start;
       }
 
       if (endDate) {
         const end = new Date(endDate);
+
+        if (Number.isNaN(end.getTime())) {
+          return res.status(400).json({
+            message: "Invalid endDate",
+          });
+        }
+
         end.setHours(23, 59, 59, 999);
+
         filter.expenseDate.$lte = end;
       }
     }
 
-    if (search) {
+    if (search?.trim()) {
+      const safeSearch = search
+        .trim()
+        .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
       filter.$or = [
-        { title: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } },
-        { category: { $regex: search, $options: "i" } },
-        { subCategory: { $regex: search, $options: "i" } },
-        { expenseNumber: { $regex: search, $options: "i" } },
+        {
+          title: {
+            $regex: safeSearch,
+            $options: "i",
+          },
+        },
+        {
+          description: {
+            $regex: safeSearch,
+            $options: "i",
+          },
+        },
+        {
+          category: {
+            $regex: safeSearch,
+            $options: "i",
+          },
+        },
+        {
+          subCategory: {
+            $regex: safeSearch,
+            $options: "i",
+          },
+        },
+        {
+          expenseNumber: {
+            $regex: safeSearch,
+            $options: "i",
+          },
+        },
       ];
     }
 
-    const pageNumber = Math.max(Number(page), 1);
-    const limitNumber = Math.min(Math.max(Number(limit), 1), 100);
-    const skip = (pageNumber - 1) * limitNumber;
+    const pageNumber = Math.max(
+      Number(page) || 1,
+      1
+    );
 
-    const [expenses, total, summary] = await Promise.all([
-      Expense.find(filter)
-        .populate("supplier")
-        .populate("hotel")
-        .populate("transport")
-        .populate("booking")
-        .populate("quotation")
-        .populate("trip")
-        .populate("customer")
-        .populate("createdBy", "name email role")
-        .populate("approvedBy", "name email role")
-        .sort({ expenseDate: -1, createdAt: -1 })
-        .skip(skip)
-        .limit(limitNumber),
+    const limitNumber = Math.min(
+      Math.max(Number(limit) || 50, 1),
+      100
+    );
+
+    const skip =
+      (pageNumber - 1) * limitNumber;
+
+    const [
+      expenses,
+      total,
+      allSummary,
+      paidSummary,
+      pendingSummary,
+      approvedSummary,
+    ] = await Promise.all([
+      populateExpense(
+        Expense.find(filter)
+          .sort({
+            expenseDate: -1,
+            createdAt: -1,
+          })
+          .skip(skip)
+          .limit(limitNumber)
+      ),
 
       Expense.countDocuments(filter),
 
@@ -376,31 +419,126 @@ const getExpenses = async (req, res) => {
         {
           $group: {
             _id: null,
-            totalAmount: { $sum: "$amount" },
-            count: { $sum: 1 },
+            totalAmount: {
+              $sum: "$amount",
+            },
+          },
+        },
+      ]),
+
+      Expense.aggregate([
+        {
+          $match: {
+            ...filter,
+            status: "Paid",
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            amount: {
+              $sum: "$amount",
+            },
+            count: {
+              $sum: 1,
+            },
+          },
+        },
+      ]),
+
+      Expense.aggregate([
+        {
+          $match: {
+            ...filter,
+            status: "Pending",
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            amount: {
+              $sum: "$amount",
+            },
+            count: {
+              $sum: 1,
+            },
+          },
+        },
+      ]),
+
+      Expense.aggregate([
+        {
+          $match: {
+            ...filter,
+            status: "Approved",
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            amount: {
+              $sum: "$amount",
+            },
+            count: {
+              $sum: 1,
+            },
           },
         },
       ]),
     ]);
 
-    const totalAmount = summary[0]?.totalAmount || 0;
-
-    const totalPages = Math.ceil(total / limitNumber);
+    const totalPages =
+      Math.ceil(total / limitNumber);
 
     return res.status(200).json({
       message: "Expenses fetched successfully",
-      count: expenses.length,
-      total,
-      page: pageNumber,
-      limit: limitNumber,
-      totalPages,
-      hasNextPage: pageNumber < totalPages,
-      hasPreviousPage: pageNumber > 1,
-      totalAmount,
+
       expenses,
+
+      count: expenses.length,
+
+      total,
+
+      page: pageNumber,
+
+      limit: limitNumber,
+
+      totalPages,
+
+      hasNextPage:
+        pageNumber < totalPages,
+
+      hasPreviousPage:
+        pageNumber > 1,
+
+      summary: {
+        totalAmount:
+          allSummary[0]?.totalAmount || 0,
+
+        totalPaidAmount:
+          paidSummary[0]?.amount || 0,
+
+        pendingAmount:
+          pendingSummary[0]?.amount || 0,
+
+        approvedAmount:
+          approvedSummary[0]?.amount || 0,
+
+        paidExpenseCount:
+          paidSummary[0]?.count || 0,
+
+        pendingExpenseCount:
+          pendingSummary[0]?.count || 0,
+
+        approvedExpenseCount:
+          approvedSummary[0]?.count || 0,
+      },
     });
   } catch (error) {
-    console.error("Get Expenses Error:", error);
+    console.error(
+      "Get Expenses Error:",
+      error
+    );
 
     return res.status(500).json({
       message: "Failed to fetch expenses",
@@ -409,9 +547,10 @@ const getExpenses = async (req, res) => {
   }
 };
 
-// ==========================================
-// GET EXPENSE BY ID
-// ==========================================
+/* =========================================================
+   GET EXPENSE BY ID
+========================================================= */
+
 const getExpenseById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -422,16 +561,9 @@ const getExpenseById = async (req, res) => {
       });
     }
 
-    const expense = await Expense.findById(id)
-      .populate("supplier")
-      .populate("hotel")
-      .populate("transport")
-      .populate("booking")
-      .populate("quotation")
-      .populate("trip")
-      .populate("customer")
-      .populate("createdBy", "name email role")
-      .populate("approvedBy", "name email role");
+    const expense = await populateExpense(
+      Expense.findById(id)
+    );
 
     if (!expense) {
       return res.status(404).json({
@@ -444,7 +576,10 @@ const getExpenseById = async (req, res) => {
       expense,
     });
   } catch (error) {
-    console.error("Get Expense By ID Error:", error);
+    console.error(
+      "Get Expense By ID Error:",
+      error
+    );
 
     return res.status(500).json({
       message: "Failed to fetch expense",
@@ -453,9 +588,10 @@ const getExpenseById = async (req, res) => {
   }
 };
 
-// ==========================================
-// UPDATE EXPENSE
-// ==========================================
+/* =========================================================
+   UPDATE EXPENSE
+========================================================= */
+
 const updateExpense = async (req, res) => {
   try {
     const { id } = req.params;
@@ -466,11 +602,23 @@ const updateExpense = async (req, res) => {
       });
     }
 
-    const expense = await Expense.findById(id);
+    const expense =
+      await Expense.findById(id);
 
     if (!expense) {
       return res.status(404).json({
         message: "Expense not found",
+      });
+    }
+
+    if (
+      ["Paid", "Cancelled"].includes(
+        expense.status
+      )
+    ) {
+      return res.status(400).json({
+        message:
+          `Cannot edit expense in ${expense.status} status`,
       });
     }
 
@@ -498,8 +646,11 @@ const updateExpense = async (req, res) => {
     ];
 
     allowedFields.forEach((field) => {
-      if (req.body[field] !== undefined) {
-        expense[field] = req.body[field];
+      if (
+        req.body[field] !== undefined
+      ) {
+        expense[field] =
+          req.body[field];
       }
     });
 
@@ -509,31 +660,76 @@ const updateExpense = async (req, res) => {
       });
     }
 
-    if (expense.amount < 0) {
+    if (
+      !Number.isFinite(
+        Number(expense.amount)
+      ) ||
+      Number(expense.amount) <= 0
+    ) {
       return res.status(400).json({
-        message: "Expense amount cannot be negative",
+        message:
+          "Expense amount must be greater than 0",
       });
+    }
+
+    const references = [
+      ["supplier", Supplier],
+      ["hotel", Hotel],
+      ["transport", Transport],
+      ["booking", Booking],
+      ["quotation", Quotation],
+      ["trip", Trip],
+      ["customer", Customer],
+    ];
+
+    for (const [field, Model] of references) {
+      const value = expense[field];
+
+      if (!value) continue;
+
+      if (!isValidObjectId(value)) {
+        return res.status(400).json({
+          message:
+            `Invalid ${field} ID`,
+        });
+      }
+
+      const exists =
+        await Model.exists({
+          _id: value,
+        });
+
+      if (!exists) {
+        return res.status(404).json({
+          message:
+            `${field} not found`,
+        });
+      }
+    }
+
+    if (expense.status === "Approved") {
+      expense.status = "Pending";
+      expense.approvedBy = null;
+      expense.approvedAt = null;
     }
 
     await expense.save();
 
-    const updatedExpense = await Expense.findById(expense._id)
-      .populate("supplier")
-      .populate("hotel")
-      .populate("transport")
-      .populate("booking")
-      .populate("quotation")
-      .populate("trip")
-      .populate("customer")
-      .populate("createdBy", "name email role")
-      .populate("approvedBy", "name email role");
+    const updatedExpense =
+      await populateExpense(
+        Expense.findById(expense._id)
+      );
 
     return res.status(200).json({
-      message: "Expense updated successfully",
+      message:
+        "Expense updated successfully",
       expense: updatedExpense,
     });
   } catch (error) {
-    console.error("Update Expense Error:", error);
+    console.error(
+      "Update Expense Error:",
+      error
+    );
 
     return res.status(500).json({
       message: "Failed to update expense",
@@ -542,9 +738,10 @@ const updateExpense = async (req, res) => {
   }
 };
 
-// ==========================================
-// DELETE EXPENSE
-// ==========================================
+/* =========================================================
+   DELETE EXPENSE
+========================================================= */
+
 const deleteExpense = async (req, res) => {
   try {
     const { id } = req.params;
@@ -555,7 +752,8 @@ const deleteExpense = async (req, res) => {
       });
     }
 
-    const expense = await Expense.findById(id);
+    const expense =
+      await Expense.findById(id);
 
     if (!expense) {
       return res.status(404).json({
@@ -563,24 +761,37 @@ const deleteExpense = async (req, res) => {
       });
     }
 
+    if (expense.status === "Paid") {
+      return res.status(400).json({
+        message:
+          "Paid expenses cannot be deleted",
+      });
+    }
+
     await Expense.findByIdAndDelete(id);
 
     return res.status(200).json({
-      message: "Expense deleted successfully",
+      message:
+        "Expense deleted successfully",
     });
   } catch (error) {
-    console.error("Delete Expense Error:", error);
+    console.error(
+      "Delete Expense Error:",
+      error
+    );
 
     return res.status(500).json({
-      message: "Failed to delete expense",
+      message:
+        "Failed to delete expense",
       error: error.message,
     });
   }
 };
 
-// ==========================================
-// APPROVE EXPENSE
-// ==========================================
+/* =========================================================
+   APPROVE EXPENSE
+========================================================= */
+
 const approveExpense = async (req, res) => {
   try {
     const { id } = req.params;
@@ -591,7 +802,8 @@ const approveExpense = async (req, res) => {
       });
     }
 
-    const expense = await Expense.findById(id);
+    const expense =
+      await Expense.findById(id);
 
     if (!expense) {
       return res.status(404).json({
@@ -601,7 +813,8 @@ const approveExpense = async (req, res) => {
 
     if (expense.status !== "Pending") {
       return res.status(400).json({
-        message: `Only Pending expenses can be approved. Current status: ${expense.status}`,
+        message:
+          `Only Pending expenses can be approved. Current status: ${expense.status}`,
       });
     }
 
@@ -611,32 +824,34 @@ const approveExpense = async (req, res) => {
 
     await expense.save();
 
-    const updatedExpense = await Expense.findById(expense._id)
-      .populate("createdBy", "name email role")
-      .populate("approvedBy", "name email role")
-      .populate("booking")
-      .populate("supplier")
-      .populate("hotel")
-      .populate("transport")
-      .populate("customer");
+    const updatedExpense =
+      await populateExpense(
+        Expense.findById(expense._id)
+      );
 
     return res.status(200).json({
-      message: "Expense approved successfully",
+      message:
+        "Expense approved successfully",
       expense: updatedExpense,
     });
   } catch (error) {
-    console.error("Approve Expense Error:", error);
+    console.error(
+      "Approve Expense Error:",
+      error
+    );
 
     return res.status(500).json({
-      message: "Failed to approve expense",
+      message:
+        "Failed to approve expense",
       error: error.message,
     });
   }
 };
 
-// ==========================================
-// REJECT EXPENSE
-// ==========================================
+/* =========================================================
+   REJECT EXPENSE
+========================================================= */
+
 const rejectExpense = async (req, res) => {
   try {
     const { id } = req.params;
@@ -647,7 +862,8 @@ const rejectExpense = async (req, res) => {
       });
     }
 
-    const expense = await Expense.findById(id);
+    const expense =
+      await Expense.findById(id);
 
     if (!expense) {
       return res.status(404).json({
@@ -657,42 +873,56 @@ const rejectExpense = async (req, res) => {
 
     if (expense.status !== "Pending") {
       return res.status(400).json({
-        message: `Only Pending expenses can be rejected. Current status: ${expense.status}`,
+        message:
+          `Only Pending expenses can be rejected. Current status: ${expense.status}`,
       });
     }
 
     expense.status = "Rejected";
-    expense.approvedBy = req.user.id;
-    expense.approvedAt = new Date();
+
+    expense.approvedBy =
+      req.user.id;
+
+    expense.approvedAt =
+      new Date();
+
+    if (req.body?.reason) {
+      expense.notes =
+        expense.notes
+          ? `${expense.notes}\nRejection: ${req.body.reason}`
+          : `Rejection: ${req.body.reason}`;
+    }
 
     await expense.save();
 
-    const updatedExpense = await Expense.findById(expense._id)
-      .populate("createdBy", "name email role")
-      .populate("approvedBy", "name email role")
-      .populate("booking")
-      .populate("supplier")
-      .populate("hotel")
-      .populate("transport")
-      .populate("customer");
+    const updatedExpense =
+      await populateExpense(
+        Expense.findById(expense._id)
+      );
 
     return res.status(200).json({
-      message: "Expense rejected successfully",
+      message:
+        "Expense rejected successfully",
       expense: updatedExpense,
     });
   } catch (error) {
-    console.error("Reject Expense Error:", error);
+    console.error(
+      "Reject Expense Error:",
+      error
+    );
 
     return res.status(500).json({
-      message: "Failed to reject expense",
+      message:
+        "Failed to reject expense",
       error: error.message,
     });
   }
 };
 
-// ==========================================
-// MARK EXPENSE AS PAID
-// ==========================================
+/* =========================================================
+   MARK EXPENSE PAID
+========================================================= */
+
 const markExpensePaid = async (req, res) => {
   try {
     const { id } = req.params;
@@ -703,7 +933,8 @@ const markExpensePaid = async (req, res) => {
       });
     }
 
-    const expense = await Expense.findById(id);
+    const expense =
+      await Expense.findById(id);
 
     if (!expense) {
       return res.status(404).json({
@@ -711,45 +942,133 @@ const markExpensePaid = async (req, res) => {
       });
     }
 
-    if (!["Approved", "Pending"].includes(expense.status)) {
+    if (expense.status !== "Approved") {
       return res.status(400).json({
-        message: `Expense cannot be marked Paid from ${expense.status} status`,
+        message:
+          `Only Approved expenses can be marked Paid. Current status: ${expense.status}`,
       });
+    }
+
+    if (req.body?.paymentMethod) {
+      expense.paymentMethod =
+        req.body.paymentMethod;
+    }
+
+    if (
+      req.body?.transactionId !== undefined
+    ) {
+      expense.transactionId =
+        req.body.transactionId;
     }
 
     expense.status = "Paid";
 
     await expense.save();
 
-    const updatedExpense = await Expense.findById(expense._id)
-      .populate("createdBy", "name email role")
-      .populate("approvedBy", "name email role")
-      .populate("booking")
-      .populate("supplier")
-      .populate("hotel")
-      .populate("transport")
-      .populate("customer");
+    const updatedExpense =
+      await populateExpense(
+        Expense.findById(expense._id)
+      );
 
     return res.status(200).json({
-      message: "Expense marked as paid successfully",
+      message:
+        "Expense marked as paid successfully",
       expense: updatedExpense,
     });
   } catch (error) {
-    console.error("Mark Expense Paid Error:", error);
+    console.error(
+      "Mark Expense Paid Error:",
+      error
+    );
 
     return res.status(500).json({
-      message: "Failed to mark expense as paid",
+      message:
+        "Failed to mark expense as paid",
       error: error.message,
     });
   }
 };
 
-// ==========================================
-// BOOKING EXPENSE SUMMARY
-// ==========================================
-const getBookingExpenseSummary = async (req, res) => {
+/* =========================================================
+   CANCEL EXPENSE
+========================================================= */
+
+const cancelExpense = async (req, res) => {
   try {
-    const { bookingId } = req.params;
+    const { id } = req.params;
+
+    if (!isValidObjectId(id)) {
+      return res.status(400).json({
+        message: "Invalid expense ID",
+      });
+    }
+
+    const expense =
+      await Expense.findById(id);
+
+    if (!expense) {
+      return res.status(404).json({
+        message: "Expense not found",
+      });
+    }
+
+    if (
+      ["Paid", "Rejected", "Cancelled"].includes(
+        expense.status
+      )
+    ) {
+      return res.status(400).json({
+        message:
+          `Expense cannot be cancelled from ${expense.status} status`,
+      });
+    }
+
+    expense.status = "Cancelled";
+
+    if (req.body?.reason) {
+      expense.notes =
+        expense.notes
+          ? `${expense.notes}\nCancellation: ${req.body.reason}`
+          : `Cancellation: ${req.body.reason}`;
+    }
+
+    await expense.save();
+
+    const updatedExpense =
+      await populateExpense(
+        Expense.findById(expense._id)
+      );
+
+    return res.status(200).json({
+      message:
+        "Expense cancelled successfully",
+      expense: updatedExpense,
+    });
+  } catch (error) {
+    console.error(
+      "Cancel Expense Error:",
+      error
+    );
+
+    return res.status(500).json({
+      message:
+        "Failed to cancel expense",
+      error: error.message,
+    });
+  }
+};
+
+/* =========================================================
+   BOOKING EXPENSE SUMMARY
+========================================================= */
+
+const getBookingExpenseSummary = async (
+  req,
+  res
+) => {
+  try {
+    const { bookingId } =
+      req.params;
 
     if (!isValidObjectId(bookingId)) {
       return res.status(400).json({
@@ -757,7 +1076,10 @@ const getBookingExpenseSummary = async (req, res) => {
       });
     }
 
-    const booking = await Booking.findById(bookingId);
+    const booking =
+      await Booking.findById(
+        bookingId
+      );
 
     if (!booking) {
       return res.status(404).json({
@@ -765,41 +1087,134 @@ const getBookingExpenseSummary = async (req, res) => {
       });
     }
 
-    const expenses = await Expense.find({
-      booking: bookingId,
-    })
-      .populate("supplier")
-      .populate("hotel")
-      .populate("transport")
-      .populate("createdBy", "name email role");
+    const expenses =
+      await populateExpense(
+        Expense.find({
+          booking: bookingId,
+        }).sort({
+          expenseDate: -1,
+        })
+      );
 
-    const totalExpense = expenses.reduce(
-      (sum, expense) => sum + Number(expense.amount || 0),
-      0
-    );
+    const paidExpenses =
+      expenses.filter(
+        (expense) =>
+          expense.status === "Paid"
+      );
+
+    const pendingExpenses =
+      expenses.filter(
+        (expense) =>
+          expense.status === "Pending" ||
+          expense.status === "Approved"
+      );
+
+    const rejectedExpenses =
+      expenses.filter(
+        (expense) =>
+          expense.status === "Rejected"
+      );
+
+    const cancelledExpenses =
+      expenses.filter(
+        (expense) =>
+          expense.status === "Cancelled"
+      );
+
+    const totalExpense =
+      paidExpenses.reduce(
+        (sum, expense) =>
+          sum +
+          Number(expense.amount || 0),
+        0
+      );
+
+    const pendingExpense =
+      pendingExpenses.reduce(
+        (sum, expense) =>
+          sum +
+          Number(expense.amount || 0),
+        0
+      );
 
     const categorySummary = {};
 
-    expenses.forEach((expense) => {
-      const category = expense.category || "Other";
+    paidExpenses.forEach(
+      (expense) => {
+        const category =
+          expense.category ||
+          "Other";
 
-      categorySummary[category] =
-        (categorySummary[category] || 0) + Number(expense.amount || 0);
-    });
+        categorySummary[category] =
+          (categorySummary[category] || 0) +
+          Number(expense.amount || 0);
+      }
+    );
+
+    const bookingRevenue =
+      Number(
+        booking.totalAmount ||
+          booking.totalPrice ||
+          0
+      );
+
+    const grossProfit =
+      bookingRevenue - totalExpense;
+
+    const profitMargin =
+      bookingRevenue > 0
+        ? (grossProfit /
+            bookingRevenue) *
+          100
+        : 0;
 
     return res.status(200).json({
-      message: "Booking expense summary fetched successfully",
+      message:
+        "Booking expense summary fetched successfully",
+
       booking: bookingId,
-      expenseCount: expenses.length,
+
+      expenseCount:
+        expenses.length,
+
+      paidExpenseCount:
+        paidExpenses.length,
+
+      pendingExpenseCount:
+        pendingExpenses.length,
+
+      rejectedExpenseCount:
+        rejectedExpenses.length,
+
+      cancelledExpenseCount:
+        cancelledExpenses.length,
+
       totalExpense,
+
+      pendingExpense,
+
+      bookingRevenue,
+
+      grossProfit,
+
+      profitMargin:
+        Number(
+          profitMargin.toFixed(2)
+        ),
+
       categorySummary,
+
       expenses,
     });
   } catch (error) {
-    console.error("Booking Expense Summary Error:", error);
+    console.error(
+      "Booking Expense Summary Error:",
+      error
+    );
 
     return res.status(500).json({
-      message: "Failed to fetch booking expense summary",
+      message:
+        "Failed to fetch booking expense summary",
       error: error.message,
     });
   }
@@ -814,5 +1229,6 @@ module.exports = {
   approveExpense,
   rejectExpense,
   markExpensePaid,
+  cancelExpense,
   getBookingExpenseSummary,
 };

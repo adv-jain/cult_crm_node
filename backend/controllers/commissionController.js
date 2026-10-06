@@ -1,10 +1,9 @@
-
 const mongoose = require("mongoose");
 
 const Commission = require("../models/Commission");
 const Booking = require("../models/Booking");
 const Customer = require("../models/Customer");
-const Deal = require("../models/Trip");
+const Trip = require("../models/Trip");
 const User = require("../models/User");
 
 const isValidObjectId = (id) => {
@@ -18,6 +17,7 @@ const isValidObjectId = (id) => {
 | Example: COMM-2026-0001
 |--------------------------------------------------------------------------
 */
+
 const generateCommissionNumber = async (session) => {
   const year = new Date().getFullYear();
   const prefix = `COMM-${year}-`;
@@ -51,6 +51,7 @@ const generateCommissionNumber = async (session) => {
 | Populate Commission
 |--------------------------------------------------------------------------
 */
+
 const populateCommission = (query) => {
   return query
     .populate("booking")
@@ -66,6 +67,7 @@ const populateCommission = (query) => {
 | CREATE COMMISSION
 |--------------------------------------------------------------------------
 */
+
 const createCommission = async (req, res) => {
   const session = await mongoose.startSession();
 
@@ -85,7 +87,7 @@ const createCommission = async (req, res) => {
 
     /*
     |--------------------------------------------------------------------------
-    | Basic validation
+    | Basic Validation
     |--------------------------------------------------------------------------
     */
 
@@ -133,7 +135,7 @@ const createCommission = async (req, res) => {
 
     /*
     |--------------------------------------------------------------------------
-    | Validate numeric values
+    | Numeric Validation
     |--------------------------------------------------------------------------
     */
 
@@ -141,9 +143,12 @@ const createCommission = async (req, res) => {
     const parsedPercentage = Number(percentage);
     const parsedCommissionAmount = Number(commissionAmount);
 
-    if (!Number.isFinite(parsedBaseAmount) || parsedBaseAmount < 0) {
+    if (
+      !Number.isFinite(parsedBaseAmount) ||
+      parsedBaseAmount < 0
+    ) {
       return res.status(400).json({
-        message: "Base amount must be a valid positive number",
+        message: "Base amount must be a valid number",
       });
     }
 
@@ -168,7 +173,7 @@ const createCommission = async (req, res) => {
 
     /*
     |--------------------------------------------------------------------------
-    | Percentage calculation validation
+    | Percentage Calculation
     |--------------------------------------------------------------------------
     */
 
@@ -178,15 +183,35 @@ const createCommission = async (req, res) => {
           ((parsedBaseAmount * parsedPercentage) / 100) * 100
         ) / 100;
 
-      if (Math.abs(expectedAmount - parsedCommissionAmount) > 0.01) {
+      if (
+        Math.abs(
+          expectedAmount - parsedCommissionAmount
+        ) > 0.01
+      ) {
         return res.status(400).json({
           message:
-            "Commission amount does not match the base amount and percentage",
+            "Commission amount does not match base amount and percentage",
           expectedCommissionAmount: expectedAmount,
           receivedCommissionAmount: parsedCommissionAmount,
         });
       }
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Fixed Commission
+    |--------------------------------------------------------------------------
+    */
+
+    if (commissionType === "Fixed") {
+      if (parsedCommissionAmount <= 0) {
+        return res.status(400).json({
+          message: "Fixed commission amount must be greater than 0",
+        });
+      }
+    }
+
+    let createdCommissionId = null;
 
     await session.withTransaction(async () => {
       /*
@@ -203,8 +228,12 @@ const createCommission = async (req, res) => {
         throw new Error("BOOKING_NOT_FOUND");
       }
 
-      if (bookingData.status === "Cancelled") {
-        throw new Error("BOOKING_CANCELLED");
+      if (
+        ["Cancelled", "Refunded"].includes(
+          bookingData.status
+        )
+      ) {
+        throw new Error("BOOKING_NOT_ACTIVE");
       }
 
       /*
@@ -213,7 +242,9 @@ const createCommission = async (req, res) => {
       |--------------------------------------------------------------------------
       */
 
-      const salesPersonData = await User.findById(salesPerson)
+      const salesPersonData = await User.findById(
+        salesPerson
+      )
         .session(session)
         .lean();
 
@@ -230,7 +261,9 @@ const createCommission = async (req, res) => {
       let customerId = customer;
 
       if (customerId) {
-        const customerData = await Customer.findById(customerId)
+        const customerData = await Customer.findById(
+          customerId
+        )
           .session(session)
           .lean();
 
@@ -240,7 +273,8 @@ const createCommission = async (req, res) => {
 
         if (
           bookingData.customer &&
-          String(bookingData.customer) !== String(customerId)
+          String(bookingData.customer) !==
+            String(customerId)
         ) {
           throw new Error("CUSTOMER_BOOKING_MISMATCH");
         }
@@ -254,31 +288,36 @@ const createCommission = async (req, res) => {
       |--------------------------------------------------------------------------
       */
 
-      if (trip) {
-        const tripData = await Deal.findById(trip)
+      let tripId = trip;
+
+      if (tripId) {
+        const tripData = await Trip.findById(tripId)
           .session(session)
           .lean();
 
         if (!tripData) {
           throw new Error("TRIP_NOT_FOUND");
         }
+      } else if (bookingData.trip) {
+        tripId = bookingData.trip;
       }
 
       /*
       |--------------------------------------------------------------------------
-      | Prevent duplicate commission for same booking + salesperson
+      | Prevent Duplicate Commission
       |--------------------------------------------------------------------------
       */
 
-      const existingCommission = await Commission.findOne({
-        booking,
-        salesPerson,
-        status: {
-          $nin: ["Cancelled"],
-        },
-      })
-        .session(session)
-        .lean();
+      const existingCommission =
+        await Commission.findOne({
+          booking,
+          salesPerson,
+          status: {
+            $ne: "Cancelled",
+          },
+        })
+          .session(session)
+          .lean();
 
       if (existingCommission) {
         throw new Error("DUPLICATE_COMMISSION");
@@ -290,7 +329,8 @@ const createCommission = async (req, res) => {
       |--------------------------------------------------------------------------
       */
 
-      const commissionNumber = await generateCommissionNumber(session);
+      const commissionNumber =
+        await generateCommissionNumber(session);
 
       /*
       |--------------------------------------------------------------------------
@@ -300,41 +340,50 @@ const createCommission = async (req, res) => {
 
       const commission = new Commission({
         commissionNumber,
+
         booking,
-        trip,
-        customer: customerId,
+
+        trip: tripId || null,
+
+        customer: customerId || null,
+
         salesPerson,
+
         commissionType,
+
         baseAmount: parsedBaseAmount,
-        percentage: commissionType === "Percentage"
-          ? parsedPercentage
-          : 0,
+
+        percentage:
+          commissionType === "Percentage"
+            ? parsedPercentage
+            : 0,
+
         commissionAmount: parsedCommissionAmount,
+
         currency,
+
         status: "Pending",
+
         notes,
+
         createdBy: req.user.id,
       });
 
-      await commission.save({ session });
+      await commission.save({
+        session,
+      });
 
-      /*
-      |--------------------------------------------------------------------------
-      | Store created ID for response
-      |--------------------------------------------------------------------------
-      */
-
-      req.createdCommissionId = commission._id;
+      createdCommissionId = commission._id;
     });
 
     /*
     |--------------------------------------------------------------------------
-    | Fetch populated commission
+    | Fetch Populated Commission
     |--------------------------------------------------------------------------
     */
 
     const commission = await populateCommission(
-      Commission.findById(req.createdCommissionId)
+      Commission.findById(createdCommissionId)
     );
 
     return res.status(201).json({
@@ -342,7 +391,10 @@ const createCommission = async (req, res) => {
       commission,
     });
   } catch (error) {
-    console.error("Create commission error:", error);
+    console.error(
+      "Create commission error:",
+      error
+    );
 
     const errorMessages = {
       BOOKING_NOT_FOUND: {
@@ -350,9 +402,10 @@ const createCommission = async (req, res) => {
         message: "Booking not found",
       },
 
-      BOOKING_CANCELLED: {
+      BOOKING_NOT_ACTIVE: {
         status: 400,
-        message: "Commission cannot be created for a cancelled booking",
+        message:
+          "Commission cannot be created for a cancelled or refunded booking",
       },
 
       SALES_PERSON_NOT_FOUND: {
@@ -367,7 +420,8 @@ const createCommission = async (req, res) => {
 
       CUSTOMER_BOOKING_MISMATCH: {
         status: 400,
-        message: "Customer does not belong to this booking",
+        message:
+          "Customer does not belong to this booking",
       },
 
       TRIP_NOT_FOUND: {
@@ -377,13 +431,17 @@ const createCommission = async (req, res) => {
 
       DUPLICATE_COMMISSION: {
         status: 409,
-        message: "Commission already exists for this booking and sales person",
+        message:
+          "Commission already exists for this booking and sales person",
       },
     };
 
     if (errorMessages[error.message]) {
-      return res.status(errorMessages[error.message].status).json({
-        message: errorMessages[error.message].message,
+      return res.status(
+        errorMessages[error.message].status
+      ).json({
+        message:
+          errorMessages[error.message].message,
       });
     }
 
@@ -407,6 +465,7 @@ const createCommission = async (req, res) => {
 | GET ALL COMMISSIONS
 |--------------------------------------------------------------------------
 */
+
 const getCommissions = async (req, res) => {
   try {
     const {
@@ -423,7 +482,11 @@ const getCommissions = async (req, res) => {
       limit = 50,
     } = req.query;
 
-    const currentPage = Math.max(Number(page) || 1, 1);
+    const currentPage = Math.max(
+      Number(page) || 1,
+      1
+    );
+
     const currentLimit = Math.min(
       Math.max(Number(limit) || 50, 1),
       100
@@ -433,7 +496,7 @@ const getCommissions = async (req, res) => {
 
     /*
     |--------------------------------------------------------------------------
-    | Filters
+    | Object ID Filters
     |--------------------------------------------------------------------------
     */
 
@@ -477,11 +540,47 @@ const getCommissions = async (req, res) => {
       filter.salesPerson = salesPerson;
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Status Filters
+    |--------------------------------------------------------------------------
+    */
+
+    const validStatuses = [
+      "Pending",
+      "Approved",
+      "Payable",
+      "Paid",
+      "Cancelled",
+    ];
+
     if (status) {
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({
+          message: "Invalid commission status",
+        });
+      }
+
       filter.status = status;
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Commission Type
+    |--------------------------------------------------------------------------
+    */
+
     if (commissionType) {
+      if (
+        !["Percentage", "Fixed"].includes(
+          commissionType
+        )
+      ) {
+        return res.status(400).json({
+          message: "Invalid commission type",
+        });
+      }
+
       filter.commissionType = commissionType;
     }
 
@@ -504,6 +603,7 @@ const getCommissions = async (req, res) => {
         }
 
         startDate.setHours(0, 0, 0, 0);
+
         filter.createdAt.$gte = startDate;
       }
 
@@ -516,7 +616,13 @@ const getCommissions = async (req, res) => {
           });
         }
 
-        endDate.setHours(23, 59, 59, 999);
+        endDate.setHours(
+          23,
+          59,
+          59,
+          999
+        );
+
         filter.createdAt.$lte = endDate;
       }
     }
@@ -556,18 +662,21 @@ const getCommissions = async (req, res) => {
     |--------------------------------------------------------------------------
     */
 
-    const skip = (currentPage - 1) * currentLimit;
+    const skip =
+      (currentPage - 1) *
+      currentLimit;
 
-    const [commissions, total] = await Promise.all([
-      populateCommission(
-        Commission.find(filter)
-          .sort({ createdAt: -1 })
-          .skip(skip)
-          .limit(currentLimit)
-      ),
+    const [commissions, total] =
+      await Promise.all([
+        populateCommission(
+          Commission.find(filter)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(currentLimit)
+        ),
 
-      Commission.countDocuments(filter),
-    ]);
+        Commission.countDocuments(filter),
+      ]);
 
     /*
     |--------------------------------------------------------------------------
@@ -575,90 +684,141 @@ const getCommissions = async (req, res) => {
     |--------------------------------------------------------------------------
     */
 
-    const summary = await Commission.aggregate([
-      {
-        $match: filter,
-      },
-      {
-        $group: {
-          _id: null,
+    const summary =
+      await Commission.aggregate([
+        {
+          $match: filter,
+        },
 
-          totalCommissionAmount: {
-            $sum: "$commissionAmount",
-          },
+        {
+          $group: {
+            _id: null,
 
-          paidCommissionAmount: {
-            $sum: {
-              $cond: [
-                {
-                  $eq: ["$status", "Paid"],
-                },
-                "$commissionAmount",
-                0,
-              ],
+            totalCommissionAmount: {
+              $sum: "$commissionAmount",
             },
-          },
 
-          payableCommissionAmount: {
-            $sum: {
-              $cond: [
-                {
-                  $eq: ["$status", "Payable"],
-                },
-                "$commissionAmount",
-                0,
-              ],
+            paidCommissionAmount: {
+              $sum: {
+                $cond: [
+                  {
+                    $eq: [
+                      "$status",
+                      "Paid",
+                    ],
+                  },
+                  "$commissionAmount",
+                  0,
+                ],
+              },
             },
-          },
 
-          pendingCommissionAmount: {
-            $sum: {
-              $cond: [
-                {
-                  $eq: ["$status", "Pending"],
-                },
-                "$commissionAmount",
-                0,
-              ],
+            payableCommissionAmount: {
+              $sum: {
+                $cond: [
+                  {
+                    $eq: [
+                      "$status",
+                      "Payable",
+                    ],
+                  },
+                  "$commissionAmount",
+                  0,
+                ],
+              },
+            },
+
+            pendingCommissionAmount: {
+              $sum: {
+                $cond: [
+                  {
+                    $eq: [
+                      "$status",
+                      "Pending",
+                    ],
+                  },
+                  "$commissionAmount",
+                  0,
+                ],
+              },
+            },
+
+            approvedCommissionAmount: {
+              $sum: {
+                $cond: [
+                  {
+                    $eq: [
+                      "$status",
+                      "Approved",
+                    ],
+                  },
+                  "$commissionAmount",
+                  0,
+                ],
+              },
             },
           },
         },
-      },
-    ]);
+      ]);
 
-    const summaryData = summary[0] || {
-      totalCommissionAmount: 0,
-      paidCommissionAmount: 0,
-      payableCommissionAmount: 0,
-      pendingCommissionAmount: 0,
-    };
+    const summaryData =
+      summary[0] || {
+        totalCommissionAmount: 0,
+        paidCommissionAmount: 0,
+        payableCommissionAmount: 0,
+        pendingCommissionAmount: 0,
+        approvedCommissionAmount: 0,
+      };
 
     const totalPages =
       total === 0
         ? 0
-        : Math.ceil(total / currentLimit);
+        : Math.ceil(
+            total / currentLimit
+          );
 
     return res.status(200).json({
-      message: "Commissions fetched successfully",
+      message:
+        "Commissions fetched successfully",
+
       count: commissions.length,
+
       total,
+
       page: currentPage,
+
       limit: currentLimit,
+
       totalPages,
-      hasNextPage: currentPage < totalPages,
-      hasPreviousPage: currentPage > 1,
+
+      hasNextPage:
+        currentPage < totalPages,
+
+      hasPreviousPage:
+        currentPage > 1,
+
       totalCommissionAmount:
         summaryData.totalCommissionAmount,
+
       paidCommissionAmount:
         summaryData.paidCommissionAmount,
+
       payableCommissionAmount:
         summaryData.payableCommissionAmount,
+
       pendingCommissionAmount:
         summaryData.pendingCommissionAmount,
+
+      approvedCommissionAmount:
+        summaryData.approvedCommissionAmount,
+
       commissions,
     });
   } catch (error) {
-    console.error("Get commissions error:", error);
+    console.error(
+      "Get commissions error:",
+      error
+    );
 
     return res.status(500).json({
       message: "Failed to fetch commissions",
@@ -672,7 +832,11 @@ const getCommissions = async (req, res) => {
 | GET COMMISSION BY ID
 |--------------------------------------------------------------------------
 */
-const getCommissionById = async (req, res) => {
+
+const getCommissionById = async (
+  req,
+  res
+) => {
   try {
     const { id } = req.params;
 
@@ -682,9 +846,10 @@ const getCommissionById = async (req, res) => {
       });
     }
 
-    const commission = await populateCommission(
-      Commission.findById(id)
-    );
+    const commission =
+      await populateCommission(
+        Commission.findById(id)
+      );
 
     if (!commission) {
       return res.status(404).json({
@@ -693,11 +858,15 @@ const getCommissionById = async (req, res) => {
     }
 
     return res.status(200).json({
-      message: "Commission fetched successfully",
+      message:
+        "Commission fetched successfully",
       commission,
     });
   } catch (error) {
-    console.error("Get commission error:", error);
+    console.error(
+      "Get commission error:",
+      error
+    );
 
     return res.status(500).json({
       message: "Failed to fetch commission",
@@ -711,7 +880,11 @@ const getCommissionById = async (req, res) => {
 | UPDATE COMMISSION
 |--------------------------------------------------------------------------
 */
-const updateCommission = async (req, res) => {
+
+const updateCommission = async (
+  req,
+  res
+) => {
   try {
     const { id } = req.params;
 
@@ -721,7 +894,8 @@ const updateCommission = async (req, res) => {
       });
     }
 
-    const commission = await Commission.findById(id);
+    const commission =
+      await Commission.findById(id);
 
     if (!commission) {
       return res.status(404).json({
@@ -731,7 +905,7 @@ const updateCommission = async (req, res) => {
 
     /*
     |--------------------------------------------------------------------------
-    | Paid/Cancelled commissions cannot be edited
+    | Locked Financial Records
     |--------------------------------------------------------------------------
     */
 
@@ -745,6 +919,12 @@ const updateCommission = async (req, res) => {
       });
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Only Pending / Approved / Payable
+    |--------------------------------------------------------------------------
+    */
+
     const allowedFields = [
       "salesPerson",
       "commissionType",
@@ -757,37 +937,45 @@ const updateCommission = async (req, res) => {
 
     for (const field of allowedFields) {
       if (req.body[field] !== undefined) {
-        commission[field] = req.body[field];
+        commission[field] =
+          req.body[field];
       }
     }
 
     /*
     |--------------------------------------------------------------------------
-    | Validate salesperson
+    | Validate Sales Person
     |--------------------------------------------------------------------------
     */
 
     if (commission.salesPerson) {
-      if (!isValidObjectId(commission.salesPerson)) {
+      if (
+        !isValidObjectId(
+          commission.salesPerson
+        )
+      ) {
         return res.status(400).json({
-          message: "Invalid sales person ID",
+          message:
+            "Invalid sales person ID",
         });
       }
 
-      const salesPerson = await User.findById(
-        commission.salesPerson
-      ).select("_id");
+      const salesPerson =
+        await User.findById(
+          commission.salesPerson
+        ).select("_id");
 
       if (!salesPerson) {
         return res.status(404).json({
-          message: "Sales person not found",
+          message:
+            "Sales person not found",
         });
       }
     }
 
     /*
     |--------------------------------------------------------------------------
-    | Validate commission type
+    | Validate Commission Type
     |--------------------------------------------------------------------------
     */
 
@@ -797,19 +985,30 @@ const updateCommission = async (req, res) => {
       )
     ) {
       return res.status(400).json({
-        message: "Invalid commission type",
+        message:
+          "Invalid commission type",
       });
     }
 
-    const baseAmount = Number(commission.baseAmount);
-    const percentage = Number(commission.percentage);
+    const baseAmount = Number(
+      commission.baseAmount
+    );
+
+    const percentage = Number(
+      commission.percentage
+    );
+
     const commissionAmount = Number(
       commission.commissionAmount
     );
 
-    if (!Number.isFinite(baseAmount) || baseAmount < 0) {
+    if (
+      !Number.isFinite(baseAmount) ||
+      baseAmount < 0
+    ) {
       return res.status(400).json({
-        message: "Invalid base amount",
+        message:
+          "Base amount must be valid",
       });
     }
 
@@ -819,65 +1018,106 @@ const updateCommission = async (req, res) => {
       percentage > 100
     ) {
       return res.status(400).json({
-        message: "Percentage must be between 0 and 100",
+        message:
+          "Percentage must be between 0 and 100",
       });
     }
 
     if (
-      !Number.isFinite(commissionAmount) ||
+      !Number.isFinite(
+        commissionAmount
+      ) ||
       commissionAmount <= 0
     ) {
       return res.status(400).json({
-        message: "Commission amount must be greater than 0",
+        message:
+          "Commission amount must be greater than 0",
       });
     }
 
     /*
     |--------------------------------------------------------------------------
-    | Validate percentage calculation
+    | Percentage Calculation
     |--------------------------------------------------------------------------
     */
 
-    if (commission.commissionType === "Percentage") {
+    if (
+      commission.commissionType ===
+      "Percentage"
+    ) {
       const expectedAmount =
         Math.round(
-          ((baseAmount * percentage) / 100) * 100
+          ((baseAmount *
+            percentage) /
+            100) *
+            100
         ) / 100;
 
       if (
-        Math.abs(expectedAmount - commissionAmount) >
-        0.01
+        Math.abs(
+          expectedAmount -
+            commissionAmount
+        ) > 0.01
       ) {
         return res.status(400).json({
           message:
             "Commission amount does not match percentage calculation",
-          expectedCommissionAmount: expectedAmount,
+
+          expectedCommissionAmount:
+            expectedAmount,
         });
       }
     }
 
     /*
     |--------------------------------------------------------------------------
-    | Save
+    | If Pending/Approved record is modified,
+    | keep workflow controlled
     |--------------------------------------------------------------------------
     */
+
+    if (
+      commission.status ===
+      "Approved"
+    ) {
+      commission.status = "Pending";
+      commission.approvedBy = null;
+      commission.approvedAt = null;
+    }
+
+    if (
+      commission.status ===
+      "Payable"
+    ) {
+      return res.status(400).json({
+        message:
+          "Payable commission cannot be edited. Cancel it and create a new commission if correction is required.",
+      });
+    }
 
     await commission.save();
 
     const updatedCommission =
       await populateCommission(
-        Commission.findById(commission._id)
+        Commission.findById(
+          commission._id
+        )
       );
 
     return res.status(200).json({
-      message: "Commission updated successfully",
+      message:
+        "Commission updated successfully",
       commission: updatedCommission,
     });
   } catch (error) {
-    console.error("Update commission error:", error);
+    console.error(
+      "Update commission error:",
+      error
+    );
 
     return res.status(500).json({
-      message: "Failed to update commission",
+      message:
+        "Failed to update commission",
       error: error.message,
     });
   }
@@ -890,51 +1130,75 @@ const updateCommission = async (req, res) => {
 | Pending → Approved
 |--------------------------------------------------------------------------
 */
-const approveCommission = async (req, res) => {
+
+const approveCommission = async (
+  req,
+  res
+) => {
   try {
     const { id } = req.params;
 
     if (!isValidObjectId(id)) {
       return res.status(400).json({
-        message: "Invalid commission ID",
+        message:
+          "Invalid commission ID",
       });
     }
 
-    const commission = await Commission.findById(id);
+    const commission =
+      await Commission.findById(id);
 
     if (!commission) {
       return res.status(404).json({
-        message: "Commission not found",
+        message:
+          "Commission not found",
       });
     }
 
-    if (commission.status !== "Pending") {
+    if (
+      commission.status !==
+      "Pending"
+    ) {
       return res.status(400).json({
         message:
           "Only Pending commissions can be approved",
       });
     }
 
-    commission.status = "Approved";
-    commission.approvedBy = req.user.id;
-    commission.approvedAt = new Date();
+    commission.status =
+      "Approved";
+
+    commission.approvedBy =
+      req.user.id;
+
+    commission.approvedAt =
+      new Date();
 
     await commission.save();
 
     const updatedCommission =
       await populateCommission(
-        Commission.findById(commission._id)
+        Commission.findById(
+          commission._id
+        )
       );
 
     return res.status(200).json({
-      message: "Commission approved successfully",
-      commission: updatedCommission,
+      message:
+        "Commission approved successfully",
+
+      commission:
+        updatedCommission,
     });
   } catch (error) {
-    console.error("Approve commission error:", error);
+    console.error(
+      "Approve commission error:",
+      error
+    );
 
     return res.status(500).json({
-      message: "Failed to approve commission",
+      message:
+        "Failed to approve commission",
       error: error.message,
     });
   }
@@ -947,43 +1211,59 @@ const approveCommission = async (req, res) => {
 | Approved → Payable
 |--------------------------------------------------------------------------
 */
-const markCommissionPayable = async (req, res) => {
+
+const markCommissionPayable = async (
+  req,
+  res
+) => {
   try {
     const { id } = req.params;
 
     if (!isValidObjectId(id)) {
       return res.status(400).json({
-        message: "Invalid commission ID",
+        message:
+          "Invalid commission ID",
       });
     }
 
-    const commission = await Commission.findById(id);
+    const commission =
+      await Commission.findById(id);
 
     if (!commission) {
       return res.status(404).json({
-        message: "Commission not found",
+        message:
+          "Commission not found",
       });
     }
 
-    if (commission.status !== "Approved") {
+    if (
+      commission.status !==
+      "Approved"
+    ) {
       return res.status(400).json({
         message:
           "Only Approved commissions can be marked Payable",
       });
     }
 
-    commission.status = "Payable";
+    commission.status =
+      "Payable";
 
     await commission.save();
 
     const updatedCommission =
       await populateCommission(
-        Commission.findById(commission._id)
+        Commission.findById(
+          commission._id
+        )
       );
 
     return res.status(200).json({
-      message: "Commission marked as payable",
-      commission: updatedCommission,
+      message:
+        "Commission marked as payable",
+
+      commission:
+        updatedCommission,
     });
   } catch (error) {
     console.error(
@@ -992,7 +1272,8 @@ const markCommissionPayable = async (req, res) => {
     );
 
     return res.status(500).json({
-      message: "Failed to mark commission as payable",
+      message:
+        "Failed to mark commission as payable",
       error: error.message,
     });
   }
@@ -1005,7 +1286,11 @@ const markCommissionPayable = async (req, res) => {
 | Payable → Paid
 |--------------------------------------------------------------------------
 */
-const markCommissionPaid = async (req, res) => {
+
+const markCommissionPaid = async (
+  req,
+  res
+) => {
   try {
     const { id } = req.params;
 
@@ -1016,41 +1301,59 @@ const markCommissionPaid = async (req, res) => {
 
     if (!isValidObjectId(id)) {
       return res.status(400).json({
-        message: "Invalid commission ID",
+        message:
+          "Invalid commission ID",
       });
     }
 
-    const commission = await Commission.findById(id);
+    const commission =
+      await Commission.findById(id);
 
     if (!commission) {
       return res.status(404).json({
-        message: "Commission not found",
+        message:
+          "Commission not found",
       });
     }
 
-    if (commission.status !== "Payable") {
+    if (
+      commission.status !==
+      "Payable"
+    ) {
       return res.status(400).json({
         message:
           "Only Payable commissions can be marked as Paid",
       });
     }
 
-    let finalPaymentDate = new Date();
+    let finalPaymentDate =
+      new Date();
 
     if (paymentDate) {
-      const parsedDate = new Date(paymentDate);
+      const parsedDate =
+        new Date(paymentDate);
 
-      if (Number.isNaN(parsedDate.getTime())) {
+      if (
+        Number.isNaN(
+          parsedDate.getTime()
+        )
+      ) {
         return res.status(400).json({
-          message: "Invalid payment date",
+          message:
+            "Invalid payment date",
         });
       }
 
-      finalPaymentDate = parsedDate;
+      finalPaymentDate =
+        parsedDate;
     }
 
-    commission.status = "Paid";
-    commission.paymentDate = finalPaymentDate;
+    commission.status =
+      "Paid";
+
+    commission.paymentDate =
+      finalPaymentDate;
+
     commission.paymentReference =
       paymentReference || null;
 
@@ -1058,12 +1361,17 @@ const markCommissionPaid = async (req, res) => {
 
     const updatedCommission =
       await populateCommission(
-        Commission.findById(commission._id)
+        Commission.findById(
+          commission._id
+        )
       );
 
     return res.status(200).json({
-      message: "Commission marked as paid successfully",
-      commission: updatedCommission,
+      message:
+        "Commission marked as paid successfully",
+
+      commission:
+        updatedCommission,
     });
   } catch (error) {
     console.error(
@@ -1072,7 +1380,8 @@ const markCommissionPaid = async (req, res) => {
     );
 
     return res.status(500).json({
-      message: "Failed to mark commission as paid",
+      message:
+        "Failed to mark commission as paid",
       error: error.message,
     });
   }
@@ -1083,49 +1392,69 @@ const markCommissionPaid = async (req, res) => {
 | CANCEL COMMISSION
 |--------------------------------------------------------------------------
 */
-const cancelCommission = async (req, res) => {
+
+const cancelCommission = async (
+  req,
+  res
+) => {
   try {
     const { id } = req.params;
 
     if (!isValidObjectId(id)) {
       return res.status(400).json({
-        message: "Invalid commission ID",
+        message:
+          "Invalid commission ID",
       });
     }
 
-    const commission = await Commission.findById(id);
+    const commission =
+      await Commission.findById(id);
 
     if (!commission) {
       return res.status(404).json({
-        message: "Commission not found",
+        message:
+          "Commission not found",
       });
     }
 
-    if (commission.status === "Paid") {
+    if (
+      commission.status ===
+      "Paid"
+    ) {
       return res.status(400).json({
         message:
           "Paid commission cannot be cancelled",
       });
     }
 
-    if (commission.status === "Cancelled") {
+    if (
+      commission.status ===
+      "Cancelled"
+    ) {
       return res.status(400).json({
-        message: "Commission is already cancelled",
+        message:
+          "Commission is already cancelled",
       });
     }
 
-    commission.status = "Cancelled";
+    commission.status =
+      "Cancelled";
 
     await commission.save();
 
     const updatedCommission =
       await populateCommission(
-        Commission.findById(commission._id)
+        Commission.findById(
+          commission._id
+        )
       );
 
     return res.status(200).json({
-      message: "Commission cancelled successfully",
-      commission: updatedCommission,
+      message:
+        "Commission cancelled successfully",
+
+      commission:
+        updatedCommission,
     });
   } catch (error) {
     console.error(
@@ -1134,7 +1463,8 @@ const cancelCommission = async (req, res) => {
     );
 
     return res.status(500).json({
-      message: "Failed to cancel commission",
+      message:
+        "Failed to cancel commission",
       error: error.message,
     });
   }
@@ -1145,41 +1475,54 @@ const cancelCommission = async (req, res) => {
 | DELETE COMMISSION
 |--------------------------------------------------------------------------
 */
-const deleteCommission = async (req, res) => {
+
+const deleteCommission = async (
+  req,
+  res
+) => {
   try {
     const { id } = req.params;
 
     if (!isValidObjectId(id)) {
       return res.status(400).json({
-        message: "Invalid commission ID",
+        message:
+          "Invalid commission ID",
       });
     }
 
-    const commission = await Commission.findById(id);
+    const commission =
+      await Commission.findById(id);
 
     if (!commission) {
       return res.status(404).json({
-        message: "Commission not found",
+        message:
+          "Commission not found",
       });
     }
 
     /*
     |--------------------------------------------------------------------------
-    | Do not delete financial records that are already paid
+    | Paid financial records should not be deleted
     |--------------------------------------------------------------------------
     */
 
-    if (commission.status === "Paid") {
+    if (
+      commission.status ===
+      "Paid"
+    ) {
       return res.status(400).json({
         message:
           "Paid commission cannot be deleted",
       });
     }
 
-    await Commission.findByIdAndDelete(id);
+    await Commission.findByIdAndDelete(
+      id
+    );
 
     return res.status(200).json({
-      message: "Commission deleted successfully",
+      message:
+        "Commission deleted successfully",
     });
   } catch (error) {
     console.error(
@@ -1188,11 +1531,18 @@ const deleteCommission = async (req, res) => {
     );
 
     return res.status(500).json({
-      message: "Failed to delete commission",
+      message:
+        "Failed to delete commission",
       error: error.message,
     });
   }
 };
+
+/*
+|--------------------------------------------------------------------------
+| EXPORTS
+|--------------------------------------------------------------------------
+*/
 
 module.exports = {
   createCommission,
@@ -1205,4 +1555,3 @@ module.exports = {
   cancelCommission,
   deleteCommission,
 };
-

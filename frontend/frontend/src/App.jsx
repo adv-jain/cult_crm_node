@@ -31,8 +31,28 @@ import Suppliers from "./pages/Supplier";
 import Tasks from "./pages/Tasks";
 import Activities from "./pages/Activities";
 import Users from "./pages/Users";
+
+// =====================================================
+// FINANCE PAGES
+// =====================================================
+
 import Payment from "./pages/Payment";
 import Invoice from "./pages/Invoice";
+import Refund from "./pages/Refund";
+import Expense from "./pages/Expense";
+import Commission from "./pages/Commission";
+
+// =====================================================
+// REPORT PAGES
+// =====================================================
+
+import Reports from "./pages/Reports";
+import SalesReport from "./pages/SalesReport";
+import BookingReport from "./pages/BookingReport";
+import RevenueReport from "./pages/RevenueReport";
+import ProfitLossReport from "./pages/ProfitLossReport";
+import AgentPerformanceReport from "./pages/AgentPerformanceReport";
+
 // =====================================================
 // COMPONENTS
 // =====================================================
@@ -87,6 +107,7 @@ const ADMIN_ONLY = [
 // =====================================================
 
 const protectedRoutes = [
+
   // ===================================================
   // DASHBOARD
   // ===================================================
@@ -168,15 +189,34 @@ const protectedRoutes = [
   // ===================================================
   // FINANCE
   // ===================================================
-{
-  path: "/invoices",
-  element: <Invoice />,
-  roles: FINANCE_ROLES,
-},
+
+  {
+    path: "/invoices",
+    element: <Invoice />,
+    roles: FINANCE_ROLES,
+  },
 
   {
     path: "/payments",
     element: <Payment />,
+    roles: FINANCE_ROLES,
+  },
+
+  {
+    path: "/refunds",
+    element: <Refund />,
+    roles: FINANCE_ROLES,
+  },
+
+  {
+    path: "/expenses",
+    element: <Expense />,
+    roles: FINANCE_ROLES,
+  },
+
+  {
+    path: "/commissions",
+    element: <Commission />,
     roles: FINANCE_ROLES,
   },
 
@@ -224,6 +264,61 @@ const protectedRoutes = [
     path: "/activities",
     element: <Activities />,
     roles: OPS_ROLES,
+  },
+
+  // ===================================================
+  // REPORTS
+  // ===================================================
+
+  // Reports Overview
+  {
+    path: "/reports",
+    element: <Reports />,
+    roles: ALL_ROLES,
+  },
+
+  // Sales Report
+  {
+    path: "/reports/sales",
+    element: <SalesReport />,
+    roles: ALL_ROLES,
+  },
+
+  // Booking Report
+  {
+    path: "/reports/bookings",
+    element: <BookingReport />,
+    roles: ALL_ROLES,
+  },
+
+  // Revenue Report
+  {
+    path: "/reports/revenue",
+    element: <RevenueReport />,
+    roles: ALL_ROLES,
+  },
+
+  // Profit & Loss Report
+  {
+    path: "/reports/profit-loss",
+    element: <ProfitLossReport />,
+    roles: [
+      "admin",
+      "manager",
+      "operations",
+      "accounts",
+    ],
+  },
+
+  // Agent Performance Report
+  {
+    path: "/reports/agent-performance",
+    element: <AgentPerformanceReport />,
+    roles: [
+      "admin",
+      "manager",
+      "sales",
+    ],
   },
 
   // ===================================================

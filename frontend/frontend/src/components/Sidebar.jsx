@@ -23,6 +23,9 @@ import {
   FiChevronDown,
   FiChevronRight,
   FiX,
+  FiTrendingUp,
+  FiPieChart,
+  FiTarget,
 } from "react-icons/fi";
 
 // =====================================================
@@ -181,7 +184,6 @@ function Sidebar({ isOpen, onClose }) {
       DEFAULT_OPEN_SECTIONS
     );
 
-    // Sales section always open by default (unless user manually closed it)
     return {
       ...DEFAULT_OPEN_SECTIONS,
       ...saved,
@@ -249,7 +251,6 @@ function Sidebar({ isOpen, onClose }) {
         }`}
       >
         {/* HEADER / LOGO */}
-
         <div className="h-20 min-h-20 px-4 flex items-center justify-between">
           <div className="flex items-center min-w-0">
             <img
@@ -270,7 +271,6 @@ function Sidebar({ isOpen, onClose }) {
         </div>
 
         {/* NAVIGATION */}
-
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-1 sidebar-scroll overscroll-contain">
           <NavItem to="/" icon={FiHome} onClose={onClose}>
             Dashboard
@@ -389,48 +389,49 @@ function Sidebar({ isOpen, onClose }) {
           )}
 
           {hasRole("admin", "manager", "accounts") && (
-  <div className="pt-1">
-    <SectionHeader
-      id="finance"
-      title="Finance"
-      icon={FiDollarSign}
-      paths={[
-        "/payments",
-        "/expenses",
-        "/refunds",
-        "/invoices",
-        "/commissions",
-      ]}
-      isOpen={openSections.finance}
-      onToggle={toggleSection}
-      isSectionActive={isSectionActive}
-    />
+            <div className="pt-1">
+              <SectionHeader
+                id="finance"
+                title="Finance"
+                icon={FiDollarSign}
+                paths={[
+                  "/payments",
+                  "/expenses",
+                  "/refunds",
+                  "/invoices",
+                  "/commissions",
+                ]}
+                isOpen={openSections.finance}
+                onToggle={toggleSection}
+                isSectionActive={isSectionActive}
+              />
 
-    {openSections.finance && (
-      <SubMenu>
-        <NavItem to="/payments" icon={FiDollarSign} onClose={onClose}>
-          Payments
-        </NavItem>
+              {openSections.finance && (
+                <SubMenu>
+                  <NavItem to="/payments" icon={FiDollarSign} onClose={onClose}>
+                    Payments
+                  </NavItem>
 
-        <NavItem to="/expenses" icon={FiDollarSign} onClose={onClose}>
-          Expenses
-        </NavItem>
+                  <NavItem to="/expenses" icon={FiDollarSign} onClose={onClose}>
+                    Expenses
+                  </NavItem>
 
-        <NavItem to="/refunds" icon={FiDollarSign} onClose={onClose}>
-          Refunds
-        </NavItem>
+                  <NavItem to="/refunds" icon={FiDollarSign} onClose={onClose}>
+                    Refunds
+                  </NavItem>
 
-        <NavItem to="/invoices" icon={FiFileText} onClose={onClose}>
-          Invoices
-        </NavItem>
+                  <NavItem to="/invoices" icon={FiFileText} onClose={onClose}>
+                    Invoices
+                  </NavItem>
 
-        <NavItem to="/commissions" icon={FiDollarSign} onClose={onClose}>
-          Commissions
-        </NavItem>
-      </SubMenu>
-    )}
-  </div>
-)}
+                  <NavItem to="/commissions" icon={FiDollarSign} onClose={onClose}>
+                    Commissions
+                  </NavItem>
+                </SubMenu>
+              )}
+            </div>
+          )}
+
           {hasRole("admin", "manager", "sales", "operations") && (
             <div className="pt-1">
               <SectionHeader
@@ -473,11 +474,53 @@ function Sidebar({ isOpen, onClose }) {
                   "/reports/profit-loss",
                   "/reports/agent-performance",
                 ]}
-                isOpen={false}
+                isOpen={openSections.reports}
                 onToggle={toggleSection}
                 isSectionActive={isSectionActive}
-                disabled={true}
               />
+
+              {openSections.reports && (
+                <SubMenu>
+                  <NavItem to="/reports" icon={FiBarChart2} onClose={onClose}>
+                    Overview
+                  </NavItem>
+                  <NavItem
+                    to="/reports/sales"
+                    icon={FiTrendingUp}
+                    onClose={onClose}
+                  >
+                    Sales Report
+                  </NavItem>
+                  <NavItem
+                    to="/reports/bookings"
+                    icon={FiBriefcase}
+                    onClose={onClose}
+                  >
+                    Bookings Report
+                  </NavItem>
+                  <NavItem
+                    to="/reports/revenue"
+                    icon={FiDollarSign}
+                    onClose={onClose}
+                  >
+                    Revenue Report
+                  </NavItem>
+                  <NavItem
+                    to="/reports/profit-loss"
+                    icon={FiPieChart}
+                    onClose={onClose}
+                  >
+                    Profit & Loss
+                  </NavItem>
+                  <NavItem
+                    to="/reports/agent-performance"
+                    icon={FiTarget}
+                    onClose={onClose}
+                  >
+                    Agent Performance
+                  </NavItem>
+                </SubMenu>
+              )}
             </div>
           )}
 
@@ -519,8 +562,6 @@ function Sidebar({ isOpen, onClose }) {
             </div>
           )}
         </div>
-
-       
       </aside>
     </>
   );

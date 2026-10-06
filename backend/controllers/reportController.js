@@ -1,4 +1,3 @@
-
 const mongoose = require("mongoose");
 
 const Lead = require("../models/Lead");
@@ -12,44 +11,46 @@ const Commission = require("../models/Commission");
 const Customer = require("../models/Customer");
 const User = require("../models/User");
 
+/*
+|--------------------------------------------------------------------------
+| Helpers
+|--------------------------------------------------------------------------
+*/
 
-// =====================================================
-// HELPERS
-// =====================================================
+const isValidObjectId = (value) =>
+  mongoose.Types.ObjectId.isValid(value);
 
-const isValidObjectId = (id) => {
-  return id && mongoose.Types.ObjectId.isValid(id);
-};
+const toNumber = (value) =>
+  Number(value || 0);
 
-
-const toNumber = (value) => {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : 0;
-};
-
-
-const getDateFilter = (query, field = "createdAt") => {
+const getDateFilter = (
+  query,
+  field = "createdAt"
+) => {
   const filter = {};
 
-  if (query.from || query.to) {
+  if (query.startDate || query.endDate) {
     filter[field] = {};
 
-    if (query.from) {
-      const from = new Date(query.from);
-      if (!Number.isNaN(from.getTime())) {
-        filter[field].$gte = from;
+    if (query.startDate) {
+      const start = new Date(query.startDate);
+
+      if (!Number.isNaN(start.getTime())) {
+        start.setHours(0, 0, 0, 0);
+        filter[field].$gte = start;
       }
     }
 
-    if (query.to) {
-      const to = new Date(query.to);
-      if (!Number.isNaN(to.getTime())) {
-        to.setHours(23, 59, 59, 999);
-        filter[field].$lte = to;
+    if (query.endDate) {
+      const end = new Date(query.endDate);
+
+      if (!Number.isNaN(end.getTime())) {
+        end.setHours(23, 59, 59, 999);
+        filter[field].$lte = end;
       }
     }
 
-    if (Object.keys(filter[field]).length === 0) {
+    if (!Object.keys(filter[field]).length) {
       delete filter[field];
     }
   }
@@ -57,1124 +58,2851 @@ const getDateFilter = (query, field = "createdAt") => {
   return filter;
 };
 
-
-const addObjectIdFilter = (filter, field, value) => {
-  if (isValidObjectId(value)) {
-    filter[field] = new mongoose.Types.ObjectId(value);
+const addObjectIdFilter = (
+  filter,
+  field,
+  value
+) => {
+  if (
+    value &&
+    isValidObjectId(value)
+  ) {
+    filter[field] =
+      new mongoose.Types.ObjectId(value);
   }
 };
 
-
-const addCommonBookingFilters = (filter, query) => {
+const addCommonBookingFilters = (
+  filter,
+  query
+) => {
   if (query.status) {
     filter.status = query.status;
   }
 
   if (query.paymentStatus) {
-    filter.paymentStatus = query.paymentStatus;
+    filter.paymentStatus =
+      query.paymentStatus;
   }
 
   if (query.destination) {
     filter.destination = {
       $regex: query.destination,
-      $options: "i"
+      $options: "i",
     };
   }
 
   if (query.travelType) {
-    filter.travelType = query.travelType;
+    filter.travelType =
+      query.travelType;
   }
 
-  addObjectIdFilter(filter, "salesOwner", query.salesOwner);
-  addObjectIdFilter(filter, "customer", query.customer);
+  addObjectIdFilter(
+    filter,
+    "salesOwner",
+    query.salesOwner
+  );
+
+  addObjectIdFilter(
+    filter,
+    "customer",
+    query.customer
+  );
 
   return filter;
 };
 
+const getDateRangeLabel = (
+  query
+) => {
+  if (
+    query.startDate &&
+    query.endDate
+  ) {
+    return {
+      startDate: query.startDate,
+      endDate: query.endDate,
+    };
+  }
 
-// =====================================================
-// 1. SALES REPORT
-// =====================================================
+  return {
+    startDate: null,
+    endDate: null,
+  };
+};
 
-const getSalesReport = async (req, res) => {
+/*
+|--------------------------------------------------------------------------
+| OVERVIEW REPORT
+|--------------------------------------------------------------------------
+*/
+
+const getOverviewReport = async (
+  req,
+  res
+) => {
   try {
-    const leadFilter = {
-      ...getDateFilter(req.query)
-    };
-
-    const enquiryFilter = {
-      ...getDateFilter(req.query)
-    };
-
-    const quotationFilter = {
-      ...getDateFilter(req.query)
-    };
-
     const bookingFilter = {
-      ...getDateFilter(req.query),
-      ...addCommonBookingFilters({}, req.query)
+      ...getDateFilter(
+        req.query,
+        "createdAt"
+      ),
+    };
+
+    addCommonBookingFilters(
+      bookingFilter,
+      req.query
+    );
+
+    const paymentFilter = {
+      ...getDateFilter(
+        req.query,
+        "paymentDate"
+      ),
+      status: "Completed",
+    };
+
+    const expenseFilter = {
+      ...getDateFilter(
+        req.query,
+        "expenseDate"
+      ),
+      status: "Paid",
+    };
+
+    const refundFilter = {
+      ...getDateFilter(
+        req.query,
+        "refundDate"
+      ),
+      status: "Completed",
+    };
+
+    const commissionFilter = {
+      ...getDateFilter(
+        req.query,
+        "paymentDate"
+      ),
+      status: "Paid",
     };
 
     const [
-      totalLeads,
-      newLeads,
-      qualifiedLeads,
-      convertedLeads,
-      totalEnquiries,
-      totalQuotations,
-      totalBookings,
-      bookingStats
+      leads,
+      enquiries,
+      quotations,
+      bookings,
+      customers,
+      revenue,
+      bookingFinancials,
+      expenses,
+      refunds,
+      commissions,
     ] = await Promise.all([
-      Lead.countDocuments(leadFilter),
+      Lead.countDocuments(
+        getDateFilter(req.query)
+      ),
 
-      Lead.countDocuments({
-        ...leadFilter,
-        status: "New"
-      }),
+      Enquiry.countDocuments(
+        getDateFilter(req.query)
+      ),
 
-      Lead.countDocuments({
-        ...leadFilter,
-        status: "Qualified"
-      }),
+      Quotation.countDocuments(
+        getDateFilter(req.query)
+      ),
 
-      Lead.countDocuments({
-        ...leadFilter,
-        status: "Converted"
-      }),
+      Booking.countDocuments(
+        bookingFilter
+      ),
 
-      Enquiry.countDocuments(enquiryFilter),
+      Customer.countDocuments(
+        getDateFilter(req.query)
+      ),
 
-      Quotation.countDocuments(quotationFilter),
-
-      Booking.countDocuments(bookingFilter),
-
-      Booking.aggregate([
-        { $match: bookingFilter },
+      Payment.aggregate([
+        {
+          $match: paymentFilter,
+        },
         {
           $group: {
             _id: null,
-            bookingValue: { $sum: { $ifNull: ["$totalAmount", 0] } },
-            bookingCost: { $sum: { $ifNull: ["$totalCost", 0] } },
-            profit: { $sum: { $ifNull: ["$profitAmount", 0] } }
-          }
-        }
-      ])
+            total: {
+              $sum: "$amount",
+            },
+          },
+        },
+      ]),
+
+      Booking.aggregate([
+        {
+          $match: bookingFilter,
+        },
+        {
+          $group: {
+            _id: null,
+            revenue: {
+              $sum: "$totalAmount",
+            },
+            cost: {
+              $sum: "$totalCost",
+            },
+            profit: {
+              $sum: "$profit",
+            },
+          },
+        },
+      ]),
+
+      Expense.aggregate([
+        {
+          $match: expenseFilter,
+        },
+        {
+          $group: {
+            _id: null,
+            total: {
+              $sum: "$amount",
+            },
+          },
+        },
+      ]),
+
+      Refund.aggregate([
+        {
+          $match: refundFilter,
+        },
+        {
+          $group: {
+            _id: null,
+            total: {
+              $sum: "$amount",
+            },
+          },
+        },
+      ]),
+
+      Commission.aggregate([
+        {
+          $match: commissionFilter,
+        },
+        {
+          $group: {
+            _id: null,
+            total: {
+              $sum: "$commissionAmount",
+            },
+          },
+        },
+      ]),
     ]);
 
-    const stats = bookingStats[0] || {
-      bookingValue: 0,
-      bookingCost: 0,
-      profit: 0
-    };
+    const revenueTotal =
+      toNumber(
+        revenue[0]?.total
+      );
+
+    const bookingRevenue =
+      toNumber(
+        bookingFinancials[0]?.revenue
+      );
+
+    const bookingCost =
+      toNumber(
+        bookingFinancials[0]?.cost
+      );
+
+    const grossProfit =
+      bookingRevenue -
+      bookingCost;
+
+    const expenseTotal =
+      toNumber(
+        expenses[0]?.total
+      );
+
+    const refundTotal =
+      toNumber(
+        refunds[0]?.total
+      );
+
+    const commissionTotal =
+      toNumber(
+        commissions[0]?.total
+      );
+
+    const netProfit =
+      grossProfit -
+      refundTotal -
+      commissionTotal -
+      expenseTotal;
 
     const conversionRate =
-      totalLeads > 0
-        ? Number(((totalBookings / totalLeads) * 100).toFixed(2))
+      leads > 0
+        ? (bookings / leads) * 100
         : 0;
 
     res.json({
-      message: "Sales report fetched successfully",
-      filters: {
-        from: req.query.from || null,
-        to: req.query.to || null,
-        salesOwner: req.query.salesOwner || null
-      },
-      report: {
-        totalLeads,
-        newLeads,
-        qualifiedLeads,
-        convertedLeads,
-        totalEnquiries,
-        totalQuotations,
-        totalBookings,
-        bookingValue: toNumber(stats.bookingValue),
-        bookingCost: toNumber(stats.bookingCost),
-        profit: toNumber(stats.profit),
-        conversionRate
-      }
-    });
+      success: true,
 
+      period:
+        getDateRangeLabel(
+          req.query
+        ),
+
+      summary: {
+        leads,
+        enquiries,
+        quotations,
+        bookings,
+        customers,
+
+        bookingRevenue,
+
+        collectedRevenue:
+          revenueTotal,
+
+        bookingCost,
+
+        grossProfit,
+
+        refunds:
+          refundTotal,
+
+        commissions:
+          commissionTotal,
+
+        expenses:
+          expenseTotal,
+
+        netProfit,
+
+        conversionRate:
+          Number(
+            conversionRate.toFixed(2)
+          ),
+      },
+    });
   } catch (error) {
-    console.error("Sales report error:", error);
+    console.error(
+      "Overview report error:",
+      error
+    );
 
     res.status(500).json({
-      message: "Failed to fetch sales report",
-      error: error.message
+      success: false,
+
+      message:
+        "Failed to generate overview report",
+
+      error:
+        error.message,
     });
   }
 };
 
+/*
+|--------------------------------------------------------------------------
+| SALES REPORT
+|--------------------------------------------------------------------------
+*/
 
-// =====================================================
-// 2. BOOKING REPORT
-// =====================================================
-
-const getBookingReport = async (req, res) => {
+const getSalesReport = async (
+  req,
+  res
+) => {
   try {
-    const filter = {
-      ...getDateFilter(req.query, "createdAt")
+    const leadFilter =
+      getDateFilter(
+        req.query,
+        "createdAt"
+      );
+
+    const enquiryFilter =
+      getDateFilter(
+        req.query,
+        "createdAt"
+      );
+
+    const quotationFilter =
+      getDateFilter(
+        req.query,
+        "createdAt"
+      );
+
+    const bookingFilter = {
+      ...getDateFilter(
+        req.query,
+        "createdAt"
+      ),
     };
 
-    addCommonBookingFilters(filter, req.query);
+    addCommonBookingFilters(
+      bookingFilter,
+      req.query
+    );
+
+    const [
+      leads,
+      enquiries,
+      quotationCount,
+      bookings,
+      bookingStats,
+      quotations,
+    ] = await Promise.all([
+      Lead.countDocuments(
+        leadFilter
+      ),
+
+      Enquiry.countDocuments(
+        enquiryFilter
+      ),
+
+      Quotation.countDocuments(
+        quotationFilter
+      ),
+
+      Booking.countDocuments(
+        bookingFilter
+      ),
+
+      Booking.aggregate([
+        {
+          $match:
+            bookingFilter,
+        },
+
+        {
+          $group: {
+            _id: null,
+
+            totalRevenue: {
+              $sum: "$totalAmount",
+            },
+
+            totalCost: {
+              $sum: "$totalCost",
+            },
+
+            totalProfit: {
+              $sum: "$profit",
+            },
+          },
+        },
+      ]),
+
+      /*
+      |--------------------------------------------------------------------------
+      | Detailed Quotations
+      |--------------------------------------------------------------------------
+      */
+
+      Quotation.find(
+        quotationFilter
+      )
+        .populate(
+          "customer",
+          "name email phone"
+        )
+        .populate(
+          "enquiry",
+          "title destination travelDate returnDate"
+        )
+        .sort({
+          createdAt: -1,
+        })
+        .limit(100)
+        .lean(),
+    ]);
+
+    const totalRevenue =
+      toNumber(
+        bookingStats[0]
+          ?.totalRevenue
+      );
+
+    const totalCost =
+      toNumber(
+        bookingStats[0]
+          ?.totalCost
+      );
+
+    const totalProfit =
+      toNumber(
+        bookingStats[0]
+          ?.totalProfit
+      );
+
+    const conversionRate =
+      leads > 0
+        ? (bookings / leads) * 100
+        : 0;
+
+    res.json({
+      success: true,
+
+      period:
+        getDateRangeLabel(
+          req.query
+        ),
+
+      summary: {
+        leads,
+
+        enquiries,
+
+        quotations:
+          quotationCount,
+
+        bookings,
+
+        conversionRate:
+          Number(
+            conversionRate.toFixed(2)
+          ),
+
+        totalRevenue,
+
+        totalCost,
+
+        totalProfit,
+      },
+
+      quotations,
+    });
+  } catch (error) {
+    console.error(
+      "Sales report error:",
+      error
+    );
+
+    res.status(500).json({
+      success: false,
+
+      message:
+        "Failed to generate sales report",
+
+      error:
+        error.message,
+    });
+  }
+};
+
+/*
+|--------------------------------------------------------------------------
+| BOOKING REPORT
+|--------------------------------------------------------------------------
+*/
+
+const getBookingReport = async (
+  req,
+  res
+) => {
+  try {
+    const filter = {
+      ...getDateFilter(
+        req.query,
+        "createdAt"
+      ),
+    };
+
+    addCommonBookingFilters(
+      filter,
+      req.query
+    );
 
     const [
       summary,
       statusBreakdown,
       destinationBreakdown,
       travelTypeBreakdown,
-      bookings
+      bookings,
     ] = await Promise.all([
       Booking.aggregate([
-        { $match: filter },
+        {
+          $match: filter,
+        },
+
         {
           $group: {
             _id: null,
-            totalBookings: { $sum: 1 },
-            totalAmount: { $sum: { $ifNull: ["$totalAmount", 0] } },
-            totalCost: { $sum: { $ifNull: ["$totalCost", 0] } },
-            totalProfit: { $sum: { $ifNull: ["$profitAmount", 0] } },
-            totalPaid: { $sum: { $ifNull: ["$amountPaid", 0] } },
-            totalDue: { $sum: { $ifNull: ["$amountDue", 0] } }
-          }
-        }
+
+            count: {
+              $sum: 1,
+            },
+
+            totalAmount: {
+              $sum: "$totalAmount",
+            },
+
+            totalCost: {
+              $sum: "$totalCost",
+            },
+
+            totalProfit: {
+              $sum: "$profit",
+            },
+
+            totalPaid: {
+              $sum: "$amountPaid",
+            },
+
+            totalDue: {
+              $sum: "$amountDue",
+            },
+          },
+        },
       ]),
 
       Booking.aggregate([
-        { $match: filter },
+        {
+          $match: filter,
+        },
+
         {
           $group: {
             _id: "$status",
-            bookingCount: { $sum: 1 },
-            totalAmount: { $sum: { $ifNull: ["$totalAmount", 0] } }
-          }
+
+            count: {
+              $sum: 1,
+            },
+
+            amount: {
+              $sum: "$totalAmount",
+            },
+          },
         },
-        { $sort: { bookingCount: -1 } }
+
+        {
+          $sort: {
+            count: -1,
+          },
+        },
       ]),
 
       Booking.aggregate([
-        { $match: filter },
+        {
+          $match: filter,
+        },
+
         {
           $group: {
             _id: "$destination",
-            bookingCount: { $sum: 1 },
-            revenue: { $sum: { $ifNull: ["$totalAmount", 0] } },
-            profit: { $sum: { $ifNull: ["$profitAmount", 0] } }
-          }
+
+            count: {
+              $sum: 1,
+            },
+
+            revenue: {
+              $sum: "$totalAmount",
+            },
+
+            profit: {
+              $sum: "$profit",
+            },
+          },
         },
-        { $sort: { revenue: -1 } }
+
+        {
+          $sort: {
+            revenue: -1,
+          },
+        },
       ]),
 
       Booking.aggregate([
-        { $match: filter },
+        {
+          $match: filter,
+        },
+
         {
           $group: {
             _id: "$travelType",
-            bookingCount: { $sum: 1 },
-            revenue: { $sum: { $ifNull: ["$totalAmount", 0] } }
-          }
+
+            count: {
+              $sum: 1,
+            },
+
+            revenue: {
+              $sum: "$totalAmount",
+            },
+          },
         },
-        { $sort: { revenue: -1 } }
+
+        {
+          $sort: {
+            count: -1,
+          },
+        },
       ]),
 
       Booking.find(filter)
-        .populate("customer", "name email phone")
-        .populate("salesOwner", "name email role")
-        .sort({ createdAt: -1 })
+        .populate(
+          "customer",
+          "name email phone"
+        )
+        .populate(
+          "salesOwner",
+          "name email"
+        )
+        .sort({
+          createdAt: -1,
+        })
         .limit(100)
-        .lean()
+        .lean(),
     ]);
 
-    const data = summary[0] || {
-      totalBookings: 0,
-      totalAmount: 0,
-      totalCost: 0,
-      totalProfit: 0,
-      totalPaid: 0,
-      totalDue: 0
-    };
-
     res.json({
-      message: "Booking report fetched successfully",
-      summary: data,
+      success: true,
 
-      statusBreakdown: statusBreakdown.map(item => ({
-        status: item._id || "Unknown",
-        bookingCount: item.bookingCount,
-        totalAmount: toNumber(item.totalAmount)
-      })),
+      period:
+        getDateRangeLabel(
+          req.query
+        ),
 
-      destinationBreakdown: destinationBreakdown.map(item => ({
-        destination: item._id || "Unknown",
-        bookingCount: item.bookingCount,
-        revenue: toNumber(item.revenue),
-        profit: toNumber(item.profit)
-      })),
+      summary:
+        summary[0] || {
+          count: 0,
+          totalAmount: 0,
+          totalCost: 0,
+          totalProfit: 0,
+          totalPaid: 0,
+          totalDue: 0,
+        },
 
-      travelTypeBreakdown: travelTypeBreakdown.map(item => ({
-        travelType: item._id || "Unknown",
-        bookingCount: item.bookingCount,
-        revenue: toNumber(item.revenue)
-      })),
+      statusBreakdown,
 
-      bookings
+      destinationBreakdown,
+
+      travelTypeBreakdown,
+
+      bookings,
     });
-
   } catch (error) {
-    console.error("Booking report error:", error);
+    console.error(
+      "Booking report error:",
+      error
+    );
 
     res.status(500).json({
-      message: "Failed to fetch booking report",
-      error: error.message
+      success: false,
+
+      message:
+        "Failed to generate booking report",
+
+      error:
+        error.message,
     });
   }
 };
 
+/*
+|--------------------------------------------------------------------------
+| REVENUE REPORT
+|--------------------------------------------------------------------------
+*/
 
-// =====================================================
-// 3. REVENUE REPORT
-// =====================================================
-
-const getRevenueReport = async (req, res) => {
+const getRevenueReport = async (
+  req,
+  res
+) => {
   try {
     const bookingFilter = {
-      ...getDateFilter(req.query, "createdAt")
+      ...getDateFilter(
+        req.query,
+        "createdAt"
+      ),
     };
 
-    addCommonBookingFilters(bookingFilter, req.query);
+    addCommonBookingFilters(
+      bookingFilter,
+      req.query
+    );
 
-    const paymentFilter = {
-      ...getDateFilter(req.query, "paymentDate")
+    /*
+    |--------------------------------------------------------------------------
+    | ALL PAYMENTS
+    |--------------------------------------------------------------------------
+    */
+
+    const allPaymentFilter = {
+      ...getDateFilter(
+        req.query,
+        "paymentDate"
+      ),
     };
 
-    if (req.query.paymentStatus) {
-      paymentFilter.status = req.query.paymentStatus;
-    }
+    /*
+    |--------------------------------------------------------------------------
+    | COMPLETED PAYMENTS
+    |--------------------------------------------------------------------------
+    */
 
-    addObjectIdFilter(paymentFilter, "customer", req.query.customer);
+    const completedPaymentFilter = {
+      ...getDateFilter(
+        req.query,
+        "paymentDate"
+      ),
+
+      status: "Completed",
+    };
 
     const [
       bookingRevenue,
       paymentRevenue,
       monthlyRevenue,
       destinationRevenue,
-      salespersonRevenue
+      salespersonRevenue,
+      payments,
     ] = await Promise.all([
       Booking.aggregate([
-        { $match: bookingFilter },
+        {
+          $match:
+            bookingFilter,
+        },
+
         {
           $group: {
             _id: null,
-            revenue: { $sum: { $ifNull: ["$totalAmount", 0] } },
-            paid: { $sum: { $ifNull: ["$amountPaid", 0] } },
-            due: { $sum: { $ifNull: ["$amountDue", 0] } }
-          }
-        }
+
+            totalRevenue: {
+              $sum: "$totalAmount",
+            },
+
+            totalCost: {
+              $sum: "$totalCost",
+            },
+
+            totalProfit: {
+              $sum: "$profit",
+            },
+          },
+        },
       ]),
 
       Payment.aggregate([
-        { $match: paymentFilter },
+        {
+          $match:
+            completedPaymentFilter,
+        },
+
         {
           $group: {
             _id: null,
-            totalPayments: { $sum: { $ifNull: ["$amount", 0] } },
-            paymentCount: { $sum: 1 }
-          }
-        }
+
+            totalCollected: {
+              $sum: "$amount",
+            },
+
+            paymentCount: {
+              $sum: 1,
+            },
+          },
+        },
       ]),
 
-      Booking.aggregate([
-        { $match: bookingFilter },
+      /*
+      |--------------------------------------------------------------------------
+      | Monthly Revenue
+      |--------------------------------------------------------------------------
+      */
+
+      Payment.aggregate([
+        {
+          $match:
+            completedPaymentFilter,
+        },
+
         {
           $group: {
             _id: {
-              year: { $year: "$createdAt" },
-              month: { $month: "$createdAt" }
+              year: {
+                $year:
+                  "$paymentDate",
+              },
+
+              month: {
+                $month:
+                  "$paymentDate",
+              },
             },
-            revenue: { $sum: { $ifNull: ["$totalAmount", 0] } },
-            bookings: { $sum: 1 }
-          }
+
+            amount: {
+              $sum: "$amount",
+            },
+          },
         },
-        { $sort: { "_id.year": 1, "_id.month": 1 } }
+
+        {
+          $sort: {
+            "_id.year": 1,
+            "_id.month": 1,
+          },
+        },
       ]),
 
-      Booking.aggregate([
-        { $match: bookingFilter },
+      /*
+      |--------------------------------------------------------------------------
+      | Destination Revenue
+      |--------------------------------------------------------------------------
+      */
+
+      Payment.aggregate([
+        {
+          $match:
+            completedPaymentFilter,
+        },
+
+        {
+          $lookup: {
+            from: "bookings",
+
+            localField: "booking",
+
+            foreignField: "_id",
+
+            as: "bookingData",
+          },
+        },
+
+        {
+          $unwind: {
+            path:
+              "$bookingData",
+
+            preserveNullAndEmptyArrays:
+              true,
+          },
+        },
+
         {
           $group: {
-            _id: "$destination",
-            revenue: { $sum: { $ifNull: ["$totalAmount", 0] } },
-            bookings: { $sum: 1 }
-          }
+            _id:
+              "$bookingData.destination",
+
+            amount: {
+              $sum: "$amount",
+            },
+          },
         },
-        { $sort: { revenue: -1 } }
+
+        {
+          $sort: {
+            amount: -1,
+          },
+        },
       ]),
 
-      Booking.aggregate([
-        { $match: bookingFilter },
+      /*
+      |--------------------------------------------------------------------------
+      | Salesperson Revenue
+      |--------------------------------------------------------------------------
+      */
+
+      Payment.aggregate([
+        {
+          $match:
+            completedPaymentFilter,
+        },
+
+        {
+          $lookup: {
+            from: "bookings",
+
+            localField: "booking",
+
+            foreignField: "_id",
+
+            as: "bookingData",
+          },
+        },
+
+        {
+          $unwind: {
+            path:
+              "$bookingData",
+
+            preserveNullAndEmptyArrays:
+              true,
+          },
+        },
+
+        {
+          $lookup: {
+            from: "users",
+
+            localField:
+              "bookingData.salesOwner",
+
+            foreignField: "_id",
+
+            as: "salesOwnerData",
+          },
+        },
+
+        {
+          $unwind: {
+            path:
+              "$salesOwnerData",
+
+            preserveNullAndEmptyArrays:
+              true,
+          },
+        },
+
         {
           $group: {
-            _id: "$salesOwner",
-            revenue: { $sum: { $ifNull: ["$totalAmount", 0] } },
-            bookings: { $sum: 1 }
-          }
+            _id: {
+              id:
+                "$salesOwnerData._id",
+
+              name:
+                "$salesOwnerData.name",
+            },
+
+            amount: {
+              $sum: "$amount",
+            },
+          },
         },
-        { $sort: { revenue: -1 } }
-      ])
+
+        {
+          $sort: {
+            amount: -1,
+          },
+        },
+      ]),
+
+      /*
+      |--------------------------------------------------------------------------
+      | ALL PAYMENT RECORDS
+      |--------------------------------------------------------------------------
+      */
+
+      Payment.find(
+        allPaymentFilter
+      )
+        .populate(
+          "customer",
+          "name email phone"
+        )
+        .populate(
+          "booking",
+          "bookingNumber bookingCode destination totalAmount"
+        )
+        .populate(
+          "invoice",
+          "invoiceNumber totalAmount amountPaid amountDue"
+        )
+        .populate(
+          "receivedBy",
+          "name email"
+        )
+        .sort({
+          paymentDate: -1,
+        })
+        .limit(100)
+        .lean(),
     ]);
 
-    const bookingData = bookingRevenue[0] || {
-      revenue: 0,
-      paid: 0,
-      due: 0
-    };
-
-    const paymentData = paymentRevenue[0] || {
-      totalPayments: 0,
-      paymentCount: 0
-    };
-
-    const salesOwnerIds = salespersonRevenue
-      .map(item => item._id)
-      .filter(Boolean);
-
-    const users = salesOwnerIds.length
-      ? await User.find({
-          _id: { $in: salesOwnerIds }
-        }).select("name email role").lean()
-      : [];
-
-    const userMap = new Map(
-      users.map(user => [String(user._id), user])
-    );
-
     res.json({
-      message: "Revenue report fetched successfully",
+      success: true,
+
+      period:
+        getDateRangeLabel(
+          req.query
+        ),
 
       summary: {
-        bookingRevenue: toNumber(bookingData.revenue),
-        amountPaid: toNumber(bookingData.paid),
-        amountDue: toNumber(bookingData.due),
-        paymentRevenue: toNumber(paymentData.totalPayments),
-        paymentCount: paymentData.paymentCount
+        bookingRevenue:
+          toNumber(
+            bookingRevenue[0]
+              ?.totalRevenue
+          ),
+
+        bookingCost:
+          toNumber(
+            bookingRevenue[0]
+              ?.totalCost
+          ),
+
+        bookingProfit:
+          toNumber(
+            bookingRevenue[0]
+              ?.totalProfit
+          ),
+
+        collectedRevenue:
+          toNumber(
+            paymentRevenue[0]
+              ?.totalCollected
+          ),
+
+        paymentCount:
+          toNumber(
+            paymentRevenue[0]
+              ?.paymentCount
+          ),
       },
 
-      monthlyRevenue: monthlyRevenue.map(item => ({
-        year: item._id.year,
-        month: item._id.month,
-        revenue: toNumber(item.revenue),
-        bookings: item.bookings
-      })),
+      monthlyRevenue,
 
-      destinationRevenue: destinationRevenue.map(item => ({
-        destination: item._id || "Unknown",
-        revenue: toNumber(item.revenue),
-        bookings: item.bookings
-      })),
+      destinationRevenue,
 
-      salespersonRevenue: salespersonRevenue.map(item => ({
-        salesperson: userMap.get(String(item._id)) || null,
-        revenue: toNumber(item.revenue),
-        bookings: item.bookings
-      }))
+      salespersonRevenue,
+
+      payments,
     });
-
   } catch (error) {
-    console.error("Revenue report error:", error);
+    console.error(
+      "Revenue report error:",
+      error
+    );
 
     res.status(500).json({
-      message: "Failed to fetch revenue report",
-      error: error.message
+      success: false,
+
+      message:
+        "Failed to generate revenue report",
+
+      error:
+        error.message,
     });
   }
 };
 
+/*
+|--------------------------------------------------------------------------
+| EXPENSE REPORT
+|--------------------------------------------------------------------------
+*/
 
-// =====================================================
-// 4. EXPENSE REPORT
-// =====================================================
-
-const getExpenseReport = async (req, res) => {
+const getExpenseReport = async (
+  req,
+  res
+) => {
   try {
     const filter = {
-      ...getDateFilter(req.query, "expenseDate")
+      ...getDateFilter(
+        req.query,
+        "expenseDate"
+      ),
     };
 
-    if (req.query.status) {
-      filter.status = req.query.status;
-    }
-
     if (req.query.category) {
-      filter.category = req.query.category;
+      filter.category =
+        req.query.category;
     }
 
-    addObjectIdFilter(filter, "booking", req.query.booking);
-    addObjectIdFilter(filter, "customer", req.query.customer);
+    if (req.query.status) {
+      filter.status =
+        req.query.status;
+    }
 
     const [
       summary,
       categoryBreakdown,
-      monthlyExpenses,
-      expenses
+      monthlyBreakdown,
+      statusBreakdown,
+      expenses,
     ] = await Promise.all([
       Expense.aggregate([
-        { $match: filter },
+        {
+          $match: filter,
+        },
+
         {
           $group: {
             _id: null,
-            totalAmount: { $sum: { $ifNull: ["$amount", 0] } },
-            expenseCount: { $sum: 1 }
-          }
-        }
+
+            totalAmount: {
+              $sum: "$amount",
+            },
+
+            count: {
+              $sum: 1,
+            },
+          },
+        },
       ]),
 
       Expense.aggregate([
-        { $match: filter },
+        {
+          $match: {
+            ...filter,
+            status: "Paid",
+          },
+        },
+
         {
           $group: {
             _id: "$category",
-            amount: { $sum: { $ifNull: ["$amount", 0] } },
-            count: { $sum: 1 }
-          }
+
+            amount: {
+              $sum: "$amount",
+            },
+
+            count: {
+              $sum: 1,
+            },
+          },
         },
-        { $sort: { amount: -1 } }
+
+        {
+          $sort: {
+            amount: -1,
+          },
+        },
       ]),
 
       Expense.aggregate([
-        { $match: filter },
+        {
+          $match: {
+            ...filter,
+            status: "Paid",
+          },
+        },
+
         {
           $group: {
             _id: {
-              year: { $year: "$expenseDate" },
-              month: { $month: "$expenseDate" }
+              year: {
+                $year:
+                  "$expenseDate",
+              },
+
+              month: {
+                $month:
+                  "$expenseDate",
+              },
             },
-            amount: { $sum: { $ifNull: ["$amount", 0] } }
-          }
+
+            amount: {
+              $sum: "$amount",
+            },
+          },
         },
-        { $sort: { "_id.year": 1, "_id.month": 1 } }
+
+        {
+          $sort: {
+            "_id.year": 1,
+            "_id.month": 1,
+          },
+        },
+      ]),
+
+      Expense.aggregate([
+        {
+          $match: filter,
+        },
+
+        {
+          $group: {
+            _id: "$status",
+
+            amount: {
+              $sum: "$amount",
+            },
+
+            count: {
+              $sum: 1,
+            },
+          },
+        },
       ]),
 
       Expense.find(filter)
-        .populate("booking")
-        .populate("customer", "name email")
-        .populate("approvedBy", "name email")
-        .sort({ expenseDate: -1 })
+        .populate(
+          "supplier",
+          "name"
+        )
+        .populate(
+          "booking",
+          "bookingNumber destination"
+        )
+        .populate(
+          "createdBy",
+          "name email"
+        )
+        .sort({
+          expenseDate: -1,
+        })
         .limit(100)
-        .lean()
+        .lean(),
     ]);
 
-    const data = summary[0] || {
-      totalAmount: 0,
-      expenseCount: 0
-    };
+    const paidExpenseResult =
+      await Expense.aggregate([
+        {
+          $match: {
+            ...filter,
+            status: "Paid",
+          },
+        },
+
+        {
+          $group: {
+            _id: null,
+
+            total: {
+              $sum: "$amount",
+            },
+          },
+        },
+      ]);
 
     res.json({
-      message: "Expense report fetched successfully",
+      success: true,
+
+      period:
+        getDateRangeLabel(
+          req.query
+        ),
 
       summary: {
-        totalAmount: toNumber(data.totalAmount),
-        expenseCount: data.expenseCount
+        totalRecorded:
+          toNumber(
+            summary[0]
+              ?.totalAmount
+          ),
+
+        totalPaid:
+          toNumber(
+            paidExpenseResult[0]
+              ?.total
+          ),
+
+        count:
+          toNumber(
+            summary[0]?.count
+          ),
       },
 
-      categoryBreakdown: categoryBreakdown.map(item => ({
-        category: item._id || "Unknown",
-        amount: toNumber(item.amount),
-        count: item.count
-      })),
+      categoryBreakdown,
 
-      monthlyExpenses: monthlyExpenses.map(item => ({
-        year: item._id.year,
-        month: item._id.month,
-        amount: toNumber(item.amount)
-      })),
+      monthlyBreakdown,
 
-      expenses
+      statusBreakdown,
+
+      expenses,
     });
-
   } catch (error) {
-    console.error("Expense report error:", error);
+    console.error(
+      "Expense report error:",
+      error
+    );
 
     res.status(500).json({
-      message: "Failed to fetch expense report",
-      error: error.message
+      success: false,
+
+      message:
+        "Failed to generate expense report",
+
+      error:
+        error.message,
     });
   }
 };
 
+/*
+|--------------------------------------------------------------------------
+| REFUND REPORT
+|--------------------------------------------------------------------------
+*/
 
-// =====================================================
-// 5. REFUND REPORT
-// =====================================================
-
-const getRefundReport = async (req, res) => {
+const getRefundReport = async (
+  req,
+  res
+) => {
   try {
     const filter = {
-      ...getDateFilter(req.query, "refundDate")
+      ...getDateFilter(
+        req.query,
+        "refundDate"
+      ),
     };
 
     if (req.query.status) {
-      filter.status = req.query.status;
+      filter.status =
+        req.query.status;
     }
-
-    addObjectIdFilter(filter, "booking", req.query.booking);
-    addObjectIdFilter(filter, "customer", req.query.customer);
 
     const [
       summary,
       statusBreakdown,
-      monthlyRefunds,
-      refunds
+      monthlyBreakdown,
+      refunds,
     ] = await Promise.all([
       Refund.aggregate([
-        { $match: filter },
+        {
+          $match: filter,
+        },
+
         {
           $group: {
             _id: null,
-            totalRefundAmount: {
-              $sum: { $ifNull: ["$amount", 0] }
+
+            totalRecorded: {
+              $sum: "$amount",
             },
-            refundCount: { $sum: 1 }
-          }
-        }
+
+            count: {
+              $sum: 1,
+            },
+          },
+        },
       ]),
 
       Refund.aggregate([
-        { $match: filter },
+        {
+          $match: filter,
+        },
+
         {
           $group: {
             _id: "$status",
-            amount: { $sum: { $ifNull: ["$amount", 0] } },
-            count: { $sum: 1 }
-          }
+
+            amount: {
+              $sum: "$amount",
+            },
+
+            count: {
+              $sum: 1,
+            },
+          },
         },
-        { $sort: { amount: -1 } }
       ]),
 
       Refund.aggregate([
-        { $match: filter },
+        {
+          $match: {
+            ...filter,
+            status: "Completed",
+          },
+        },
+
         {
           $group: {
             _id: {
-              year: { $year: "$refundDate" },
-              month: { $month: "$refundDate" }
+              year: {
+                $year:
+                  "$refundDate",
+              },
+
+              month: {
+                $month:
+                  "$refundDate",
+              },
             },
-            amount: { $sum: { $ifNull: ["$amount", 0] } }
-          }
+
+            amount: {
+              $sum: "$amount",
+            },
+          },
         },
-        { $sort: { "_id.year": 1, "_id.month": 1 } }
+
+        {
+          $sort: {
+            "_id.year": 1,
+            "_id.month": 1,
+          },
+        },
       ]),
 
       Refund.find(filter)
-        .populate("booking")
-        .populate("customer", "name email")
-        .populate("payment")
-        .populate("invoice")
-        .populate("requestedBy", "name email role")
-        .populate("approvedBy", "name email role")
-        .populate("processedBy", "name email role")
-        .sort({ refundDate: -1 })
+        .populate(
+          "booking",
+          "bookingNumber destination"
+        )
+        .populate(
+          "customer",
+          "name email"
+        )
+        .populate(
+          "payment",
+          "paymentNumber amount"
+        )
+        .sort({
+          refundDate: -1,
+        })
         .limit(100)
-        .lean()
+        .lean(),
     ]);
 
-    const data = summary[0] || {
-      totalRefundAmount: 0,
-      refundCount: 0
-    };
+    const completedRefund =
+      await Refund.aggregate([
+        {
+          $match: {
+            ...filter,
+            status: "Completed",
+          },
+        },
+
+        {
+          $group: {
+            _id: null,
+
+            total: {
+              $sum: "$amount",
+            },
+          },
+        },
+      ]);
 
     res.json({
-      message: "Refund report fetched successfully",
+      success: true,
+
+      period:
+        getDateRangeLabel(
+          req.query
+        ),
 
       summary: {
-        totalRefundAmount: toNumber(data.totalRefundAmount),
-        refundCount: data.refundCount
+        totalRecorded:
+          toNumber(
+            summary[0]
+              ?.totalRecorded
+          ),
+
+        completedRefund:
+          toNumber(
+            completedRefund[0]
+              ?.total
+          ),
+
+        count:
+          toNumber(
+            summary[0]?.count
+          ),
       },
 
-      statusBreakdown: statusBreakdown.map(item => ({
-        status: item._id || "Unknown",
-        amount: toNumber(item.amount),
-        count: item.count
-      })),
+      statusBreakdown,
 
-      monthlyRefunds: monthlyRefunds.map(item => ({
-        year: item._id.year,
-        month: item._id.month,
-        amount: toNumber(item.amount)
-      })),
+      monthlyBreakdown,
 
-      refunds
+      refunds,
     });
-
   } catch (error) {
-    console.error("Refund report error:", error);
+    console.error(
+      "Refund report error:",
+      error
+    );
 
     res.status(500).json({
-      message: "Failed to fetch refund report",
-      error: error.message
+      success: false,
+
+      message:
+        "Failed to generate refund report",
+
+      error:
+        error.message,
     });
   }
 };
 
+/*
+|--------------------------------------------------------------------------
+| COMMISSION REPORT
+|--------------------------------------------------------------------------
+*/
 
-// =====================================================
-// 6. COMMISSION REPORT
-// =====================================================
-
-const getCommissionReport = async (req, res) => {
+const getCommissionReport = async (
+  req,
+  res
+) => {
   try {
     const filter = {
-      ...getDateFilter(req.query, "createdAt")
+      ...getDateFilter(
+        req.query,
+        "createdAt"
+      ),
     };
 
     if (req.query.status) {
-      filter.status = req.query.status;
+      filter.status =
+        req.query.status;
     }
-
-    addObjectIdFilter(filter, "salesPerson", req.query.salesPerson);
-    addObjectIdFilter(filter, "booking", req.query.booking);
 
     const [
       summary,
       statusBreakdown,
       salespersonBreakdown,
-      commissions
+      commissions,
     ] = await Promise.all([
       Commission.aggregate([
-        { $match: filter },
+        {
+          $match: filter,
+        },
+
         {
           $group: {
             _id: null,
-            totalCommission: {
-              $sum: { $ifNull: ["$commissionAmount", 0] }
+
+            totalRecorded: {
+              $sum: "$commissionAmount",
             },
-            commissionCount: { $sum: 1 }
-          }
-        }
+
+            count: {
+              $sum: 1,
+            },
+          },
+        },
       ]),
 
       Commission.aggregate([
-        { $match: filter },
+        {
+          $match: filter,
+        },
+
         {
           $group: {
             _id: "$status",
+
             amount: {
-              $sum: { $ifNull: ["$commissionAmount", 0] }
+              $sum: "$commissionAmount",
             },
-            count: { $sum: 1 }
-          }
+
+            count: {
+              $sum: 1,
+            },
+          },
         },
-        { $sort: { amount: -1 } }
       ]),
 
       Commission.aggregate([
-        { $match: filter },
+        {
+          $match: filter,
+        },
+
+        {
+          $lookup: {
+            from: "users",
+
+            localField:
+              "salesPerson",
+
+            foreignField: "_id",
+
+            as: "salesPersonData",
+          },
+        },
+
+        {
+          $unwind: {
+            path:
+              "$salesPersonData",
+
+            preserveNullAndEmptyArrays:
+              true,
+          },
+        },
+
         {
           $group: {
-            _id: "$salesPerson",
-            amount: {
-              $sum: { $ifNull: ["$commissionAmount", 0] }
+            _id: {
+              id:
+                "$salesPersonData._id",
+
+              name:
+                "$salesPersonData.name",
             },
-            count: { $sum: 1 }
-          }
+
+            amount: {
+              $sum: "$commissionAmount",
+            },
+
+            count: {
+              $sum: 1,
+            },
+          },
         },
-        { $sort: { amount: -1 } }
+
+        {
+          $sort: {
+            amount: -1,
+          },
+        },
       ]),
 
       Commission.find(filter)
-        .populate("booking")
-        .populate("salesPerson", "name email role")
-        .populate("customer", "name email")
-        .populate("approvedBy", "name email")
-        .populate("createdBy", "name email")
-        .sort({ createdAt: -1 })
+        .populate(
+          "booking",
+          "bookingNumber destination totalAmount"
+        )
+        .populate(
+          "salesPerson",
+          "name email"
+        )
+        .populate(
+          "customer",
+          "name email"
+        )
+        .sort({
+          createdAt: -1,
+        })
         .limit(100)
-        .lean()
+        .lean(),
     ]);
 
-    const data = summary[0] || {
-      totalCommission: 0,
-      commissionCount: 0
-    };
+    const paidCommission =
+      await Commission.aggregate([
+        {
+          $match: {
+            ...filter,
+            status: "Paid",
+          },
+        },
 
-    const salespersonIds = salespersonBreakdown
-      .map(item => item._id)
-      .filter(Boolean);
+        {
+          $group: {
+            _id: null,
 
-    const users = salespersonIds.length
-      ? await User.find({
-          _id: { $in: salespersonIds }
-        }).select("name email role").lean()
-      : [];
+            total: {
+              $sum: "$commissionAmount",
+            },
+          },
+        },
+      ]);
 
-    const userMap = new Map(
-      users.map(user => [String(user._id), user])
-    );
+    const payableCommission =
+      await Commission.aggregate([
+        {
+          $match: {
+            ...filter,
+            status: "Payable",
+          },
+        },
+
+        {
+          $group: {
+            _id: null,
+
+            total: {
+              $sum: "$commissionAmount",
+            },
+          },
+        },
+      ]);
 
     res.json({
-      message: "Commission report fetched successfully",
+      success: true,
+
+      period:
+        getDateRangeLabel(
+          req.query
+        ),
 
       summary: {
-        totalCommission: toNumber(data.totalCommission),
-        commissionCount: data.commissionCount
+        totalRecorded:
+          toNumber(
+            summary[0]
+              ?.totalRecorded
+          ),
+
+        paid:
+          toNumber(
+            paidCommission[0]
+              ?.total
+          ),
+
+        payable:
+          toNumber(
+            payableCommission[0]
+              ?.total
+          ),
+
+        count:
+          toNumber(
+            summary[0]?.count
+          ),
       },
 
-      statusBreakdown: statusBreakdown.map(item => ({
-        status: item._id || "Unknown",
-        amount: toNumber(item.amount),
-        count: item.count
-      })),
+      statusBreakdown,
 
-      salespersonBreakdown: salespersonBreakdown.map(item => ({
-        salesperson: userMap.get(String(item._id)) || null,
-        amount: toNumber(item.amount),
-        count: item.count
-      })),
+      salespersonBreakdown,
 
-      commissions
+      commissions,
     });
-
   } catch (error) {
-    console.error("Commission report error:", error);
+    console.error(
+      "Commission report error:",
+      error
+    );
 
     res.status(500).json({
-      message: "Failed to fetch commission report",
-      error: error.message
+      success: false,
+
+      message:
+        "Failed to generate commission report",
+
+      error:
+        error.message,
     });
   }
 };
 
+/*
+|--------------------------------------------------------------------------
+| PROFIT & LOSS REPORT
+|--------------------------------------------------------------------------
+*/
 
-// =====================================================
-// 7. PROFIT & LOSS REPORT
-// =====================================================
-
-const getProfitLossReport = async (req, res) => {
+const getProfitLossReport = async (
+  req,
+  res
+) => {
   try {
+    /*
+    |--------------------------------------------------------------------------
+    | BOOKING FILTER
+    |--------------------------------------------------------------------------
+    */
+
     const bookingFilter = {
-      ...getDateFilter(req.query, "createdAt")
+      ...getDateFilter(
+        req.query,
+        "createdAt"
+      ),
     };
 
-    addCommonBookingFilters(bookingFilter, req.query);
-
-    const refundFilter = {
-      ...getDateFilter(req.query, "refundDate"),
-      status: "Completed"
-    };
-
-    addObjectIdFilter(refundFilter, "booking", req.query.booking);
-
-    const commissionFilter = {
-      ...getDateFilter(req.query, "createdAt"),
-      status: "Paid"
-    };
-
-    addObjectIdFilter(
-      commissionFilter,
-      "salesPerson",
-      req.query.salesPerson
+    addCommonBookingFilters(
+      bookingFilter,
+      req.query
     );
 
-    const expenseFilter = {
-      ...getDateFilter(req.query, "expenseDate")
+    /*
+    |--------------------------------------------------------------------------
+    | REFUND FILTER
+    |--------------------------------------------------------------------------
+    */
+
+    const refundFilter = {
+      ...getDateFilter(
+        req.query,
+        "refundDate"
+      ),
+
+      status: "Completed",
     };
 
-    if (req.query.expenseStatus) {
-      expenseFilter.status = req.query.expenseStatus;
-    }
+    /*
+    |--------------------------------------------------------------------------
+    | EXPENSE FILTER
+    |--------------------------------------------------------------------------
+    */
+
+    const expenseFilter = {
+      ...getDateFilter(
+        req.query,
+        "expenseDate"
+      ),
+
+      status: "Paid",
+    };
+
+    /*
+    |--------------------------------------------------------------------------
+    | COMMISSION FILTER
+    |--------------------------------------------------------------------------
+    */
+
+    const commissionFilter = {
+      ...getDateFilter(
+        req.query,
+        "paymentDate"
+      ),
+
+      status: "Paid",
+    };
+
+    /*
+    |--------------------------------------------------------------------------
+    | MAIN SUMMARY + MONTHLY DATA
+    |--------------------------------------------------------------------------
+    */
 
     const [
       bookingData,
       refundData,
+      expenseData,
       commissionData,
-      expenseData
+      monthlyBookingData,
+      monthlyRefundData,
+      monthlyExpenseData,
+      monthlyCommissionData,
     ] = await Promise.all([
+      /*
+      |--------------------------------------------------------------------------
+      | Booking Summary
+      |--------------------------------------------------------------------------
+      */
+
       Booking.aggregate([
-        { $match: bookingFilter },
+        {
+          $match:
+            bookingFilter,
+        },
+
         {
           $group: {
             _id: null,
-            revenue: { $sum: { $ifNull: ["$totalAmount", 0] } },
-            bookingCost: { $sum: { $ifNull: ["$totalCost", 0] } },
-            grossProfit: { $sum: { $ifNull: ["$profitAmount", 0] } },
-            bookings: { $sum: 1 }
-          }
-        }
+
+            revenue: {
+              $sum: "$totalAmount",
+            },
+
+            cost: {
+              $sum: "$totalCost",
+            },
+
+            count: {
+              $sum: 1,
+            },
+          },
+        },
       ]),
+
+      /*
+      |--------------------------------------------------------------------------
+      | Completed Refunds
+      |--------------------------------------------------------------------------
+      */
 
       Refund.aggregate([
-        { $match: refundFilter },
+        {
+          $match:
+            refundFilter,
+        },
+
         {
           $group: {
             _id: null,
-            refunds: { $sum: { $ifNull: ["$amount", 0] } }
-          }
-        }
+
+            amount: {
+              $sum: "$amount",
+            },
+          },
+        },
       ]),
 
-      Commission.aggregate([
-        { $match: commissionFilter },
-        {
-          $group: {
-            _id: null,
-            commissions: {
-              $sum: { $ifNull: ["$commissionAmount", 0] }
-            }
-          }
-        }
-      ]),
+      /*
+      |--------------------------------------------------------------------------
+      | Paid Expenses
+      |--------------------------------------------------------------------------
+      */
 
       Expense.aggregate([
-        { $match: expenseFilter },
+        {
+          $match:
+            expenseFilter,
+        },
+
         {
           $group: {
             _id: null,
-            expenses: { $sum: { $ifNull: ["$amount", 0] } }
-          }
-        }
-      ])
+
+            amount: {
+              $sum: "$amount",
+            },
+          },
+        },
+      ]),
+
+      /*
+      |--------------------------------------------------------------------------
+      | Paid Commissions
+      |--------------------------------------------------------------------------
+      */
+
+      Commission.aggregate([
+        {
+          $match:
+            commissionFilter,
+        },
+
+        {
+          $group: {
+            _id: null,
+
+            amount: {
+              $sum: "$commissionAmount",
+            },
+          },
+        },
+      ]),
+
+      /*
+      |--------------------------------------------------------------------------
+      | MONTHLY BOOKING REVENUE + COST
+      |--------------------------------------------------------------------------
+      */
+
+      Booking.aggregate([
+        {
+          $match:
+            bookingFilter,
+        },
+
+        {
+          $group: {
+            _id: {
+              year: {
+                $year:
+                  "$createdAt",
+              },
+
+              month: {
+                $month:
+                  "$createdAt",
+              },
+            },
+
+            revenue: {
+              $sum: "$totalAmount",
+            },
+
+            bookingCost: {
+              $sum: "$totalCost",
+            },
+
+            bookingCount: {
+              $sum: 1,
+            },
+          },
+        },
+
+        {
+          $sort: {
+            "_id.year": 1,
+            "_id.month": 1,
+          },
+        },
+      ]),
+
+      /*
+      |--------------------------------------------------------------------------
+      | MONTHLY REFUNDS
+      |--------------------------------------------------------------------------
+      */
+
+      Refund.aggregate([
+        {
+          $match:
+            refundFilter,
+        },
+
+        {
+          $group: {
+            _id: {
+              year: {
+                $year:
+                  "$refundDate",
+              },
+
+              month: {
+                $month:
+                  "$refundDate",
+              },
+            },
+
+            refunds: {
+              $sum: "$amount",
+            },
+          },
+        },
+
+        {
+          $sort: {
+            "_id.year": 1,
+            "_id.month": 1,
+          },
+        },
+      ]),
+
+      /*
+      |--------------------------------------------------------------------------
+      | MONTHLY EXPENSES
+      |--------------------------------------------------------------------------
+      */
+
+      Expense.aggregate([
+        {
+          $match:
+            expenseFilter,
+        },
+
+        {
+          $group: {
+            _id: {
+              year: {
+                $year:
+                  "$expenseDate",
+              },
+
+              month: {
+                $month:
+                  "$expenseDate",
+              },
+            },
+
+            expenses: {
+              $sum: "$amount",
+            },
+          },
+        },
+
+        {
+          $sort: {
+            "_id.year": 1,
+            "_id.month": 1,
+          },
+        },
+      ]),
+
+      /*
+      |--------------------------------------------------------------------------
+      | MONTHLY COMMISSIONS
+      |--------------------------------------------------------------------------
+      */
+
+      Commission.aggregate([
+        {
+          $match:
+            commissionFilter,
+        },
+
+        {
+          $group: {
+            _id: {
+              year: {
+                $year:
+                  "$paymentDate",
+              },
+
+              month: {
+                $month:
+                  "$paymentDate",
+              },
+            },
+
+            commissions: {
+              $sum: "$commissionAmount",
+            },
+          },
+        },
+
+        {
+          $sort: {
+            "_id.year": 1,
+            "_id.month": 1,
+          },
+        },
+      ]),
     ]);
-
-    const booking = bookingData[0] || {
-      revenue: 0,
-      bookingCost: 0,
-      grossProfit: 0,
-      bookings: 0
-    };
-
-    const refund = refundData[0] || {
-      refunds: 0
-    };
-
-    const commission = commissionData[0] || {
-      commissions: 0
-    };
-
-    const expense = expenseData[0] || {
-      expenses: 0
-    };
 
     /*
-      IMPORTANT ACCOUNTING RULE:
-
-      Booking.totalCost already represents the operational
-      cost used to calculate Booking.profitAmount.
-
-      Therefore we do NOT subtract Expense again from
-      gross profit, otherwise the same cost can be counted
-      twice.
-
-      Expense is returned separately for reporting/reference.
+    |--------------------------------------------------------------------------
+    | MAIN FINANCIAL CALCULATIONS
+    |--------------------------------------------------------------------------
     */
 
-    const revenue = toNumber(booking.revenue);
-    const bookingCost = toNumber(booking.bookingCost);
-    const grossProfit = toNumber(booking.grossProfit);
-    const refunds = toNumber(refund.refunds);
-    const commissions = toNumber(commission.commissions);
-    const recordedExpenses = toNumber(expense.expenses);
+    const revenue =
+      toNumber(
+        bookingData[0]?.revenue
+      );
 
-    const netProfit = grossProfit - refunds - commissions;
+    const bookingCost =
+      toNumber(
+        bookingData[0]?.cost
+      );
 
-    const netMargin =
+    const bookingCount =
+      toNumber(
+        bookingData[0]?.count
+      );
+
+    const grossProfit =
+      revenue -
+      bookingCost;
+
+    const refunds =
+      toNumber(
+        refundData[0]?.amount
+      );
+
+    const expenses =
+      toNumber(
+        expenseData[0]?.amount
+      );
+
+    const commissions =
+      toNumber(
+        commissionData[0]?.amount
+      );
+
+    const netProfit =
+      grossProfit -
+      refunds -
+      expenses -
+      commissions;
+
+    const profitMargin =
       revenue > 0
-        ? Number(((netProfit / revenue) * 100).toFixed(2))
+        ? (netProfit / revenue) *
+          100
         : 0;
 
-    res.json({
-      message: "Profit and loss report fetched successfully",
+    /*
+    |--------------------------------------------------------------------------
+    | MONTHLY TREND
+    |--------------------------------------------------------------------------
+    |
+    | We merge:
+    |
+    | Booking
+    | Refund
+    | Expense
+    | Commission
+    |
+    | into one monthly array.
+    |
+    */
 
-      report: {
-        revenue,
-        bookingCost,
-        grossProfit,
-        refunds,
-        commissions,
-        netProfit,
-        netMargin,
-        bookings: booking.bookings,
+    const monthlyMap =
+      new Map();
 
-        recordedExpenses,
-        expenseTreatment:
-          "Shown separately because bookingCost may already include operational expenses. It is not subtracted again from netProfit."
-      }
-    });
+    /*
+    |--------------------------------------------------------------------------
+    | Add Monthly Booking Data
+    |--------------------------------------------------------------------------
+    */
 
-  } catch (error) {
-    console.error("Profit loss report error:", error);
+    monthlyBookingData.forEach(
+      (item) => {
+        const year =
+          item._id?.year;
 
-    res.status(500).json({
-      message: "Failed to fetch profit and loss report",
-      error: error.message
-    });
-  }
-};
+        const month =
+          item._id?.month;
 
-
-// =====================================================
-// 8. AGENT / SALESPERSON PERFORMANCE
-// =====================================================
-
-const getAgentPerformanceReport = async (req, res) => {
-  try {
-    const bookingFilter = {
-      ...getDateFilter(req.query, "createdAt")
-    };
-
-    addCommonBookingFilters(bookingFilter, req.query);
-
-    const bookingPerformance = await Booking.aggregate([
-      { $match: bookingFilter },
-      {
-        $group: {
-          _id: "$salesOwner",
-          bookings: { $sum: 1 },
-          revenue: { $sum: { $ifNull: ["$totalAmount", 0] } },
-          cost: { $sum: { $ifNull: ["$totalCost", 0] } },
-          profit: { $sum: { $ifNull: ["$profitAmount", 0] } },
-          paid: { $sum: { $ifNull: ["$amountPaid", 0] } },
-          due: { $sum: { $ifNull: ["$amountDue", 0] } }
+        if (!year || !month) {
+          return;
         }
-      },
-      { $sort: { revenue: -1 } }
-    ]);
 
-    const salesOwnerIds = bookingPerformance
-      .map(item => item._id)
-      .filter(Boolean);
+        const key =
+          `${year}-${month}`;
 
-    const users = salesOwnerIds.length
-      ? await User.find({
-          _id: { $in: salesOwnerIds }
-        }).select("name email role isActive").lean()
-      : [];
+        monthlyMap.set(
+          key,
+          {
+            year,
+            month,
 
-    const userMap = new Map(
-      users.map(user => [String(user._id), user])
+            revenue:
+              toNumber(
+                item.revenue
+              ),
+
+            bookingCost:
+              toNumber(
+                item.bookingCost
+              ),
+
+            refunds: 0,
+
+            expenses: 0,
+
+            commissions: 0,
+
+            bookings:
+              toNumber(
+                item.bookingCount
+              ),
+          }
+        );
+      }
     );
 
-    const result = bookingPerformance.map(item => ({
-      salesperson: userMap.get(String(item._id)) || null,
-      bookings: item.bookings,
-      revenue: toNumber(item.revenue),
-      cost: toNumber(item.cost),
-      profit: toNumber(item.profit),
-      paid: toNumber(item.paid),
-      due: toNumber(item.due)
-    }));
+    /*
+    |--------------------------------------------------------------------------
+    | Add Monthly Refund Data
+    |--------------------------------------------------------------------------
+    */
 
-    res.json({
-      message: "Agent performance report fetched successfully",
-      agents: result
-    });
+    monthlyRefundData.forEach(
+      (item) => {
+        const year =
+          item._id?.year;
 
-  } catch (error) {
-    console.error("Agent performance error:", error);
+        const month =
+          item._id?.month;
 
-    res.status(500).json({
-      message: "Failed to fetch agent performance report",
-      error: error.message
-    });
-  }
-};
-
-
-// =====================================================
-// 9. DESTINATION REPORT
-// =====================================================
-
-const getDestinationReport = async (req, res) => {
-  try {
-    const filter = {
-      ...getDateFilter(req.query, "createdAt")
-    };
-
-    addCommonBookingFilters(filter, req.query);
-
-    const destinations = await Booking.aggregate([
-      { $match: filter },
-      {
-        $group: {
-          _id: "$destination",
-
-          bookings: {
-            $sum: 1
-          },
-
-          revenue: {
-            $sum: {
-              $ifNull: ["$totalAmount", 0]
-            }
-          },
-
-          cost: {
-            $sum: {
-              $ifNull: ["$totalCost", 0]
-            }
-          },
-
-          profit: {
-            $sum: {
-              $ifNull: ["$profitAmount", 0]
-            }
-          },
-
-          paid: {
-            $sum: {
-              $ifNull: ["$amountPaid", 0]
-            }
-          },
-
-          due: {
-            $sum: {
-              $ifNull: ["$amountDue", 0]
-            }
-          }
+        if (!year || !month) {
+          return;
         }
-      },
-      {
-        $sort: {
-          revenue: -1
+
+        const key =
+          `${year}-${month}`;
+
+        if (!monthlyMap.has(key)) {
+          monthlyMap.set(
+            key,
+            {
+              year,
+              month,
+              revenue: 0,
+              bookingCost: 0,
+              refunds: 0,
+              expenses: 0,
+              commissions: 0,
+              bookings: 0,
+            }
+          );
         }
+
+        const row =
+          monthlyMap.get(key);
+
+        row.refunds =
+          toNumber(
+            item.refunds
+          );
       }
-    ]);
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Add Monthly Expense Data
+    |--------------------------------------------------------------------------
+    */
+
+    monthlyExpenseData.forEach(
+      (item) => {
+        const year =
+          item._id?.year;
+
+        const month =
+          item._id?.month;
+
+        if (!year || !month) {
+          return;
+        }
+
+        const key =
+          `${year}-${month}`;
+
+        if (!monthlyMap.has(key)) {
+          monthlyMap.set(
+            key,
+            {
+              year,
+              month,
+              revenue: 0,
+              bookingCost: 0,
+              refunds: 0,
+              expenses: 0,
+              commissions: 0,
+              bookings: 0,
+            }
+          );
+        }
+
+        const row =
+          monthlyMap.get(key);
+
+        row.expenses =
+          toNumber(
+            item.expenses
+          );
+      }
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Add Monthly Commission Data
+    |--------------------------------------------------------------------------
+    */
+
+    monthlyCommissionData.forEach(
+      (item) => {
+        const year =
+          item._id?.year;
+
+        const month =
+          item._id?.month;
+
+        if (!year || !month) {
+          return;
+        }
+
+        const key =
+          `${year}-${month}`;
+
+        if (!monthlyMap.has(key)) {
+          monthlyMap.set(
+            key,
+            {
+              year,
+              month,
+              revenue: 0,
+              bookingCost: 0,
+              refunds: 0,
+              expenses: 0,
+              commissions: 0,
+              bookings: 0,
+            }
+          );
+        }
+
+        const row =
+          monthlyMap.get(key);
+
+        row.commissions =
+          toNumber(
+            item.commissions
+          );
+      }
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Final Monthly Trend
+    |--------------------------------------------------------------------------
+    */
+
+    const monthlyTrend =
+      Array.from(
+        monthlyMap.values()
+      )
+        .sort((a, b) => {
+          if (
+            a.year !== b.year
+          ) {
+            return (
+              a.year -
+              b.year
+            );
+          }
+
+          return (
+            a.month -
+            b.month
+          );
+        })
+        .map((item) => {
+          const monthlyGrossProfit =
+            item.revenue -
+            item.bookingCost;
+
+          const monthlyNetProfit =
+            monthlyGrossProfit -
+            item.refunds -
+            item.expenses -
+            item.commissions;
+
+          const monthlyMargin =
+            item.revenue > 0
+              ? (
+                  monthlyNetProfit /
+                  item.revenue
+                ) * 100
+              : 0;
+
+          return {
+            year:
+              item.year,
+
+            month:
+              item.month,
+
+            revenue:
+              Number(
+                item.revenue.toFixed(2)
+              ),
+
+            bookingCost:
+              Number(
+                item.bookingCost.toFixed(2)
+              ),
+
+            grossProfit:
+              Number(
+                monthlyGrossProfit.toFixed(
+                  2
+                )
+              ),
+
+            refunds:
+              Number(
+                item.refunds.toFixed(2)
+              ),
+
+            expenses:
+              Number(
+                item.expenses.toFixed(2)
+              ),
+
+            commissions:
+              Number(
+                item.commissions.toFixed(
+                  2
+                )
+              ),
+
+            netProfit:
+              Number(
+                monthlyNetProfit.toFixed(
+                  2
+                )
+              ),
+
+            profitMargin:
+              Number(
+                monthlyMargin.toFixed(2)
+              ),
+
+            bookings:
+              item.bookings,
+          };
+        });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Response
+    |--------------------------------------------------------------------------
+    */
 
     res.json({
-      message: "Destination report fetched successfully",
+      success: true,
 
-      destinations: destinations.map(item => ({
-        destination: item._id || "Unknown",
-        bookings: item.bookings,
-        revenue: toNumber(item.revenue),
-        cost: toNumber(item.cost),
-        profit: toNumber(item.profit),
-        paid: toNumber(item.paid),
-        due: toNumber(item.due)
-      }))
+      period:
+        getDateRangeLabel(
+          req.query
+        ),
+
+      summary: {
+        revenue,
+
+        bookingCost,
+
+        grossProfit,
+
+        refunds,
+
+        expenses,
+
+        commissions,
+
+        netProfit,
+
+        profitMargin:
+          Number(
+            profitMargin.toFixed(2)
+          ),
+
+        /*
+        |--------------------------------------------------------------
+        | Additional frontend-friendly fields
+        |--------------------------------------------------------------
+        */
+
+        bookings:
+          bookingCount,
+
+        totalBookings:
+          bookingCount,
+      },
+
+      /*
+      |--------------------------------------------------------------------------
+      | Monthly Profit Trend
+      |--------------------------------------------------------------------------
+      */
+
+      monthlyTrend,
+
+      /*
+      |--------------------------------------------------------------------------
+      | Alias fields
+      |
+      | These make frontend integration easier if the component
+      | checks different names.
+      |--------------------------------------------------------------------------
+      */
+
+      profitTrend:
+        monthlyTrend,
+
+      trend:
+        monthlyTrend,
+
+      formula: {
+        grossProfit:
+          "Revenue - Booking Cost",
+
+        netProfit:
+          "Gross Profit - Refunds - Expenses - Commissions",
+      },
     });
-
   } catch (error) {
-    console.error("Destination report error:", error);
+    console.error(
+      "Profit loss report error:",
+      error
+    );
 
     res.status(500).json({
-      message: "Failed to fetch destination report",
-      error: error.message
+      success: false,
+
+      message:
+        "Failed to generate profit and loss report",
+
+      error:
+        error.message,
     });
   }
 };
 
+/*
+|--------------------------------------------------------------------------
+| AGENT PERFORMANCE REPORT
+|--------------------------------------------------------------------------
+*/
 
-// =====================================================
-// EXPORTS
-// =====================================================
+const getAgentPerformanceReport =
+  async (req, res) => {
+    try {
+      const filter = {
+        ...getDateFilter(
+          req.query,
+          "createdAt"
+        ),
+      };
+
+      addCommonBookingFilters(
+        filter,
+        req.query
+      );
+
+      const performance =
+        await Booking.aggregate([
+          {
+            $match: filter,
+          },
+
+          {
+            $lookup: {
+              from: "users",
+
+              localField:
+                "salesOwner",
+
+              foreignField: "_id",
+
+              as: "agent",
+            },
+          },
+
+          {
+            $unwind: {
+              path: "$agent",
+
+              preserveNullAndEmptyArrays:
+                true,
+            },
+          },
+
+          {
+            $group: {
+              _id:
+                "$agent._id",
+
+              agentName: {
+                $first:
+                  "$agent.name",
+              },
+
+              email: {
+                $first:
+                  "$agent.email",
+              },
+
+              bookings: {
+                $sum: 1,
+              },
+
+              revenue: {
+                $sum: "$totalAmount",
+              },
+
+              cost: {
+                $sum: "$totalCost",
+              },
+
+              profit: {
+                $sum: "$profit",
+              },
+
+              paid: {
+                $sum: "$amountPaid",
+              },
+
+              due: {
+                $sum: "$amountDue",
+              },
+            },
+          },
+
+          {
+            $sort: {
+              revenue: -1,
+            },
+          },
+        ]);
+
+      res.json({
+        success: true,
+
+        period:
+          getDateRangeLabel(
+            req.query
+          ),
+
+        agents:
+          performance,
+      });
+    } catch (error) {
+      console.error(
+        "Agent performance error:",
+        error
+      );
+
+      res.status(500).json({
+        success: false,
+
+        message:
+          "Failed to generate agent performance report",
+
+        error:
+          error.message,
+      });
+    }
+  };
+
+/*
+|--------------------------------------------------------------------------
+| DESTINATION REPORT
+|--------------------------------------------------------------------------
+*/
+
+const getDestinationReport =
+  async (req, res) => {
+    try {
+      const filter = {
+        ...getDateFilter(
+          req.query,
+          "createdAt"
+        ),
+      };
+
+      addCommonBookingFilters(
+        filter,
+        req.query
+      );
+
+      const destinations =
+        await Booking.aggregate([
+          {
+            $match: filter,
+          },
+
+          {
+            $group: {
+              _id:
+                "$destination",
+
+              bookings: {
+                $sum: 1,
+              },
+
+              revenue: {
+                $sum: "$totalAmount",
+              },
+
+              cost: {
+                $sum: "$totalCost",
+              },
+
+              profit: {
+                $sum: "$profit",
+              },
+
+              paid: {
+                $sum: "$amountPaid",
+              },
+
+              due: {
+                $sum: "$amountDue",
+              },
+            },
+          },
+
+          {
+            $sort: {
+              revenue: -1,
+            },
+          },
+        ]);
+
+      res.json({
+        success: true,
+
+        period:
+          getDateRangeLabel(
+            req.query
+          ),
+
+        destinations,
+      });
+    } catch (error) {
+      console.error(
+        "Destination report error:",
+        error
+      );
+
+      res.status(500).json({
+        success: false,
+
+        message:
+          "Failed to generate destination report",
+
+        error:
+          error.message,
+      });
+    }
+  };
+
+/*
+|--------------------------------------------------------------------------
+| EXPORTS
+|--------------------------------------------------------------------------
+*/
 
 module.exports = {
-  getSalesReport,
-  getBookingReport,
-  getRevenueReport,
-  getExpenseReport,
-  getRefundReport,
-  getCommissionReport,
-  getProfitLossReport,
-  getAgentPerformanceReport,
-  getDestinationReport
-};
+  getOverviewReport,
 
+  getSalesReport,
+
+  getBookingReport,
+
+  getRevenueReport,
+
+  getExpenseReport,
+
+  getRefundReport,
+
+  getCommissionReport,
+
+  getProfitLossReport,
+
+  getAgentPerformanceReport,
+
+  getDestinationReport,
+};

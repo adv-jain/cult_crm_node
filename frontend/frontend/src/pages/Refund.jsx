@@ -18,6 +18,7 @@ import {
   FiPlus,
   FiRefreshCcw,
   FiSearch,
+  FiSend,
   FiUser,
   FiX,
   FiXCircle,
@@ -30,18 +31,18 @@ import { useAuth } from "../context/AuthContext";
    CONSTANTS
 ========================================================= */
 
-const PAYMENT_METHODS = [
-  "Cash", "UPI", "Card", "Bank Transfer", "Cheque", "Online",
+const REFUND_METHODS = [
+  "Cash", "UPI", "Bank Transfer", "Credit Card", "Debit Card",
+  "Net Banking", "Cheque", "Wallet", "Original Payment Method", "Other",
 ];
 
-const PAYMENT_STATUSES = [
-  "Pending", "Completed", "Failed", "Refunded",
+const REFUND_STATUSES = [
+  "Requested", "Under Review", "Approved", "Processing",
+  "Completed", "Rejected", "Cancelled",
 ];
-
-const CREATABLE_STATUSES = ["Pending", "Completed", "Failed"];
 
 const CREATE_ROLES = ["admin", "manager", "sales", "accounts"];
-
+const ACTION_ROLES = ["admin", "manager", "accounts"];
 const RECORDS_PER_PAGE = 50;
 
 /* =========================================================
@@ -56,15 +57,14 @@ const getToday = () => {
 };
 
 const formatCurrency = (amount = 0, currency = "INR") => {
+  const value = Number(amount || 0);
   const cur = String(currency || "INR").trim().toUpperCase() || "INR";
   try {
     return new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: cur,
-      maximumFractionDigits: 2,
-    }).format(Number(amount || 0));
+      style: "currency", currency: cur, maximumFractionDigits: 2,
+    }).format(value);
   } catch {
-    return `₹${Number(amount || 0).toLocaleString("en-IN")}`;
+    return `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
   }
 };
 
@@ -102,40 +102,71 @@ const getCustomerInitials = (customer) => {
     .map((p) => p[0]).join("").toUpperCase();
 };
 
-const getBookingCode = (booking) => {
-  if (!booking) return "-";
-  if (typeof booking === "string") return booking;
-  return (
-    booking.bookingNumber || booking.bookingCode || booking.code ||
-    booking._id || "-"
-  );
+const getBookingCode = (b) => {
+  if (!b) return "-";
+  if (typeof b === "string") return b;
+  return b.bookingNumber || b.bookingCode || b.code || b._id || "-";
 };
 
-const getBookingDestination = (booking) => {
-  if (!booking || typeof booking === "string") return "-";
-  return booking.destination || booking.packageName || "Travel Booking";
+const getBookingDestination = (b) => {
+  if (!b || typeof b === "string") return "-";
+  return b.destination || b.packageName || b.trip?.destination ||
+    b.trip?.title || "Travel Booking";
 };
 
-const extractPayments = (data) => {
+const getPaymentNumber = (p) => {
+  if (!p) return "-";
+  if (typeof p === "string") return p;
+  return p.paymentNumber || p.paymentCode || p._id || "-";
+};
+
+const getInvoiceNumber = (i) => {
+  if (!i) return "-";
+  if (typeof i === "string") return i;
+  return i.invoiceNumber || i._id || "-";
+};
+
+const extractList = (data, key) => {
   if (Array.isArray(data)) return data;
-  return data?.payments || data?.data?.payments || data?.data || data?.results || [];
+  return data?.[key] || data?.data?.[key] || data?.data || data?.results || [];
 };
 
-const extractBookings = (data) => {
-  if (Array.isArray(data)) return data;
-  return data?.bookings || data?.data?.bookings || data?.data || data?.results || [];
+const extractItem = (data, key) => {
+  if (!data) return null;
+  if (data?.[key]) return data[key];
+  if (data?.data?.[key]) return data.data[key];
+  if (data?.data) return data.data;
+  if (data?.result) return data.result;
+  return data;
+};
+
+const getRefundAmount = (refund) => {
+  if (!refund) return 0;
+  const amount = refund.amount ?? refund.refundAmount ?? refund.totalRefundAmount ?? 0;
+  return Number(amount) || 0;
+};
+
+const getRefundCurrency = (refund) => {
+  if (!refund) return "INR";
+  return refund.currency || refund.booking?.currency || refund.payment?.currency || "INR";
 };
 
 const getStatusClasses = (status) => {
   switch (status) {
+    case "Requested":
+      return "bg-blue-50 text-blue-700 border-blue-200";
+    case "Under Review":
+      return "bg-amber-50 text-amber-700 border-amber-200";
+    case "Approved":
+      return "bg-indigo-50 text-indigo-700 border-indigo-200";
+    case "Processing":
+      return "bg-purple-50 text-purple-700 border-purple-200";
     case "Completed":
       return "bg-emerald-50 text-emerald-700 border-emerald-200";
-    case "Pending":
-      return "bg-amber-50 text-amber-700 border-amber-200";
-    case "Failed":
+    case "Rejected":
       return "bg-red-50 text-red-700 border-red-200";
-    case "Refunded":
-      return "bg-purple-50 text-purple-700 border-purple-200";
+    case "Cancelled":
+      return "bg-gray-100 text-gray-600 border-gray-200";
     default:
       return "bg-gray-50 text-gray-700 border-gray-200";
   }
@@ -143,10 +174,13 @@ const getStatusClasses = (status) => {
 
 const getStatusIcon = (status) => {
   switch (status) {
+    case "Requested": return FiSend;
+    case "Under Review": return FiClock;
+    case "Approved": return FiCheckCircle;
+    case "Processing": return FiRefreshCcw;
     case "Completed": return FiCheck;
-    case "Pending": return FiClock;
-    case "Failed": return FiXCircle;
-    case "Refunded": return FiRefreshCcw;
+    case "Rejected": return FiXCircle;
+    case "Cancelled": return FiX;
     default: return FiClock;
   }
 };
@@ -155,22 +189,26 @@ const getStatusIcon = (status) => {
    MAIN COMPONENT
 ========================================================= */
 
-export default function Payment() {
+export default function Refund() {
   const { user } = useAuth();
   const role = String(user?.role || "").toLowerCase();
-  const canCreatePayment = CREATE_ROLES.includes(role);
+  const canCreateRefund = CREATE_ROLES.includes(role);
+  const canTakeAction = ACTION_ROLES.includes(role);
 
   /* Data */
-  const [payments, setPayments] = useState([]);
+  const [refunds, setRefunds] = useState([]);
   const [bookings, setBookings] = useState([]);
+  const [payments, setPayments] = useState([]);
 
   /* UI */
   const [loading, setLoading] = useState(true);
   const [bookingsLoading, setBookingsLoading] = useState(false);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
   /* Filters */
   const [search, setSearch] = useState("");
@@ -180,51 +218,56 @@ export default function Payment() {
   const filterRef = useRef(null);
 
   /* Pagination */
-  const [page, setPage] = useState(1);
-  const [limit] = useState(RECORDS_PER_PAGE);
+  const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [totalPayments, setTotalPayments] = useState(0);
+  const [totalRefunds, setTotalRefunds] = useState(0);
 
   /* Modals */
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showRefundModal, setShowRefundModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [selectedPayment, setSelectedPayment] = useState(null);
+  const [selectedRefund, setSelectedRefund] = useState(null);
 
   /* Form */
   const [form, setForm] = useState({
-    booking: "",
-    amount: "",
-    paymentMethod: "UPI",
-    transactionId: "",
-    paymentDate: getToday(),
-    status: "Completed",
-    notes: "",
+    booking: "", payment: "", invoice: "",
+    amount: "", refundDate: getToday(),
+    reason: "", refundMethod: "Original Payment Method",
+    transactionId: "", referenceNumber: "", notes: "",
   });
 
   /* =======================================================
      FETCHERS
   ======================================================= */
 
-  const fetchPayments = async (targetPage = page) => {
+  const fetchRefunds = async (page = currentPage) => {
     try {
       setLoading(true);
-      setError("");
-
-      const params = { page: targetPage, limit };
+      setErrorMessage("");
+      const params = { page, limit: RECORDS_PER_PAGE };
       if (statusFilter) params.status = statusFilter;
-      if (methodFilter) params.paymentMethod = methodFilter;
+      if (methodFilter) params.refundMethod = methodFilter;
 
-      const { data = {} } = await api.get("/payments", { params });
-      const list = extractPayments(data);
+      const { data = {} } = await api.get("/refunds", { params });
+      const list = extractList(data, "refunds");
 
-      setPayments(list);
-      setTotalPayments(Number(data.total ?? list.length));
-      setTotalPages(Math.max(1, Number(data.totalPages ?? 1)));
-      setPage(Number(data.page || targetPage));
+      setRefunds(list);
+      setCurrentPage(data?.page || page);
+      setTotalRefunds(Number(data?.total ?? data?.data?.total ?? list.length));
+      setTotalPages(
+        Math.max(
+          1,
+          Number(
+            data?.totalPages ||
+              data?.pages ||
+              data?.data?.totalPages ||
+              Math.ceil((data?.total || list.length) / RECORDS_PER_PAGE)
+          )
+        )
+      );
     } catch (err) {
-      console.error("Fetch payments error:", err);
-      setError(err.response?.data?.message || "Failed to load payments.");
-      setPayments([]);
+      console.error("Fetch refunds error:", err);
+      setErrorMessage(err.response?.data?.message || "Failed to fetch refunds");
+      setRefunds([]);
     } finally {
       setLoading(false);
     }
@@ -234,11 +277,25 @@ export default function Payment() {
     try {
       setBookingsLoading(true);
       const { data } = await api.get("/bookings", { params: { limit: 100 } });
-      setBookings(extractBookings(data));
+      setBookings(extractList(data, "bookings"));
     } catch (err) {
       console.error("Fetch bookings error:", err);
     } finally {
       setBookingsLoading(false);
+    }
+  };
+
+  const fetchPayments = async () => {
+    try {
+      setPaymentsLoading(true);
+      const { data } = await api.get("/payments", {
+        params: { limit: 100, status: "Completed" },
+      });
+      setPayments(extractList(data, "payments"));
+    } catch (err) {
+      console.error("Fetch payments error:", err);
+    } finally {
+      setPaymentsLoading(false);
     }
   };
 
@@ -248,25 +305,26 @@ export default function Payment() {
 
   useEffect(() => {
     fetchBookings();
+    fetchPayments();
   }, []);
 
   useEffect(() => {
-    setPage(1);
+    setCurrentPage(1);
   }, [search, statusFilter, methodFilter]);
 
   useEffect(() => {
-    fetchPayments(page);
+    fetchRefunds(currentPage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, statusFilter, methodFilter]);
+  }, [currentPage, search, statusFilter, methodFilter]);
 
   useEffect(() => {
-    if (!success && !error) return;
+    if (!successMessage && !errorMessage) return;
     const t = setTimeout(() => {
-      setSuccess("");
-      setError("");
+      setSuccessMessage("");
+      setErrorMessage("");
     }, 4000);
     return () => clearTimeout(t);
-  }, [success, error]);
+  }, [successMessage, errorMessage]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -287,39 +345,67 @@ export default function Payment() {
     [form.booking, bookings]
   );
 
-  const filteredPayments = useMemo(() => {
+  const completedRefundAmount = useMemo(() => {
+    if (!form.booking) return 0;
+    return refunds
+      .filter((r) => {
+        const id = typeof r.booking === "object" ? r.booking?._id : r.booking;
+        return String(id) === String(form.booking) && r.status === "Completed";
+      })
+      .reduce((sum, r) => sum + getRefundAmount(r), 0);
+  }, [refunds, form.booking]);
+
+  const activeRefundAmount = useMemo(() => {
+    if (!form.booking) return 0;
+    const active = ["Requested", "Under Review", "Approved", "Processing"];
+    return refunds
+      .filter((r) => {
+        const id = typeof r.booking === "object" ? r.booking?._id : r.booking;
+        return String(id) === String(form.booking) && active.includes(r.status);
+      })
+      .reduce((sum, r) => sum + getRefundAmount(r), 0);
+  }, [refunds, form.booking]);
+
+  const maxRefundableAmount = useMemo(() => {
+    if (!selectedBooking) return 0;
+    const paid = Number(selectedBooking.amountPaid || 0);
+    return Math.max(0, paid - completedRefundAmount - activeRefundAmount);
+  }, [selectedBooking, completedRefundAmount, activeRefundAmount]);
+
+  const filteredRefunds = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return payments;
-    return payments.filter((p) => {
+    if (!term) return refunds;
+    return refunds.filter((r) => {
       const text = [
-        p.paymentNumber || "",
-        getBookingCode(p.booking),
-        getCustomerName(p.customer),
-        p.transactionId || "",
-        p.paymentMethod || "",
-        p.status || "",
-        getBookingDestination(p.booking),
+        r.refundNumber || "",
+        getBookingCode(r.booking),
+        getBookingDestination(r.booking),
+        getCustomerName(r.customer),
+        getPaymentNumber(r.payment),
+        getInvoiceNumber(r.invoice),
+        r.reason || "", r.transactionId || "", r.referenceNumber || "",
+        r.refundMethod || "", r.status || "",
       ].join(" ").toLowerCase();
       return text.includes(term);
     });
-  }, [payments, search]);
+  }, [refunds, search]);
 
   const summary = useMemo(() => {
-    const completed = payments.filter((p) => p.status === "Completed");
-    const pending = payments.filter((p) => p.status === "Pending");
-    const failed = payments.filter((p) => p.status === "Failed");
-    const refunded = payments.filter((p) => p.status === "Refunded");
-    const sum = (arr) => arr.reduce((s, p) => s + Number(p.amount || 0), 0);
+    const completed = refunds.filter((r) => r.status === "Completed");
+    const processing = refunds.filter((r) => ["Processing", "Approved"].includes(r.status));
+    const requested = refunds.filter((r) => ["Requested", "Under Review"].includes(r.status));
+    const rejected = refunds.filter((r) => ["Rejected", "Cancelled"].includes(r.status));
+    const sum = (arr) => arr.reduce((s, r) => s + getRefundAmount(r), 0);
     return {
       completedCount: completed.length,
       completedAmount: sum(completed),
-      pendingCount: pending.length,
-      pendingAmount: sum(pending),
-      failedCount: failed.length,
-      refundedCount: refunded.length,
-      refundedAmount: sum(refunded),
+      processingCount: processing.length,
+      processingAmount: sum(processing),
+      requestedCount: requested.length,
+      requestedAmount: sum(requested),
+      rejectedCount: rejected.length,
     };
-  }, [payments]);
+  }, [refunds]);
 
   const activeFilterCount = useMemo(
     () => [search, statusFilter, methodFilter].filter(Boolean).length,
@@ -340,41 +426,49 @@ export default function Payment() {
     setForm((p) => ({ ...p, [name]: value }));
   };
 
-  const openPaymentModal = () => {
-    setError("");
+  const openRefundModal = () => {
+    setErrorMessage("");
     setForm({
-      booking: "",
-      amount: "",
-      paymentMethod: "UPI",
-      transactionId: "",
-      paymentDate: getToday(),
-      status: "Completed",
-      notes: "",
+      booking: "", payment: "", invoice: "",
+      amount: "", refundDate: getToday(),
+      reason: "", refundMethod: "Original Payment Method",
+      transactionId: "", referenceNumber: "", notes: "",
     });
-    setShowPaymentModal(true);
+    setShowRefundModal(true);
   };
 
-  const closePaymentModal = () => {
+  const closeRefundModal = () => {
     if (saving) return;
-    setShowPaymentModal(false);
+    setShowRefundModal(false);
   };
 
   const handleBookingChange = (e) => {
     const bookingId = e.target.value;
+    setForm((p) => ({
+      ...p, booking: bookingId, payment: "", invoice: "", amount: "",
+    }));
+    if (!bookingId) return;
     const booking = bookings.find((b) => b._id === bookingId);
-    setForm((p) => ({ ...p, booking: bookingId, amount: "" }));
-    if (booking && Number(booking.amountDue || 0) <= 0) {
-      setError("This booking has no outstanding amount.");
-    } else {
-      setError("");
+    if (booking && Number(booking.amountPaid || 0) <= 0) {
+      setErrorMessage("This booking has no completed payment available for refund.");
+      return;
     }
+    setErrorMessage("");
   };
 
-  const fillDueAmount = () => {
-    if (!selectedBooking) return;
-    const due = Number(selectedBooking.amountDue || 0);
-    if (due <= 0) return;
-    setForm((p) => ({ ...p, amount: due.toFixed(2) }));
+  const handlePaymentChange = (e) => {
+    const paymentId = e.target.value;
+    const payment = payments.find((p) => p._id === paymentId);
+    setForm((p) => ({
+      ...p,
+      payment: paymentId,
+      amount: payment ? Number(payment.amount || 0).toFixed(2) : "",
+    }));
+  };
+
+  const fillRefundableAmount = () => {
+    if (maxRefundableAmount <= 0) return;
+    setForm((p) => ({ ...p, amount: maxRefundableAmount.toFixed(2) }));
   };
 
   /* =======================================================
@@ -383,87 +477,132 @@ export default function Payment() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
-    setSuccess("");
+    setErrorMessage("");
+    setSuccessMessage("");
 
-    if (!form.booking) return setError("Please select a booking.");
+    if (!form.booking) return setErrorMessage("Please select a booking.");
+
     const amount = Number(form.amount);
     if (!Number.isFinite(amount) || amount <= 0)
-      return setError("Please enter a valid payment amount.");
-    if (!selectedBooking)
-      return setError("Selected booking could not be found.");
-
-    const amountDue = Number(selectedBooking.amountDue || 0);
-    if (amountDue <= 0) return setError("This booking has no outstanding amount.");
-    if (amount > amountDue)
-      return setError(
-        `Payment cannot exceed the booking due amount of ${formatCurrency(
-          amountDue,
-          selectedBooking.currency || "INR"
+      return setErrorMessage("Please enter a valid refund amount.");
+    if (maxRefundableAmount <= 0)
+      return setErrorMessage("No refundable amount is available for this booking.");
+    if (amount > maxRefundableAmount)
+      return setErrorMessage(
+        `Refund cannot exceed ${formatCurrency(
+          maxRefundableAmount,
+          selectedBooking?.currency || "INR"
         )}.`
       );
-    if (!form.paymentMethod) return setError("Please select a payment method.");
-    if (!form.paymentDate) return setError("Please select payment date.");
+    if (!form.reason.trim()) return setErrorMessage("Please enter a refund reason.");
+    if (!form.refundDate) return setErrorMessage("Please select refund date.");
 
     try {
       setSaving(true);
       const payload = {
-        booking: form.booking,
-        amount,
-        paymentMethod: form.paymentMethod,
-        paymentDate: form.paymentDate,
-        status: form.status,
+        booking: form.booking, amount,
+        refundDate: form.refundDate,
+        reason: form.reason.trim(),
+        refundMethod: form.refundMethod,
         notes: form.notes.trim(),
       };
-      if (form.transactionId.trim())
-        payload.transactionId = form.transactionId.trim();
+      if (form.payment) payload.payment = form.payment;
+      if (form.invoice) payload.invoice = form.invoice;
+      if (form.transactionId.trim()) payload.transactionId = form.transactionId.trim();
+      if (form.referenceNumber.trim()) payload.referenceNumber = form.referenceNumber.trim();
 
-      const { data } = await api.post("/payments", payload);
-      const created = data?.payment || data;
+      const { data } = await api.post("/refunds", payload);
+      const created = extractItem(data, "refund");
 
-      setShowPaymentModal(false);
-      setSuccess(
-        `${created?.paymentNumber || "Payment"} recorded successfully.`
-      );
-      await Promise.all([fetchPayments(page), fetchBookings()]);
+      setShowRefundModal(false);
+      setSuccessMessage(`${created?.refundNumber || "Refund"} requested successfully`);
+      await Promise.all([fetchRefunds(currentPage), fetchBookings(), fetchPayments()]);
     } catch (err) {
-      console.error("Create payment error:", err);
-      setError(err.response?.data?.message || "Failed to record payment.");
+      console.error("Create refund error:", err);
+      setErrorMessage(err.response?.data?.message || "Failed to create refund request");
     } finally {
       setSaving(false);
     }
   };
 
   /* =======================================================
-     DETAILS
+     VIEW / ACTIONS
   ======================================================= */
 
-  const openPaymentDetails = async (payment) => {
+  const openRefundDetails = async (refund) => {
     try {
-      setError("");
-      setSelectedPayment(payment);
+      setErrorMessage("");
+      setSelectedRefund(refund);
       setShowDetailsModal(true);
-      if (!payment?._id) return;
-      const { data } = await api.get(`/payments/${payment._id}`);
-      const details = data?.payment || data;
-      if (details) setSelectedPayment(details);
+      if (!refund?._id) return;
+      const { data } = await api.get(`/refunds/${refund._id}`);
+      const details = extractItem(data, "refund");
+      if (details) setSelectedRefund(details);
     } catch (err) {
-      console.error("Payment details error:", err);
-      setError(err.response?.data?.message || "Failed to load payment details.");
+      console.error("Refund details error:", err);
+      setErrorMessage(err.response?.data?.message || "Failed to load refund details");
     }
   };
 
   const handleRefresh = async () => {
-    setError("");
-    await Promise.all([fetchPayments(page), fetchBookings()]);
+    setErrorMessage("");
+    await Promise.all([fetchRefunds(currentPage), fetchBookings(), fetchPayments()]);
   };
 
-  const clearFilters = () => {
+  const handleClearFilters = () => {
+    setSearch("");
     setStatusFilter("");
     setMethodFilter("");
-    setSearch("");
-    setPage(1);
+    setCurrentPage(1);
     setShowFilters(false);
+  };
+
+  const runRefundAction = async (refund, action) => {
+    if (!refund?._id) return;
+    try {
+      setActionLoading(true);
+      setErrorMessage("");
+      setSuccessMessage("");
+      const { data } = await api.put(`/refunds/${refund._id}/${action}`, {});
+      const updated = extractItem(data, "refund");
+      if (updated) setSelectedRefund(updated);
+      setSuccessMessage(
+        `Refund ${updated?.refundNumber || refund.refundNumber || ""} updated successfully`
+      );
+      await Promise.all([fetchRefunds(currentPage), fetchBookings(), fetchPayments()]);
+    } catch (err) {
+      console.error(`Refund ${action} error:`, err);
+      setErrorMessage(err.response?.data?.message || `Failed to ${action} refund`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const getAvailableActions = (refund) => {
+    if (!refund || !canTakeAction) return [];
+    switch (refund.status) {
+      case "Requested":
+        return [
+          { action: "review", label: "Review", icon: FiEye, cls: "bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200" },
+          { action: "reject", label: "Reject", icon: FiXCircle, cls: "bg-red-50 text-red-700 hover:bg-red-100 border-red-200" },
+          { action: "cancel", label: "Cancel", icon: FiX, cls: "bg-gray-100 text-gray-700 hover:bg-gray-200 border-gray-200" },
+        ];
+      case "Under Review":
+        return [
+          { action: "approve", label: "Approve", icon: FiCheckCircle, cls: "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-indigo-200" },
+          { action: "reject", label: "Reject", icon: FiXCircle, cls: "bg-red-50 text-red-700 hover:bg-red-100 border-red-200" },
+        ];
+      case "Approved":
+        return [
+          { action: "process", label: "Process", icon: FiRefreshCcw, cls: "bg-purple-50 text-purple-700 hover:bg-purple-100 border-purple-200" },
+        ];
+      case "Processing":
+        return [
+          { action: "complete", label: "Complete", icon: FiCheck, cls: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200" },
+        ];
+      default:
+        return [];
+    }
   };
 
   /* =======================================================
@@ -474,7 +613,6 @@ export default function Payment() {
     <div className="p-4 sm:p-6 lg:p-8 space-y-5 max-w-[1600px] mx-auto">
       {/* HEADER */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-        {/* LEFT: SEARCH + FILTER + REFRESH */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
           <div className="relative w-full sm:w-64">
             <FiSearch
@@ -483,9 +621,9 @@ export default function Payment() {
             />
             <input
               type="text"
+              placeholder="Search refunds..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search payments..."
               className="w-full pl-9 pr-8 h-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/10 transition"
             />
             {search && (
@@ -502,7 +640,7 @@ export default function Payment() {
           <div className="relative" ref={filterRef}>
             <button
               type="button"
-              onClick={() => setShowFilters((p) => !p)}
+              onClick={() => setShowFilters((prev) => !prev)}
               className={`inline-flex items-center justify-center gap-1.5 px-3 h-9 text-sm font-medium rounded-lg border transition whitespace-nowrap ${
                 dropdownFilterCount > 0
                   ? "bg-brand-blue-50 text-brand-blue-dark border-brand-blue/30"
@@ -529,7 +667,7 @@ export default function Payment() {
                   {dropdownFilterCount > 0 && (
                     <button
                       type="button"
-                      onClick={clearFilters}
+                      onClick={handleClearFilters}
                       className="text-xs font-medium text-gray-500 hover:text-red-600"
                     >
                       Reset
@@ -540,10 +678,10 @@ export default function Payment() {
                 <div className="p-4 space-y-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-2">
-                      Payment Status
+                      Refund Status
                     </label>
                     <div className="flex flex-wrap gap-1.5">
-                      {PAYMENT_STATUSES.map((item) => (
+                      {REFUND_STATUSES.map((item) => (
                         <button
                           type="button"
                           key={item}
@@ -564,7 +702,7 @@ export default function Payment() {
 
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-2">
-                      Payment Method
+                      Refund Method
                     </label>
                     <select
                       value={methodFilter}
@@ -572,7 +710,7 @@ export default function Payment() {
                       className="w-full h-9 rounded-lg border border-gray-200 bg-gray-50 px-3 text-xs font-medium text-gray-700 outline-none focus:border-brand-blue focus:bg-white focus:ring-2 focus:ring-brand-blue/10"
                     >
                       <option value="">All methods</option>
-                      {PAYMENT_METHODS.map((m) => (
+                      {REFUND_METHODS.map((m) => (
                         <option key={m} value={m}>{m}</option>
                       ))}
                     </select>
@@ -581,7 +719,7 @@ export default function Payment() {
                   <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-2.5 flex items-start gap-2">
                     <FiInfo className="mt-0.5 text-gray-400 flex-shrink-0" size={13} />
                     <p className="text-[10px] leading-4 text-gray-500">
-                      Search supports payment number, booking, customer, destination & transaction ID.
+                      Search supports refund number, booking, customer, payment & reason.
                     </p>
                   </div>
                 </div>
@@ -589,7 +727,7 @@ export default function Payment() {
                 <div className="flex items-center justify-between gap-2 px-4 py-3 bg-gray-50 border-t border-gray-100">
                   <button
                     type="button"
-                    onClick={clearFilters}
+                    onClick={handleClearFilters}
                     disabled={dropdownFilterCount === 0}
                     className="text-xs font-medium text-gray-600 hover:text-gray-900 disabled:opacity-40"
                   >
@@ -617,15 +755,14 @@ export default function Payment() {
           </button>
         </div>
 
-        {/* RIGHT: RECORD PAYMENT */}
-        {canCreatePayment && (
+        {canCreateRefund && (
           <button
             type="button"
-            onClick={openPaymentModal}
+            onClick={openRefundModal}
             className="inline-flex items-center justify-center gap-1.5 px-4 h-9 bg-brand-blue hover:bg-brand-blue-dark text-white text-sm font-medium rounded-lg transition shadow-brand whitespace-nowrap self-start lg:self-auto"
           >
             <FiPlus size={15} />
-            Record Payment
+            New Refund
           </button>
         )}
       </div>
@@ -633,36 +770,36 @@ export default function Payment() {
       {/* SUMMARY */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
         <SummaryCard
-          title="Collected"
+          title="Completed"
           value={formatCurrency(summary.completedAmount)}
-          subtitle={`${summary.completedCount} transaction${summary.completedCount === 1 ? "" : "s"}`}
+          subtitle={`${summary.completedCount} refund${summary.completedCount === 1 ? "" : "s"}`}
           icon={<FiCheck size={16} />}
           iconClass="bg-emerald-50 text-emerald-600"
           valueClass="text-emerald-700"
         />
         <SummaryCard
-          title="Pending"
-          value={formatCurrency(summary.pendingAmount)}
-          subtitle={`${summary.pendingCount} pending`}
+          title="Requested"
+          value={formatCurrency(summary.requestedAmount)}
+          subtitle={`${summary.requestedCount} pending`}
           icon={<FiClock size={16} />}
           iconClass="bg-amber-50 text-amber-600"
           valueClass="text-amber-700"
         />
         <SummaryCard
-          title="Failed"
-          value={summary.failedCount}
-          subtitle="Failed transactions"
-          icon={<FiXCircle size={16} />}
-          iconClass="bg-red-50 text-red-600"
-          valueClass="text-red-700"
-        />
-        <SummaryCard
-          title="Refunded"
-          value={formatCurrency(summary.refundedAmount)}
-          subtitle={`${summary.refundedCount} refunded`}
+          title="Processing"
+          value={formatCurrency(summary.processingAmount)}
+          subtitle={`${summary.processingCount} in flight`}
           icon={<FiRefreshCcw size={16} />}
           iconClass="bg-purple-50 text-purple-600"
           valueClass="text-purple-700"
+        />
+        <SummaryCard
+          title="Rejected"
+          value={summary.rejectedCount}
+          subtitle="Cancelled / Rejected"
+          icon={<FiXCircle size={16} />}
+          iconClass="bg-red-50 text-red-600"
+          valueClass="text-red-700"
         />
       </div>
 
@@ -674,7 +811,7 @@ export default function Payment() {
           </span>
           <button
             type="button"
-            onClick={clearFilters}
+            onClick={handleClearFilters}
             className="text-brand-blue hover:text-brand-blue-dark font-medium"
           >
             Clear filters
@@ -683,25 +820,28 @@ export default function Payment() {
       )}
 
       {/* ALERTS */}
-      {success && (
+      {successMessage && (
         <div className="flex items-start gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm px-4 py-3 rounded-lg">
           <FiCheckCircle className="flex-shrink-0 mt-0.5" size={18} />
-          <p className="flex-1">{success}</p>
+          <p className="flex-1">{successMessage}</p>
           <button
-            onClick={() => setSuccess("")}
-            className="text-emerald-600 hover:text-emerald-800"
+            type="button"
+            onClick={() => setSuccessMessage("")}
+            className="text-emerald-600 hover:text-emerald-800 flex-shrink-0"
           >
             <FiX size={16} />
           </button>
         </div>
       )}
-      {error && (
+
+      {errorMessage && (
         <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 text-sm px-4 py-3 rounded-lg">
           <FiAlertCircle className="flex-shrink-0 mt-0.5" size={18} />
-          <p className="flex-1">{error}</p>
+          <p className="flex-1">{errorMessage}</p>
           <button
-            onClick={() => setError("")}
-            className="text-red-600 hover:text-red-800"
+            type="button"
+            onClick={() => setErrorMessage("")}
+            className="text-red-600 hover:text-red-800 flex-shrink-0"
           >
             <FiX size={16} />
           </button>
@@ -714,37 +854,38 @@ export default function Payment() {
           <div className="flex items-center justify-center py-16">
             <div className="flex flex-col items-center gap-3">
               <div className="w-7 h-7 border-[3px] border-brand-blue-50 border-t-brand-blue rounded-full animate-spin" />
-              <p className="text-sm text-gray-500">Loading payments...</p>
+              <p className="text-sm text-gray-500">Loading refunds...</p>
             </div>
           </div>
-        ) : filteredPayments.length === 0 ? (
+        ) : filteredRefunds.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
             <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
-              <FiDollarSign size={24} />
+              <FiRefreshCcw size={24} />
             </div>
             <h3 className="mt-4 text-sm font-semibold text-gray-800">
-              No payments found
+              No refunds found
             </h3>
             <p className="mt-1 text-sm text-gray-500 max-w-sm">
               {activeFilterCount > 0
-                ? "No payments match your current filters."
-                : "No payment transactions have been recorded yet."}
+                ? "No refunds match your current filters."
+                : "No refund transactions have been recorded yet."}
             </p>
             {activeFilterCount > 0 ? (
               <button
                 type="button"
-                onClick={clearFilters}
-                className="mt-5 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                onClick={handleClearFilters}
+                className="mt-5 inline-flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50"
               >
                 Clear Filters
               </button>
-            ) : canCreatePayment ? (
+            ) : canCreateRefund ? (
               <button
                 type="button"
-                onClick={openPaymentModal}
+                onClick={openRefundModal}
                 className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-brand-blue hover:bg-brand-blue-dark text-white text-sm font-medium rounded-lg"
               >
-                <FiPlus size={15} /> Record First Payment
+                <FiPlus size={15} />
+                Request Refund
               </button>
             ) : null}
           </div>
@@ -753,7 +894,7 @@ export default function Payment() {
             <table className="w-full text-sm min-w-[1100px]">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50/60">
-                  {["Payment", "Booking", "Customer", "Amount", "Method", "Date", "Status", "Actions"].map(
+                  {["Refund", "Booking", "Customer", "Amount", "Method", "Date", "Status", "Actions"].map(
                     (heading, i) => (
                       <th
                         key={i}
@@ -768,76 +909,85 @@ export default function Payment() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredPayments.map((payment) => (
-                  <PaymentRow
-                    key={payment._id}
-                    payment={payment}
-                    onView={openPaymentDetails}
+                {filteredRefunds.map((refund) => (
+                  <RefundRow
+                    key={refund._id}
+                    refund={refund}
+                    onView={openRefundDetails}
                   />
                 ))}
               </tbody>
             </table>
           </div>
         )}
-
-        {/* PAGINATION */}
-        {!loading && totalPayments > 0 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-gray-200 px-5 py-4">
-            <p className="text-xs text-gray-500">
-              Showing{" "}
-              <span className="font-medium text-gray-700">{filteredPayments.length}</span>{" "}
-              of{" "}
-              <span className="font-medium text-gray-700">{totalPayments}</span>{" "}
-              {totalPayments === 1 ? "payment" : "payments"}
-            </p>
-
-            {totalPages > 1 && (
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page <= 1}
-                  className="w-8 h-8 inline-flex items-center justify-center text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-40"
-                >
-                  <FiChevronLeft size={16} />
-                </button>
-                <span className="px-3 h-8 inline-flex items-center text-sm font-medium text-gray-700">
-                  {page} / {totalPages}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages}
-                  className="w-8 h-8 inline-flex items-center justify-center text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-40"
-                >
-                  <FiChevronRight size={16} />
-                </button>
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
-      {/* RECORD PAYMENT MODAL */}
-      {showPaymentModal && (
-        <PaymentFormModal
+      {/* PAGINATION */}
+      {!loading && totalRefunds > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="text-xs text-gray-500">
+            Showing{" "}
+            <span className="font-medium text-gray-700">{filteredRefunds.length}</span>{" "}
+            of{" "}
+            <span className="font-medium text-gray-700">{totalRefunds}</span>{" "}
+            {totalRefunds === 1 ? "refund" : "refunds"}
+          </p>
+
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => currentPage > 1 && setCurrentPage((p) => p - 1)}
+                disabled={currentPage === 1 || loading}
+                className="w-8 h-8 inline-flex items-center justify-center text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-40"
+              >
+                <FiChevronLeft size={16} />
+              </button>
+              <span className="px-3 h-8 inline-flex items-center text-sm font-medium text-gray-700">
+                {currentPage} / {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  currentPage < totalPages && setCurrentPage((p) => p + 1)
+                }
+                disabled={currentPage === totalPages || loading}
+                className="w-8 h-8 inline-flex items-center justify-center text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-40"
+              >
+                <FiChevronRight size={16} />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MODALS */}
+      {showRefundModal && (
+        <RefundFormModal
           form={form}
           saving={saving}
           bookings={bookings}
           bookingsLoading={bookingsLoading}
+          payments={payments}
+          paymentsLoading={paymentsLoading}
           selectedBooking={selectedBooking}
+          completedRefundAmount={completedRefundAmount}
+          maxRefundableAmount={maxRefundableAmount}
+          onClose={closeRefundModal}
+          onSubmit={handleSubmit}
           onChange={handleFormChange}
           onBookingChange={handleBookingChange}
-          onUseDue={fillDueAmount}
-          onSubmit={handleSubmit}
-          onClose={closePaymentModal}
+          onPaymentChange={handlePaymentChange}
+          onUseAvailable={fillRefundableAmount}
         />
       )}
 
-      {/* DETAILS MODAL */}
-      {showDetailsModal && selectedPayment && (
-        <PaymentDetailsModal
-          payment={selectedPayment}
+      {showDetailsModal && selectedRefund && (
+        <RefundDetailsModal
+          refund={selectedRefund}
+          actions={getAvailableActions(selectedRefund)}
+          actionLoading={actionLoading}
+          onAction={runRefundAction}
           onClose={() => setShowDetailsModal(false)}
         />
       )}
@@ -856,7 +1006,9 @@ function SummaryCard({ title, value, subtitle, icon, iconClass, valueClass = "te
         <div className="min-w-0">
           <p className="text-xs font-medium text-gray-500">{title}</p>
           <p className={`mt-1.5 text-lg font-bold truncate ${valueClass}`}>{value}</p>
-          {subtitle && <p className="mt-1 text-[11px] text-gray-400">{subtitle}</p>}
+          {subtitle && (
+            <p className="mt-1 text-[11px] text-gray-400">{subtitle}</p>
+          )}
         </div>
         <div className={`flex h-9 w-9 items-center justify-center rounded-lg flex-shrink-0 ${iconClass}`}>
           {icon}
@@ -880,23 +1032,26 @@ function StatusBadge({ status }) {
   );
 }
 
-function PaymentRow({ payment, onView }) {
+function RefundRow({ refund, onView }) {
+  const amount = getRefundAmount(refund);
+  const currency = getRefundCurrency(refund);
+
   return (
     <tr
-      onClick={() => onView(payment)}
+      onClick={() => onView(refund)}
       className="hover:bg-brand-blue-50/40 transition-colors cursor-pointer"
     >
       <td className="px-5 py-4">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-brand-blue-50 text-brand-blue flex items-center justify-center shrink-0">
-            <FiHash size={15} />
+            <FiHash size={16} />
           </div>
           <div className="min-w-0">
             <p className="font-semibold text-gray-800 truncate max-w-[160px]">
-              {payment.paymentNumber || "Payment"}
+              {refund.refundNumber || "Refund"}
             </p>
             <p className="text-xs text-gray-500 mt-0.5 truncate max-w-[160px]">
-              {payment.transactionId || "No transaction ID"}
+              {refund.reason || "No reason"}
             </p>
           </div>
         </div>
@@ -904,51 +1059,51 @@ function PaymentRow({ payment, onView }) {
 
       <td className="px-5 py-4">
         <p className="font-medium text-gray-800 truncate max-w-[160px]">
-          {getBookingCode(payment.booking)}
+          {getBookingCode(refund.booking)}
         </p>
         <p className="text-xs text-gray-500 mt-0.5 truncate max-w-[160px]">
-          {getBookingDestination(payment.booking)}
+          {getBookingDestination(refund.booking)}
         </p>
       </td>
 
       <td className="px-5 py-4">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center text-[10px] font-bold shrink-0">
-            {getCustomerInitials(payment.customer)}
+            {getCustomerInitials(refund.customer)}
           </div>
-          <p className="font-medium text-gray-800 truncate max-w-[160px]">
-            {getCustomerName(payment.customer)}
+          <p className="font-medium text-gray-800 truncate max-w-[170px]">
+            {getCustomerName(refund.customer)}
           </p>
         </div>
       </td>
 
       <td className="px-5 py-4">
         <p className="font-semibold text-gray-800 whitespace-nowrap">
-          {formatCurrency(payment.amount, payment.currency || "INR")}
+          {formatCurrency(amount, currency)}
         </p>
-        <p className="text-xs text-gray-400 mt-0.5">{payment.currency || "INR"}</p>
+        <p className="text-xs text-gray-400 mt-0.5">{currency}</p>
       </td>
 
       <td className="px-5 py-4">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-gray-100 text-gray-500 flex items-center justify-center shrink-0">
-            <FiCreditCard size={13} />
+          <div className="w-8 h-8 rounded-lg bg-gray-100 text-gray-500 flex items-center justify-center shrink-0">
+            <FiCreditCard size={14} />
           </div>
-          <span className="text-sm text-gray-700 truncate max-w-[120px]">
-            {payment.paymentMethod || "-"}
+          <span className="text-sm text-gray-700 truncate max-w-[130px]">
+            {refund.refundMethod || "-"}
           </span>
         </div>
       </td>
 
       <td className="px-5 py-4">
-        <div className="flex items-center gap-1.5 text-sm text-gray-600">
-          <FiCalendar size={13} className="text-gray-400 shrink-0" />
-          {formatDate(payment.paymentDate)}
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <FiCalendar size={14} className="text-gray-400 shrink-0" />
+          {formatDate(refund.refundDate)}
         </div>
       </td>
 
       <td className="px-5 py-4">
-        <StatusBadge status={payment.status} />
+        <StatusBadge status={refund.status} />
       </td>
 
       <td className="px-5 py-4 text-right">
@@ -956,12 +1111,12 @@ function PaymentRow({ payment, onView }) {
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            onView(payment);
+            onView(refund);
           }}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-brand-blue-50 hover:text-brand-blue transition"
-          title="View payment"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-gray-400 transition hover:border-brand-blue/20 hover:bg-brand-blue-50 hover:text-brand-blue"
+          title="View refund"
         >
-          <FiEye size={15} />
+          <FiEye size={16} />
         </button>
       </td>
     </tr>
@@ -969,17 +1124,27 @@ function PaymentRow({ payment, onView }) {
 }
 
 /* =========================================================
-   FORM MODAL
+   CREATE MODAL
 ========================================================= */
 
-function PaymentFormModal({
-  form, saving, bookings, bookingsLoading, selectedBooking,
-  onChange, onBookingChange, onUseDue, onSubmit, onClose,
+function RefundFormModal({
+  form, saving, bookings, bookingsLoading, payments, paymentsLoading,
+  selectedBooking, completedRefundAmount, maxRefundableAmount,
+  onClose, onSubmit, onChange, onBookingChange, onPaymentChange, onUseAvailable,
 }) {
+  const eligibleBookings = bookings.filter(
+    (b) => b.status !== "Cancelled" && Number(b.amountPaid || 0) > 0
+  );
+
+  const bookingPayments = payments.filter((p) => {
+    const id = typeof p.booking === "object" ? p.booking?._id : p.booking;
+    return String(id) === String(form.booking);
+  });
+
   return (
     <ModalShell
-      title="Record Payment"
-      subtitle="Record a customer payment against a booking"
+      title="Request Refund"
+      subtitle="Create a refund request against a completed customer payment"
       onClose={onClose}
       disabled={saving}
       footer={
@@ -994,52 +1159,45 @@ function PaymentFormModal({
           </button>
           <button
             type="submit"
-            form="payment-form"
-            disabled={saving || !form.booking || !form.amount}
+            form="refund-form"
+            disabled={saving || !form.booking || !form.amount || !form.reason.trim()}
             className="inline-flex items-center gap-2 rounded-lg bg-brand-blue px-4 h-9 text-sm font-medium text-white hover:bg-brand-blue-dark disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving ? (
               <>
-                <FiRefreshCcw className="animate-spin" size={15} /> Recording...
+                <FiRefreshCcw className="animate-spin" size={15} /> Creating...
               </>
             ) : (
               <>
-                <FiCheck size={15} /> Record Payment
+                <FiSend size={15} /> Request Refund
               </>
             )}
           </button>
         </>
       }
     >
-      <form id="payment-form" onSubmit={onSubmit} className="p-6 space-y-6">
+      <form id="refund-form" onSubmit={onSubmit} className="space-y-6 p-6">
         {/* BOOKING */}
         <section>
-          <SectionTitle icon={<FiFileText size={14} />} title="Booking" />
+          <SectionTitle icon={<FiFileText size={14} />} title="Booking Information" />
           <div className="mt-4">
             <Field label="Booking *">
               <select
-                name="booking"
                 value={form.booking}
                 onChange={onBookingChange}
                 disabled={bookingsLoading || saving}
                 className="input"
+                required
               >
                 <option value="">
                   {bookingsLoading ? "Loading bookings..." : "Select booking"}
                 </option>
-                {bookings
-                  .filter(
-                    (b) =>
-                      b.status !== "Cancelled" &&
-                      b.status !== "Refunded" &&
-                      Number(b.amountDue || 0) > 0
-                  )
-                  .map((b) => (
-                    <option key={b._id} value={b._id}>
-                      {getBookingCode(b)} — {getCustomerName(b.customer)} — Due{" "}
-                      {formatCurrency(b.amountDue || 0, b.currency || "INR")}
-                    </option>
-                  ))}
+                {eligibleBookings.map((booking) => (
+                  <option key={booking._id} value={booking._id}>
+                    {getBookingCode(booking)} — {getCustomerName(booking.customer)} — Paid{" "}
+                    {formatCurrency(booking.amountPaid || 0, booking.currency || "INR")}
+                  </option>
+                ))}
               </select>
             </Field>
           </div>
@@ -1048,35 +1206,31 @@ function PaymentFormModal({
             <div className="mt-4 rounded-xl border border-brand-blue/20 bg-brand-blue-50/40 p-4">
               <div className="mb-3">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-blue">
-                  Booking Financial Summary
+                  Refundable Balance
                 </p>
                 <h4 className="mt-0.5 text-sm font-bold text-gray-800">
                   {getBookingCode(selectedBooking)}
                 </h4>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <BalanceCell
-                  label="Total"
-                  value={formatCurrency(
-                    selectedBooking.totalAmount || 0,
-                    selectedBooking.currency || "INR"
-                  )}
+                  label="Booking Total"
+                  value={formatCurrency(selectedBooking.totalAmount || 0, selectedBooking.currency || "INR")}
                 />
                 <BalanceCell
                   label="Paid"
-                  value={formatCurrency(
-                    selectedBooking.amountPaid || 0,
-                    selectedBooking.currency || "INR"
-                  )}
+                  value={formatCurrency(selectedBooking.amountPaid || 0, selectedBooking.currency || "INR")}
                   valueClass="text-emerald-600"
                 />
                 <BalanceCell
-                  label="Outstanding"
-                  value={formatCurrency(
-                    selectedBooking.amountDue || 0,
-                    selectedBooking.currency || "INR"
-                  )}
+                  label="Refunded"
+                  value={formatCurrency(completedRefundAmount, selectedBooking.currency || "INR")}
                   valueClass="text-brand-blue"
+                />
+                <BalanceCell
+                  label="Available"
+                  value={formatCurrency(maxRefundableAmount, selectedBooking.currency || "INR")}
+                  valueClass="text-brand-blue-dark"
                 />
               </div>
             </div>
@@ -1084,23 +1238,49 @@ function PaymentFormModal({
         </section>
 
         {/* PAYMENT */}
-        <section>
-          <SectionTitle icon={<FiCreditCard size={14} />} title="Payment Information" />
+        {selectedBooking && (
+          <section>
+            <SectionTitle icon={<FiCreditCard size={14} />} title="Payment Reference" />
+            <div className="mt-4">
+              <Field label="Payment (optional)">
+                <select
+                  value={form.payment}
+                  onChange={onPaymentChange}
+                  disabled={paymentsLoading || saving}
+                  className="input"
+                >
+                  <option value="">
+                    {paymentsLoading ? "Loading payments..." : "Select payment (optional)"}
+                  </option>
+                  {bookingPayments.map((p) => (
+                    <option key={p._id} value={p._id}>
+                      {getPaymentNumber(p)} — {formatCurrency(p.amount, p.currency || "INR")}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+          </section>
+        )}
 
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* REFUND INFO */}
+        <section>
+          <SectionTitle icon={<FiDollarSign size={14} />} title="Refund Information" />
+
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <div className="mb-1 flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-gray-600">
-                  Amount *
+                  Refund Amount *
                 </span>
-                {selectedBooking && Number(selectedBooking.amountDue || 0) > 0 && (
+                {maxRefundableAmount > 0 && (
                   <button
                     type="button"
-                    onClick={onUseDue}
+                    onClick={onUseAvailable}
                     disabled={saving}
                     className="text-[11px] font-semibold text-brand-blue hover:text-brand-blue-dark"
                   >
-                    Use full due
+                    Use available
                   </button>
                 )}
               </div>
@@ -1114,8 +1294,8 @@ function PaymentFormModal({
                   value={form.amount}
                   onChange={onChange}
                   min="0.01"
+                  max={maxRefundableAmount || undefined}
                   step="0.01"
-                  max={selectedBooking ? selectedBooking.amountDue : undefined}
                   placeholder="0.00"
                   disabled={!selectedBooking || saving}
                   className="input pl-7 font-semibold"
@@ -1125,53 +1305,61 @@ function PaymentFormModal({
                 <p className="mt-1 text-[11px] text-gray-400">
                   Max:{" "}
                   <span className="font-semibold text-gray-600">
-                    {formatCurrency(
-                      selectedBooking.amountDue || 0,
-                      selectedBooking.currency || "INR"
-                    )}
+                    {formatCurrency(maxRefundableAmount, selectedBooking.currency || "INR")}
                   </span>
                 </p>
               )}
             </div>
 
-            <Field label="Payment Method *">
+            <Field label="Refund Method *">
               <select
-                name="paymentMethod"
-                value={form.paymentMethod}
+                name="refundMethod"
+                value={form.refundMethod}
                 onChange={onChange}
                 disabled={saving}
                 className="input"
               >
-                {PAYMENT_METHODS.map((m) => (
+                {REFUND_METHODS.map((m) => (
                   <option key={m} value={m}>{m}</option>
                 ))}
               </select>
             </Field>
 
-            <Field label="Payment Date *">
+            <Field label="Refund Date *">
               <input
                 type="date"
-                name="paymentDate"
-                value={form.paymentDate}
+                name="refundDate"
+                value={form.refundDate}
                 onChange={onChange}
-                max={getToday()}
                 disabled={saving}
                 className="input"
               />
             </Field>
 
-            <Field label="Status">
-              <select
-                name="status"
-                value={form.status}
+            <Field label="Reference Number (optional)">
+              <input
+                type="text"
+                name="referenceNumber"
+                value={form.referenceNumber}
                 onChange={onChange}
                 disabled={saving}
+                placeholder="Refund reference"
                 className="input"
-              >
-                {CREATABLE_STATUSES.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
+              />
+            </Field>
+          </div>
+
+          <div className="mt-4">
+            <Field label="Refund Reason *">
+              <textarea
+                name="reason"
+                value={form.reason}
+                onChange={onChange}
+                disabled={saving}
+                rows={3}
+                placeholder="Explain why the customer is requesting a refund..."
+                className="input resize-none"
+              />
             </Field>
           </div>
 
@@ -1183,7 +1371,7 @@ function PaymentFormModal({
                 value={form.transactionId}
                 onChange={onChange}
                 disabled={saving}
-                placeholder="e.g. UPI transaction reference"
+                placeholder="Refund transaction ref"
                 className="input"
               />
             </Field>
@@ -1197,7 +1385,7 @@ function PaymentFormModal({
                 onChange={onChange}
                 disabled={saving}
                 rows={3}
-                placeholder="Add any useful payment notes..."
+                placeholder="Add internal refund notes..."
                 className="input resize-none"
               />
             </Field>
@@ -1206,26 +1394,23 @@ function PaymentFormModal({
 
         {/* PREVIEW */}
         {selectedBooking && Number(form.amount || 0) > 0 && (
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 flex items-center justify-between">
+          <div className="rounded-xl border border-brand-blue/20 bg-brand-blue-50/40 p-4 flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
-                After This Payment
+              <p className="text-[11px] font-bold uppercase tracking-wider text-brand-blue">
+                Refund Preview
               </p>
               <p className="mt-0.5 text-xs text-gray-500">
-                Estimated remaining balance
+                Estimated booking balance after refund completion.
               </p>
             </div>
             <div className="text-right">
               <p className="text-lg font-bold text-gray-900">
                 {formatCurrency(
-                  Math.max(
-                    0,
-                    Number(selectedBooking.amountDue || 0) - Number(form.amount || 0)
-                  ),
+                  Math.max(0, Number(selectedBooking.amountPaid || 0) - Number(form.amount || 0)),
                   selectedBooking.currency || "INR"
                 )}
               </p>
-              <p className="text-[10px] text-gray-400">Remaining due</p>
+              <p className="text-[10px] text-gray-400">Estimated net paid</p>
             </div>
           </div>
         )}
@@ -1240,7 +1425,7 @@ function BalanceCell({ label, value, valueClass = "text-gray-900" }) {
       <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
         {label}
       </p>
-      <p className={`mt-1 text-sm font-bold truncate ${valueClass}`}>{value}</p>
+      <p className={`mt-1 text-sm font-bold ${valueClass}`}>{value}</p>
     </div>
   );
 }
@@ -1249,11 +1434,14 @@ function BalanceCell({ label, value, valueClass = "text-gray-900" }) {
    DETAILS MODAL
 ========================================================= */
 
-function PaymentDetailsModal({ payment, onClose }) {
+function RefundDetailsModal({ refund, actions, actionLoading, onAction, onClose }) {
+  const refundAmount = getRefundAmount(refund);
+  const refundCurrency = getRefundCurrency(refund);
+
   return (
     <ModalShell
-      title="Payment Details"
-      subtitle={payment.paymentNumber || "Payment transaction"}
+      title="Refund Details"
+      subtitle={refund.refundNumber || "Refund transaction"}
       onClose={onClose}
       footer={
         <button
@@ -1269,31 +1457,53 @@ function PaymentDetailsModal({ payment, onClose }) {
         {/* AMOUNT + STATUS */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-5 border-b border-gray-200">
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium text-gray-500">Payment Amount</p>
+            <p className="text-xs font-medium text-gray-500">Refund Amount</p>
             <p className="mt-1 text-2xl font-bold text-gray-900 break-all">
-              {formatCurrency(payment.amount, payment.currency || "INR")}
+              {formatCurrency(refundAmount, refundCurrency)}
             </p>
             <p className="mt-0.5 text-xs text-gray-500">
-              {formatDate(payment.paymentDate)}
+              Requested on {formatDate(refund.refundDate)}
             </p>
           </div>
           <div className="flex-shrink-0">
-            <StatusBadge status={payment.status} />
+            <StatusBadge status={refund.status} />
           </div>
         </div>
 
-        {/* TRANSACTION INFO */}
+        {/* ACTIONS */}
+        {actions.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {actions.map(({ action, label, icon: Icon, cls }) => (
+              <button
+                key={action}
+                type="button"
+                disabled={actionLoading}
+                onClick={() => onAction(refund, action)}
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${cls}`}
+              >
+                {actionLoading ? (
+                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                ) : (
+                  <Icon size={13} />
+                )}
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* REFUND INFO */}
         <section>
           <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">
-            Transaction Information
+            Refund Information
           </h3>
           <div className="space-y-2.5">
-            <DetailLine label="Payment Number" value={payment.paymentNumber || "-"} />
-            <DetailLine label="Payment Method" value={payment.paymentMethod || "-"} />
-            <DetailLine label="Payment Date" value={formatDate(payment.paymentDate)} />
+            <DetailLine label="Refund Number" value={refund.refundNumber || "-"} />
+            <DetailLine label="Refund Method" value={refund.refundMethod || "-"} />
+            <DetailLine label="Refund Date" value={formatDate(refund.refundDate)} />
             <DetailLine
-              label="Received By"
-              value={payment.receivedBy?.name || payment.receivedBy?.email || "-"}
+              label="Requested By"
+              value={refund.requestedBy?.name || refund.requestedBy?.email || "-"}
             />
           </div>
         </section>
@@ -1304,44 +1514,108 @@ function PaymentDetailsModal({ payment, onClose }) {
             Booking Information
           </h3>
           <div className="space-y-2.5">
-            <DetailLine label="Booking No." value={getBookingCode(payment.booking)} />
-            <DetailLine
-              label="Destination"
-              value={getBookingDestination(payment.booking)}
-            />
-            <DetailLine label="Customer" value={getCustomerName(payment.customer)} />
+            <DetailLine label="Booking No." value={getBookingCode(refund.booking)} />
+            <DetailLine label="Destination" value={getBookingDestination(refund.booking)} />
+            <DetailLine label="Customer" value={getCustomerName(refund.customer)} />
+            <DetailLine label="Payment" value={getPaymentNumber(refund.payment)} />
+            <DetailLine label="Invoice" value={getInvoiceNumber(refund.invoice)} />
           </div>
         </section>
 
-        {/* TRANSACTION ID */}
-        {payment.transactionId && (
+        {/* REASON */}
+        <section>
+          <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">
+            Refund Reason
+          </h3>
+          <p className="text-sm leading-6 text-gray-700 whitespace-pre-wrap">
+            {refund.reason || "-"}
+          </p>
+        </section>
+
+        {/* TRANSACTION */}
+        {(refund.transactionId || refund.referenceNumber) && (
           <section>
             <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">
-              Transaction ID
+              Transaction
             </h3>
-            <p className="text-sm break-all rounded-lg bg-gray-50 px-3 py-2 font-mono text-gray-700">
-              {payment.transactionId}
+            <div className="space-y-2.5">
+              {refund.transactionId && (
+                <DetailLine label="Transaction ID" value={refund.transactionId} />
+              )}
+              {refund.referenceNumber && (
+                <DetailLine label="Reference No." value={refund.referenceNumber} />
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* APPROVAL */}
+        {(refund.approvedBy || refund.approvedAt) && (
+          <section>
+            <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">
+              Approval
+            </h3>
+            <div className="space-y-2.5">
+              <DetailLine
+                label="Approved By"
+                value={refund.approvedBy?.name || refund.approvedBy?.email || "-"}
+              />
+              <DetailLine
+                label="Approved At"
+                value={formatDateTime(refund.approvedAt)}
+              />
+            </div>
+          </section>
+        )}
+
+        {/* PROCESSING */}
+        {(refund.processedBy || refund.processedAt) && (
+          <section>
+            <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">
+              Processing
+            </h3>
+            <div className="space-y-2.5">
+              <DetailLine
+                label="Processed By"
+                value={refund.processedBy?.name || refund.processedBy?.email || "-"}
+              />
+              <DetailLine
+                label="Processed At"
+                value={formatDateTime(refund.processedAt)}
+              />
+            </div>
+          </section>
+        )}
+
+        {/* REJECTION */}
+        {refund.rejectionReason && (
+          <section>
+            <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">
+              Rejection Reason
+            </h3>
+            <p className="text-sm leading-6 text-red-700 whitespace-pre-wrap">
+              {refund.rejectionReason}
             </p>
           </section>
         )}
 
         {/* NOTES */}
-        {payment.notes && (
+        {refund.notes && (
           <section>
             <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">
               Notes
             </h3>
             <p className="text-sm leading-6 text-gray-700 whitespace-pre-wrap">
-              {payment.notes}
+              {refund.notes}
             </p>
           </section>
         )}
 
         {/* CREATED */}
-        {payment.createdAt && (
+        {refund.createdAt && (
           <div className="flex items-center gap-1.5 text-xs text-gray-400 pt-3 border-t border-gray-100">
             <FiClock size={12} />
-            Created {formatDateTime(payment.createdAt)}
+            Created {formatDateTime(refund.createdAt)}
           </div>
         )}
       </div>
