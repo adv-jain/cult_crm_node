@@ -13,9 +13,7 @@ const generateBookingNumber = () => {
 
   for (let i = 0; i < 6; i++) {
     code += characters.charAt(
-      Math.floor(
-        Math.random() * characters.length
-      )
+      Math.floor(Math.random() * characters.length)
     );
   }
 
@@ -103,10 +101,7 @@ const bookingSchema = new mongoose.Schema(
 
     destination: {
       type: String,
-      required: [
-        true,
-        "Destination is required",
-      ],
+      required: ["Destination is required"],
       trim: true,
     },
 
@@ -117,10 +112,7 @@ const bookingSchema = new mongoose.Schema(
 
     travelDate: {
       type: Date,
-      required: [
-        true,
-        "Travel date is required",
-      ],
+      required: ["Travel date is required"],
     },
 
     returnDate: {
@@ -408,86 +400,75 @@ const bookingSchema = new mongoose.Schema(
 // FORMAT: BK-FC2FD8
 // ======================================================
 
-bookingSchema.pre(
-  "validate",
-  async function (next) {
-    try {
-      // Agar bookingNumber already present hai
-      // to usko change nahi karna
-      if (this.bookingNumber) {
-        return next();
-      }
-
-      let bookingNumber;
-      let exists = true;
-
-      // Unique number generate karo
-      while (exists) {
-        bookingNumber =
-          generateBookingNumber();
-
-        exists =
-          await mongoose
-            .model("Booking")
-            .exists({
-              bookingNumber,
-            });
-      }
-
+bookingSchema.pre("validate", async function (next) {
+  try {
+    // Existing booking number ko overwrite mat karo
+    if (this.bookingNumber) {
       this.bookingNumber =
-        bookingNumber;
+        String(this.bookingNumber)
+          .trim()
+          .toUpperCase();
 
-      next();
-    } catch (error) {
-      next(error);
+      return next();
     }
+
+    let bookingNumber;
+    let exists = true;
+
+    while (exists) {
+      bookingNumber =
+        generateBookingNumber();
+
+      exists =
+        await mongoose
+          .model("Booking")
+          .exists({
+            bookingNumber,
+          });
+    }
+
+    this.bookingNumber =
+      bookingNumber;
+
+    next();
+  } catch (error) {
+    next(error);
   }
-);
+});
 
 // ======================================================
 // PAYMENT CALCULATION
 // ======================================================
 
-bookingSchema.pre(
-  "save",
-  function (next) {
-    const total = Math.max(
-      0,
-      Number(this.totalAmount) || 0
-    );
+bookingSchema.pre("save", function (next) {
+  const total = Math.max(
+    0,
+    Number(this.totalAmount) || 0
+  );
 
-    const paid = Math.max(
-      0,
-      Number(this.amountPaid) || 0
-    );
+  const paid = Math.max(
+    0,
+    Number(this.amountPaid) || 0
+  );
 
-    this.totalAmount = total;
+  this.totalAmount = total;
+  this.amountPaid = paid;
 
-    this.amountPaid = paid;
+  this.amountDue = Math.max(
+    0,
+    total - paid
+  );
 
-    this.amountDue = Math.max(
-      0,
-      total - paid
-    );
-
-    // ==================================================
-    // PAYMENT STATUS
-    // ==================================================
-
-    if (paid <= 0) {
-      this.paymentStatus =
-        "Pending";
-    } else if (paid < total) {
-      this.paymentStatus =
-        "Partially Paid";
-    } else {
-      this.paymentStatus =
-        "Paid";
-    }
-
-    next();
+  if (paid <= 0) {
+    this.paymentStatus = "Pending";
+  } else if (paid < total) {
+    this.paymentStatus = "Partially Paid";
+  } else {
+    this.paymentStatus = "Paid";
   }
-);
+
+  next();
+});
 
 // ======================================================
 // INDEXES
@@ -550,7 +531,4 @@ bookingSchema.index({
 // ======================================================
 
 module.exports =
-  mongoose.model(
-    "Booking",
-    bookingSchema
-  );
+  mongoose.model("Booking", bookingSchema);

@@ -24,6 +24,11 @@ const toObjectId = (id) => {
   return new mongoose.Types.ObjectId(id);
 };
 
+// Escape special regex characters
+const escapeRegex = (value) => {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+};
+
 // ======================================================
 // DATE VALIDATION
 // ======================================================
@@ -270,11 +275,15 @@ const findOrCreateCustomer = async ({
   const duplicateQuery = [];
 
   if (phone) {
-    duplicateQuery.push({ phone });
+    duplicateQuery.push({
+      phone,
+    });
   }
 
   if (email) {
-    duplicateQuery.push({ email });
+    duplicateQuery.push({
+      email,
+    });
   }
 
   let existingCustomer = null;
@@ -322,7 +331,9 @@ const generateTripCode = async (session) => {
       $regex: `^TRP-${year}-`,
     },
   })
-    .sort({ createdAt: -1 })
+    .sort({
+      createdAt: -1,
+    })
     .select("tripCode")
     .session(session);
 
@@ -341,7 +352,8 @@ const generateTripCode = async (session) => {
     );
 
     if (!Number.isNaN(lastNumber)) {
-      nextNumber = lastNumber + 1;
+      nextNumber =
+        lastNumber + 1;
     }
   }
 
@@ -460,7 +472,8 @@ const createBooking = async (req, res) => {
         message:
           "A booking already exists for this quotation",
 
-        booking: existingBooking,
+        booking:
+          existingBooking,
       });
     }
 
@@ -748,7 +761,8 @@ const createBooking = async (req, res) => {
       await session.abortTransaction();
 
       return res.status(400).json({
-        message: dateError,
+        message:
+          dateError,
       });
     }
 
@@ -779,9 +793,14 @@ const createBooking = async (req, res) => {
 
     const travellerCountError =
       validateTravellerCounts({
-        adults: bookingAdults,
-        children: bookingChildren,
-        infants: bookingInfants,
+        adults:
+          bookingAdults,
+
+        children:
+          bookingChildren,
+
+        infants:
+          bookingInfants,
       });
 
     if (travellerCountError) {
@@ -805,16 +824,6 @@ const createBooking = async (req, res) => {
     // ==================================================
     // FINANCIAL SNAPSHOT
     // ==================================================
-
-    /*
-      IMPORTANT:
-
-      Booking financial values are now taken from
-      the ACCEPTED quotation.
-
-      Frontend cannot override the final booking
-      amount during quotation conversion.
-    */
 
     const bookingTotalAmount =
       Number(
@@ -938,17 +947,23 @@ const createBooking = async (req, res) => {
             currency:
               bookingCurrency,
 
-            status: "Pending",
+            status:
+              "Pending",
 
             confirmationStatus: {
-              hotel: "Pending",
-              transport: "Pending",
+              hotel:
+                "Pending",
+
+              transport:
+                "Pending",
+
               activities:
                 "Not Required",
-              overall: "Pending",
+
+              overall:
+                "Pending",
             },
 
-            // Financial snapshot
             totalAmount:
               bookingTotalAmount,
 
@@ -965,7 +980,8 @@ const createBooking = async (req, res) => {
               bookingTotalAmount -
               bookingTotalCost,
 
-            amountPaid: 0,
+            amountPaid:
+              0,
 
             amountDue:
               bookingTotalAmount,
@@ -987,7 +1003,9 @@ const createBooking = async (req, res) => {
               req.user.id,
           },
         ],
-        { session }
+        {
+          session,
+        }
       );
 
     const createdBooking =
@@ -1088,7 +1106,9 @@ const createBooking = async (req, res) => {
               }`,
           },
         ],
-        { session }
+        {
+          session,
+        }
       );
 
     // ==================================================
@@ -1497,7 +1517,8 @@ const getBookings = async (req, res) => {
         });
       }
 
-      query.status = status;
+      query.status =
+        status;
     }
 
     // ==================================================
@@ -1533,8 +1554,14 @@ const getBookings = async (req, res) => {
     // ==================================================
 
     if (destination) {
+      const escapedDestination =
+        escapeRegex(
+          destination.trim()
+        );
+
       query.destination = {
-        $regex: destination,
+        $regex:
+          escapedDestination,
         $options: "i",
       };
     }
@@ -1543,98 +1570,173 @@ const getBookings = async (req, res) => {
     // SEARCH
     // ==================================================
 
-   // ==================================================
-// SEARCH
-// ==================================================
+    if (
+      search &&
+      search.trim()
+    ) {
+      const searchText =
+        search.trim();
 
-if (search && search.trim()) {
-  const searchRegex = {
-    $regex: search.trim(),
-    $options: "i",
-  };
+      const escapedSearch =
+        escapeRegex(
+          searchText
+        );
 
-  const searchConditions = [
-    // Booking Number
-    {
-      bookingNumber: searchRegex,
-    },
+      const searchRegex = {
+        $regex:
+          escapedSearch,
 
-    // Destination
-    {
-      destination: searchRegex,
-    },
-  ];
+        $options: "i",
+      };
 
-  // MongoDB ObjectId search
-  // Agar user actual MongoDB ID paste kare
-  if (isValidObjectId(search.trim())) {
-    searchConditions.push({
-      _id: toObjectId(search.trim()),
-    });
-  }
+      const searchConditions = [
+        // ----------------------------------------------
+        // BOOKING NUMBER
+        // Example: BK-FC2FD8
+        // ----------------------------------------------
 
-  // Trip reference ke through Trip Code search
-  const matchingTrips = await Trip.find({
-    tripCode: searchRegex,
-  }).select("_id");
+        {
+          bookingNumber:
+            searchRegex,
+        },
 
-  if (matchingTrips.length > 0) {
-    searchConditions.push({
-      trip: {
-        $in: matchingTrips.map((trip) => trip._id),
-      },
-    });
-  }
+        // ----------------------------------------------
+        // DESTINATION
+        // ----------------------------------------------
 
-  // Customer search
-  const matchingCustomers = await Customer.find({
-    $or: [
-      {
-        firstName: searchRegex,
-      },
-      {
-        lastName: searchRegex,
-      },
-      {
-        email: searchRegex,
-      },
-      {
-        phone: searchRegex,
-      },
-    ],
-  }).select("_id");
+        {
+          destination:
+            searchRegex,
+        },
+      ];
 
-  if (matchingCustomers.length > 0) {
-    searchConditions.push({
-      customer: {
-        $in: matchingCustomers.map(
-          (customer) => customer._id
-        ),
-      },
-    });
-  }
+      // ----------------------------------------------
+      // MONGODB OBJECT ID
+      // ----------------------------------------------
 
-  // Quotation number search
-  const matchingQuotations = await Quotation.find({
-    quotationNumber: searchRegex,
-  }).select("_id");
+      if (
+        isValidObjectId(
+          searchText
+        )
+      ) {
+        searchConditions.push({
+          _id:
+            toObjectId(
+              searchText
+            ),
+        });
+      }
 
-  if (matchingQuotations.length > 0) {
-    searchConditions.push({
-      quotation: {
-        $in: matchingQuotations.map(
-          (quotation) => quotation._id
-        ),
-      },
-    });
-  }
+      // ----------------------------------------------
+      // TRIP CODE SEARCH
+      // ----------------------------------------------
 
-  query.$or = searchConditions;
-}
+      const matchingTrips =
+        await Trip.find({
+          tripCode:
+            searchRegex,
+        }).select("_id");
+
+      if (
+        matchingTrips.length > 0
+      ) {
+        searchConditions.push({
+          trip: {
+            $in:
+              matchingTrips.map(
+                (trip) =>
+                  trip._id
+              ),
+          },
+        });
+      }
+
+      // ----------------------------------------------
+      // CUSTOMER SEARCH
+      // ----------------------------------------------
+
+      const matchingCustomers =
+        await Customer.find({
+          $or: [
+            {
+              firstName:
+                searchRegex,
+            },
+
+            {
+              lastName:
+                searchRegex,
+            },
+
+            {
+              email:
+                searchRegex,
+            },
+
+            {
+              phone:
+                searchRegex,
+            },
+          ],
+        }).select("_id");
+
+      if (
+        matchingCustomers.length > 0
+      ) {
+        searchConditions.push({
+          customer: {
+            $in:
+              matchingCustomers.map(
+                (customer) =>
+                  customer._id
+              ),
+          },
+        });
+      }
+
+      // ----------------------------------------------
+      // QUOTATION NUMBER SEARCH
+      // ----------------------------------------------
+
+      const matchingQuotations =
+        await Quotation.find({
+          quotationNumber:
+            searchRegex,
+        }).select("_id");
+
+      if (
+        matchingQuotations.length > 0
+      ) {
+        searchConditions.push({
+          quotation: {
+            $in:
+              matchingQuotations.map(
+                (quotation) =>
+                  quotation._id
+              ),
+          },
+        });
+      }
+
+      // ----------------------------------------------
+      // APPLY SEARCH
+      // ----------------------------------------------
+
+      query.$or =
+        searchConditions;
+    }
+
+    // ==================================================
+    // PAGINATION
+    // ==================================================
 
     const skip =
       (pageNumber - 1) *
       limitNumber;
+
+    // ==================================================
+    // FETCH BOOKINGS
+    // ==================================================
 
     const [
       bookings,
@@ -1675,6 +1777,10 @@ if (search && search.trim()) {
         query
       ),
     ]);
+
+    // ==================================================
+    // RESPONSE
+    // ==================================================
 
     return res.status(200).json({
       message:
@@ -1851,7 +1957,7 @@ const updateBooking = async (
     }
 
     // ==================================================
-    // ONLY NON-FINANCIAL FIELDS CAN BE UPDATED HERE
+    // ONLY NON-FINANCIAL FIELDS CAN BE UPDATED
     // ==================================================
 
     const allowedFields = [
@@ -1894,7 +2000,8 @@ const updateBooking = async (
 
     if (dateError) {
       return res.status(400).json({
-        message: dateError,
+        message:
+          dateError,
       });
     }
 
