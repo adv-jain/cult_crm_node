@@ -528,11 +528,6 @@ function Invoice() {
   };
 
   const handleDownload = async (invoice) => {
-    if (invoice.pdfUrl) {
-      window.open(invoice.pdfUrl, "_blank");
-      return;
-    }
-
     const element = document.getElementById("invoice-print-area");
     if (!element) {
       window.print();
@@ -558,6 +553,48 @@ function Invoice() {
 
       const clone = element.cloneNode(true);
 
+      /* =====================================================
+         FORCE HEADER — via flex div inside TH
+      ===================================================== */
+      const headerAlignMap = ["flex-start", "flex-start", "center", "flex-end", "flex-end"];
+
+      const forceHeaders = (root) => {
+        root.querySelectorAll("thead th").forEach((th, index) => {
+          const align = headerAlignMap[index] || "flex-start";
+
+          th.style.setProperty("vertical-align", "middle", "important");
+          th.style.setProperty("padding-top", "10px", "important");
+          th.style.setProperty("padding-bottom", "10px", "important");
+          th.style.setProperty("background-color", "#1f4f8f", "important");
+          th.style.setProperty("color", "#ffffff", "important");
+          th.style.setProperty("font-weight", "700", "important");
+
+          const innerDiv = th.querySelector("div");
+          if (innerDiv) {
+            innerDiv.style.setProperty("display", "flex", "important");
+            innerDiv.style.setProperty("align-items", "center", "important");
+            innerDiv.style.setProperty("justify-content", align, "important");
+            innerDiv.style.setProperty("min-height", "16px", "important");
+            innerDiv.style.setProperty("line-height", "1.2", "important");
+          }
+        });
+      };
+
+      forceHeaders(clone);
+
+      /* Body cells — vertical center */
+      clone.querySelectorAll("tbody td").forEach((td) => {
+        td.style.setProperty("vertical-align", "middle", "important");
+      });
+
+      /* Force table layout */
+      clone.querySelectorAll("table").forEach((table) => {
+        table.style.width = "100%";
+        table.style.maxWidth = "100%";
+        table.style.tableLayout = "fixed";
+        table.style.borderCollapse = "collapse";
+      });
+
       wrapper = document.createElement("div");
       wrapper.className = "fixed left-[-10000px] top-0 bg-white p-0 m-0";
       wrapper.style.width = "194mm";
@@ -568,22 +605,35 @@ function Invoice() {
       clone.style.width = "194mm";
       clone.style.maxWidth = "194mm";
       clone.style.margin = "0";
+      clone.style.padding = "8mm";
       clone.style.boxSizing = "border-box";
       clone.style.backgroundColor = "#ffffff";
       clone.style.boxShadow = "none";
       clone.style.overflow = "visible";
 
+      /* Skip TH and their inner divs in generic loop */
       clone.querySelectorAll("*").forEach((node) => {
+        if (node.tagName === "TH") return;
+        if (node.parentElement?.tagName === "TH") return;
+
         node.style.maxWidth = "100%";
         node.style.boxSizing = "border-box";
         node.style.overflowWrap = "anywhere";
         node.style.wordBreak = "break-word";
       });
 
+      /* Re-apply header force AFTER generic loop */
+      forceHeaders(clone);
+
+      /* Re-apply vertical center to body cells */
+      clone.querySelectorAll("tbody td").forEach((td) => {
+        td.style.setProperty("vertical-align", "middle", "important");
+      });
+
       wrapper.appendChild(clone);
       document.body.appendChild(wrapper);
 
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
       await html2pdf()
         .set({
@@ -943,8 +993,24 @@ function TableHead({ children, align = "left" }) {
   return (
     <th
       className={`px-4 py-3 text-${align} text-[10px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap`}
+      style={{ verticalAlign: "middle" }}
     >
-      {children}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent:
+            align === "right"
+              ? "flex-end"
+              : align === "center"
+              ? "center"
+              : "flex-start",
+          minHeight: "16px",
+          lineHeight: "1.2",
+        }}
+      >
+        {children}
+      </div>
     </th>
   );
 }
@@ -1508,7 +1574,7 @@ function InvoiceViewModal({ invoice, onClose, onDownload, onIssue, onSend, onCan
             wordBreak: "break-word",
           }}
         >
-          {/* ================= HEADER ================= */}
+          {/* HEADER */}
           <section className="invoice-section break-inside-avoid">
             <div className="grid min-w-0 grid-cols-[1fr_auto] gap-4">
               <div className="min-w-0">
@@ -1525,9 +1591,9 @@ function InvoiceViewModal({ invoice, onClose, onDownload, onIssue, onSend, onCan
                       {line}
                     </p>
                   ))}
-                  <p className="m-0 break-words">
-                    {COMPANY.phone} <span aria-hidden="true">•</span> {COMPANY.email}
-                  </p>
+
+                  <p className="m-0 break-words">Phone: {COMPANY.phone}</p>
+                  <p className="m-0 break-words">Email: {COMPANY.email}</p>
                   <p className="m-0 break-words">{COMPANY.website}</p>
                 </div>
               </div>
@@ -1555,11 +1621,9 @@ function InvoiceViewModal({ invoice, onClose, onDownload, onIssue, onSend, onCan
                 </div>
               </div>
             </div>
-
-            <div className="mt-4 border-t border-gray-200" />
           </section>
 
-          {/* ================= CUSTOMER + TRIP ================= */}
+          {/* CUSTOMER + TRIP */}
           <section className="invoice-section mt-4 break-inside-avoid">
             <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
               {/* BILL TO */}
@@ -1610,6 +1674,17 @@ function InvoiceViewModal({ invoice, onClose, onDownload, onIssue, onSend, onCan
                 <div className="mt-2.5 grid min-w-0 grid-cols-2 gap-x-3 gap-y-3">
                   <div className="min-w-0">
                     <p className="m-0 text-[8px] font-semibold uppercase tracking-[0.4px] text-gray-400">
+                      Booking No.
+                    </p>
+                    <p className="m-0 mt-0.5 break-words text-[10px] font-semibold leading-[14px] text-gray-700">
+                      {safeText(
+                        booking?.bookingNumber ||
+                          booking?.bookingCode ||
+                          booking?.referenceNumber ||
+                          booking?.code
+                      )}
+                    </p>
+                    <p className="mt-1 text-[8px] font-semibold uppercase tracking-[0.4px] text-gray-400">
                       Destination
                     </p>
                     <p className="m-0 mt-0.5 break-words text-[10px] font-semibold leading-[14px] text-gray-700">
@@ -1648,40 +1723,130 @@ function InvoiceViewModal({ invoice, onClose, onDownload, onIssue, onSend, onCan
             </div>
           </section>
 
-          {/* ================= ITEMS ================= */}
+          {/* ITEMS */}
           <section className="invoice-section mt-5 break-inside-auto">
             <p className="m-0 text-[8px] font-bold uppercase tracking-[0.5px] text-gray-400">
               Invoice Breakdown
             </p>
-            <h2 className="m-0 mt-0.5 mb-1.5 text-xs font-bold text-gray-900">
-              Services &amp; Charges
-            </h2>
 
-            <div className="w-full min-w-0 overflow-visible">
-              <table className="w-full table-fixed border-collapse text-left">
+            <div className="mt-1.5 w-full min-w-0 overflow-visible rounded-md border border-gray-200">
+              <table
+                className="w-full table-fixed border-collapse"
+                style={{ width: "100%", tableLayout: "fixed" }}
+              >
                 <colgroup>
-                  <col className="w-[40%]" />
                   <col className="w-[18%]" />
+                  <col className="w-[38%]" />
                   <col className="w-[10%]" />
-                  <col className="w-[16%]" />
-                  <col className="w-[16%]" />
+                  <col className="w-[17%]" />
+                  <col className="w-[17%]" />
                 </colgroup>
+
                 <thead>
                   <tr className="bg-[#1f4f8f]">
-                    <th className="break-words px-2.5 py-2 text-left text-[8px] font-bold uppercase tracking-[0.5px] text-white">
-                      Description
+                    <th
+                      className="px-2.5 text-left text-[8px] font-bold uppercase tracking-[0.5px] text-white"
+                      style={{
+                        verticalAlign: "middle",
+                        paddingTop: "10px",
+                        paddingBottom: "10px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "flex-start",
+                          minHeight: "16px",
+                          lineHeight: "1.2",
+                        }}
+                      >
+                        Services
+                      </div>
                     </th>
-                    <th className="break-words px-2.5 py-2 text-left text-[8px] font-bold uppercase tracking-[0.5px] text-white">
-                      Category
+
+                    <th
+                      className="px-2.5 text-left text-[8px] font-bold uppercase tracking-[0.5px] text-white"
+                      style={{
+                        verticalAlign: "middle",
+                        paddingTop: "10px",
+                        paddingBottom: "10px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "flex-start",
+                          minHeight: "16px",
+                          lineHeight: "1.2",
+                        }}
+                      >
+                        Description
+                      </div>
                     </th>
-                    <th className="break-words px-2.5 py-2 text-center text-[8px] font-bold uppercase tracking-[0.5px] text-white">
-                      Qty
+
+                    <th
+                      className="px-2.5 text-center text-[8px] font-bold uppercase tracking-[0.5px] text-white"
+                      style={{
+                        verticalAlign: "middle",
+                        paddingTop: "10px",
+                        paddingBottom: "10px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          minHeight: "16px",
+                          lineHeight: "1.2",
+                        }}
+                      >
+                        Qty
+                      </div>
                     </th>
-                    <th className="break-words px-2.5 py-2 text-right text-[8px] font-bold uppercase tracking-[0.5px] text-white">
-                      Rate
+
+                    <th
+                      className="px-2.5 text-right text-[8px] font-bold uppercase tracking-[0.5px] text-white"
+                      style={{
+                        verticalAlign: "middle",
+                        paddingTop: "10px",
+                        paddingBottom: "10px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "flex-end",
+                          minHeight: "16px",
+                          lineHeight: "1.2",
+                        }}
+                      >
+                        Rate
+                      </div>
                     </th>
-                    <th className="break-words px-2.5 py-2 text-right text-[8px] font-bold uppercase tracking-[0.5px] text-white">
-                      Amount
+
+                    <th
+                      className="px-2.5 text-right text-[8px] font-bold uppercase tracking-[0.5px] text-white"
+                      style={{
+                        verticalAlign: "middle",
+                        paddingTop: "10px",
+                        paddingBottom: "10px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "flex-end",
+                          minHeight: "16px",
+                          lineHeight: "1.2",
+                        }}
+                      >
+                        Amount
+                      </div>
                     </th>
                   </tr>
                 </thead>
@@ -1695,23 +1860,29 @@ function InvoiceViewModal({ invoice, onClose, onDownload, onIssue, onSend, onCan
                     return (
                       <tr
                         key={index}
-                        className={`${
+                        className={`invoice-card break-inside-avoid ${
                           index % 2 === 0 ? "bg-gray-50" : "bg-white"
-                        } invoice-card break-inside-avoid`}
+                        }`}
                       >
-                        <td className="max-w-0 break-words border-b border-gray-100 px-2.5 py-2 align-top text-[9px] font-semibold leading-[13px] text-gray-800">
+                        <td className="border-b border-gray-100 px-2.5 py-2.5 align-middle text-[9px] font-semibold leading-[13px] text-gray-800 break-words">
+                          {safeText(
+                            item.service || item.category || "Travel Service"
+                          )}
+                        </td>
+
+                        <td className="max-w-0 border-b border-gray-100 px-2.5 py-2.5 align-middle text-[9px] leading-[13px] text-gray-700 break-words">
                           {safeText(item.description)}
                         </td>
-                        <td className="max-w-0 break-words border-b border-gray-100 px-2.5 py-2 align-top text-[8px] leading-[12px] text-gray-500">
-                          {safeText(item.category, "Service")}
-                        </td>
-                        <td className="break-words border-b border-gray-100 px-2.5 py-2 text-center align-top text-[9px] text-gray-700">
+
+                        <td className="border-b border-gray-100 px-2.5 py-2.5 text-center align-middle text-[9px] font-medium text-gray-700">
                           {quantity}
                         </td>
-                        <td className="break-words border-b border-gray-100 px-2.5 py-2 text-right align-top text-[9px] text-gray-700">
+
+                        <td className="border-b border-gray-100 px-2.5 py-2.5 text-right align-middle text-[9px] text-gray-700 whitespace-nowrap">
                           {formatAmount(rate)}
                         </td>
-                        <td className="break-words border-b border-gray-100 px-2.5 py-2 text-right align-top text-[9px] font-bold text-gray-800">
+
+                        <td className="border-b border-gray-100 px-2.5 py-2.5 text-right align-middle text-[9px] font-bold text-gray-900 whitespace-nowrap">
                           {formatAmount(amount)}
                         </td>
                       </tr>
@@ -1722,7 +1893,7 @@ function InvoiceViewModal({ invoice, onClose, onDownload, onIssue, onSend, onCan
             </div>
           </section>
 
-          {/* ================= NOTES ================= */}
+          {/* NOTES */}
           {invoice.notes && (
             <section className="invoice-section invoice-card mt-5 break-inside-avoid rounded-lg border border-gray-200 bg-gray-50 p-3">
               <p className="m-0 text-[8px] font-bold uppercase tracking-[0.5px] text-gray-400">
@@ -1734,17 +1905,13 @@ function InvoiceViewModal({ invoice, onClose, onDownload, onIssue, onSend, onCan
             </section>
           )}
 
-          {/* ================= FOOTER ================= */}
+          {/* FOOTER */}
           <section className="invoice-section mt-6 break-inside-avoid">
             <div
               className="mt-6 border-t border-gray-200 pt-3"
-              style={{
-                breakInside: "avoid",
-                pageBreakInside: "avoid",
-              }}
+              style={{ breakInside: "avoid", pageBreakInside: "avoid" }}
             >
               <div className="flex w-full items-start justify-between gap-6">
-                {/* LEFT */}
                 <div className="min-w-0 flex-1">
                   <p className="m-0 text-[10px] font-bold text-gray-800">
                     Thank you for choosing Cult Holidays
@@ -1752,30 +1919,6 @@ function InvoiceViewModal({ invoice, onClose, onDownload, onIssue, onSend, onCan
 
                   <p className="mt-1 text-[8px] leading-[13px] text-gray-500">
                     We look forward to making your journey memorable.
-                  </p>
-                </div>
-
-                {/* RIGHT */}
-                <div
-                  className="shrink-0 text-right"
-                  style={{
-                    width: "190px",
-                    minWidth: "190px",
-                    whiteSpace: "nowrap",
-                    wordBreak: "normal",
-                    overflowWrap: "normal",
-                  }}
-                >
-                  <p className="m-0 text-[8px] font-semibold leading-[13px] text-gray-600">
-                    {COMPANY.website}
-                  </p>
-
-                  <p className="m-0 text-[8px] leading-[13px] text-gray-600">
-                    {COMPANY.email}
-                  </p>
-
-                  <p className="m-0 text-[8px] leading-[13px] text-gray-600">
-                    {COMPANY.phone}
                   </p>
                 </div>
               </div>
