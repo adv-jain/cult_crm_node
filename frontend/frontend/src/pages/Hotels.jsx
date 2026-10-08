@@ -4,16 +4,12 @@ import {
   FiPlus,
   FiSearch,
   FiFilter,
-  FiEdit2,
   FiTrash2,
-  FiEye,
   FiStar,
   FiMapPin,
   FiHome,
   FiUsers,
   FiAlertCircle,
-  FiCheckCircle,
-  FiSlash,
   FiChevronLeft,
   FiChevronRight,
 } from "react-icons/fi";
@@ -123,6 +119,7 @@ function Hotels() {
 
   useEffect(() => {
     fetchHotels();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, category, status, destination]);
 
   // =========================
@@ -136,6 +133,7 @@ function Hotels() {
     }, 350);
 
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
   // =========================
@@ -193,13 +191,18 @@ function Hotels() {
   // ACTIONS
   // =========================
 
-  const handleDelete = async () => {
-    if (!deleteId) return;
+  const handleDelete = async (hotel, event) => {
+    event?.stopPropagation?.();
+
+    const confirmed = window.confirm(
+      `Delete "${hotel.name}"? This action cannot be undone.`
+    );
+
+    if (!confirmed) return;
 
     try {
       setDeleteLoading(true);
-      await api.delete(`/hotels/${deleteId}`);
-      setDeleteId(null);
+      await api.delete(`/hotels/${hotel._id}`);
 
       if (hotels.length === 1 && page > 1) {
         setPage((prev) => prev - 1);
@@ -210,19 +213,7 @@ function Hotels() {
       setError(getErrorMessage(requestError, "Failed to delete hotel."));
     } finally {
       setDeleteLoading(false);
-    }
-  };
-
-  const handleToggleStatus = async (hotel) => {
-    try {
-      await api.put(`/hotels/${hotel._id}`, {
-        status: hotel.status === "Active" ? "Inactive" : "Active",
-      });
-      await fetchHotels();
-    } catch (requestError) {
-      setError(
-        getErrorMessage(requestError, "Failed to update hotel status.")
-      );
+      setDeleteId(null);
     }
   };
 
@@ -488,9 +479,11 @@ function Hotels() {
                   <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
                     Status
                   </th>
-                  <th className="text-right px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
-                    Actions
-                  </th>
+                  {canDelete && (
+                    <th className="text-right px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                      Actions
+                    </th>
+                  )}
                 </tr>
               </thead>
 
@@ -498,11 +491,12 @@ function Hotels() {
                 {hotels.map((hotel) => (
                   <tr
                     key={hotel._id}
-                    className="hover:bg-brand-blue-50/30 transition-colors"
+                    onClick={() => setViewingHotel(hotel)}
+                    className="hover:bg-brand-blue-50/40 transition-colors cursor-pointer group"
                   >
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-brand-blue-50 text-brand-blue flex items-center justify-center shrink-0">
+                        <div className="w-9 h-9 rounded-lg bg-brand-blue-50 text-brand-blue flex items-center justify-center shrink-0 group-hover:bg-brand-blue-100 transition">
                           <FiHome size={17} />
                         </div>
 
@@ -564,63 +558,23 @@ function Hotels() {
                       </span>
                     </td>
 
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setViewingHotel(hotel)}
-                          title="View"
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 bg-gray-50 hover:text-brand-blue hover:bg-brand-blue-50 transition"
-                        >
-                          <FiEye size={15} />
-                        </button>
-
-                        {canManage && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => openEdit(hotel)}
-                              title="Edit"
-                              className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 bg-gray-50 hover:text-brand-gold-dark hover:bg-brand-gold-50 transition"
-                            >
-                              <FiEdit2 size={15} />
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleToggleStatus(hotel)}
-                              title={
-                                hotel.status === "Active"
-                                  ? "Deactivate"
-                                  : "Activate"
-                              }
-                              className={`w-8 h-8 rounded-lg flex items-center justify-center bg-gray-50 transition ${
-                                hotel.status === "Active"
-                                  ? "text-gray-500 hover:text-orange-600 hover:bg-orange-50"
-                                  : "text-gray-500 hover:text-emerald-600 hover:bg-emerald-50"
-                              }`}
-                            >
-                              {hotel.status === "Active" ? (
-                                <FiSlash size={15} />
-                              ) : (
-                                <FiCheckCircle size={15} />
-                              )}
-                            </button>
-                          </>
-                        )}
-
-                        {canDelete && (
+                    {canDelete && (
+                      <td
+                        className="px-5 py-3.5"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <div className="flex items-center justify-end">
                           <button
                             type="button"
-                            onClick={() => setDeleteId(hotel._id)}
+                            onClick={(event) => handleDelete(hotel, event)}
                             title="Delete"
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 bg-gray-50 hover:text-red-600 hover:bg-red-50 transition"
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 bg-transparent hover:text-red-600 hover:bg-red-50 transition"
                           >
                             <FiTrash2 size={15} />
                           </button>
-                        )}
-                      </div>
-                    </td>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -634,7 +588,8 @@ function Hotels() {
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-gray-500">
             Showing{" "}
-            <span className="font-medium text-gray-700">{hotels.length}</span> of{" "}
+            <span className="font-medium text-gray-700">{hotels.length}</span>{" "}
+            of{" "}
             <span className="font-medium text-gray-700">
               {totalHotelsCount}
             </span>{" "}
@@ -688,57 +643,15 @@ function Hotels() {
         <HotelView
           hotel={viewingHotel}
           onClose={() => setViewingHotel(null)}
+          onEdit={
+            canManage
+              ? () => {
+                  setViewingHotel(null);
+                  openEdit(viewingHotel);
+                }
+              : undefined
+          }
         />
-      )}
-
-      {/* DELETE CONFIRM */}
-      {deleteId && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              setDeleteId(null);
-            }
-          }}
-        >
-          <div className="w-full max-w-[400px] bg-white rounded-2xl shadow-2xl p-5">
-            <div className="w-11 h-11 rounded-xl bg-red-50 text-red-600 flex items-center justify-center mb-4">
-              <FiTrash2 size={19} />
-            </div>
-
-            <h3 className="text-base font-semibold text-gray-900">
-              Delete hotel?
-            </h3>
-
-            <p className="text-xs text-gray-500 mt-1.5 leading-5">
-              This action cannot be undone. The hotel will be permanently
-              removed from the system.
-            </p>
-
-            <div className="flex justify-end gap-2 mt-5">
-              <button
-                type="button"
-                onClick={() => setDeleteId(null)}
-                disabled={deleteLoading}
-                className="px-3.5 py-2 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={deleteLoading}
-                className="px-3.5 py-2 rounded-lg bg-red-600 text-white text-xs font-medium hover:bg-red-700 disabled:opacity-60 inline-flex items-center gap-2"
-              >
-                {deleteLoading && (
-                  <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                )}
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );

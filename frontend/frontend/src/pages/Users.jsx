@@ -8,10 +8,7 @@ import {
   FiX,
   FiCheckCircle,
   FiAlertCircle,
-  FiEdit2,
   FiTrash2,
-  FiUserCheck,
-  FiUserX,
   FiInbox,
   FiChevronLeft,
   FiChevronRight,
@@ -78,6 +75,7 @@ function Users() {
 
   useEffect(() => {
     fetchUsers(page);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
   // Auto-dismiss messages
@@ -147,42 +145,9 @@ function Users() {
     }
   };
 
-  const handleToggleStatus = async (selectedUser) => {
-    const newStatus = !selectedUser.isActive;
-    const action = newStatus ? "activate" : "deactivate";
+  const handleDelete = async (selectedUser, event) => {
+    event?.stopPropagation?.();
 
-    const confirmed = window.confirm(
-      `Are you sure you want to ${action} ${selectedUser.name}?`
-    );
-    if (!confirmed) return;
-
-    try {
-      setErrorMessage("");
-      setSuccessMessage("");
-
-      await api.patch(`/users/${selectedUser._id}/status`, {
-        isActive: newStatus,
-      });
-
-      setSuccessMessage(
-        newStatus
-          ? "User activated successfully"
-          : "User deactivated successfully"
-      );
-
-      await fetchUsers(page);
-    } catch (error) {
-      console.error(
-        "Update user status error:",
-        error.response?.data || error.message
-      );
-      setErrorMessage(
-        error.response?.data?.message || "Failed to update user status"
-      );
-    }
-  };
-
-  const handleDelete = async (selectedUser) => {
     const confirmed = window.confirm(
       `Are you sure you want to delete ${selectedUser.name}?`
     );
@@ -308,7 +273,6 @@ function Users() {
       {/* HEADER */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
-          {/* SEARCH */}
           <div className="relative w-full sm:w-64">
             <FiSearch
               className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
@@ -332,7 +296,6 @@ function Users() {
             )}
           </div>
 
-          {/* FILTER BUTTON + POPOVER */}
           <div className="relative" ref={filterRef}>
             <button
               onClick={() => setShowFilters((prev) => !prev)}
@@ -368,7 +331,6 @@ function Users() {
                 </div>
 
                 <div className="p-4 space-y-4">
-                  {/* ROLE CHIPS */}
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-2">
                       Role
@@ -390,7 +352,6 @@ function Users() {
                     </div>
                   </div>
 
-                  {/* STATUS CHIPS */}
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-2">
                       Status
@@ -438,7 +399,6 @@ function Users() {
           </div>
         </div>
 
-        {/* RIGHT: ADD BUTTON */}
         <button
           onClick={handleAddUser}
           className="inline-flex items-center justify-center gap-1.5 px-4 h-9 bg-brand-blue hover:bg-brand-blue-dark text-white text-sm font-medium rounded-lg transition shadow-brand whitespace-nowrap self-start lg:self-auto"
@@ -573,7 +533,8 @@ function Users() {
                 {filteredUsers.map((item) => (
                   <tr
                     key={item._id}
-                    className="hover:bg-brand-blue-50/40 transition-colors"
+                    onClick={() => handleEditUser(item)}
+                    className="hover:bg-brand-blue-50/40 transition-colors cursor-pointer group"
                   >
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
@@ -631,37 +592,16 @@ function Users() {
                       </span>
                     </td>
 
-                    <td className="px-5 py-3.5">
+                    <td
+                      className="px-5 py-3.5"
+                      onClick={(event) => event.stopPropagation()}
+                    >
                       <div className="flex items-center justify-end gap-1">
                         <button
-                          onClick={() => handleEditUser(item)}
-                          title="Edit"
-                          className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-amber-600 hover:bg-amber-50 transition"
-                        >
-                          <FiEdit2 size={16} />
-                        </button>
-
-                        <button
-                          onClick={() => handleToggleStatus(item)}
-                          title={item.isActive ? "Deactivate" : "Activate"}
-                          className={`w-8 h-8 flex items-center justify-center rounded-lg transition ${
-                            item.isActive
-                              ? "text-gray-500 hover:text-orange-600 hover:bg-orange-50"
-                              : "text-gray-500 hover:text-green-600 hover:bg-green-50"
-                          }`}
-                        >
-                          {item.isActive ? (
-                            <FiUserX size={16} />
-                          ) : (
-                            <FiUserCheck size={16} />
-                          )}
-                        </button>
-
-                        <button
-                          onClick={() => handleDelete(item)}
+                          onClick={(event) => handleDelete(item, event)}
                           disabled={deletingId === item._id}
                           title="Delete"
-                          className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                          className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 bg-transparent hover:text-red-600 hover:bg-red-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           <FiTrash2 size={16} />
                         </button>

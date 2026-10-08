@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import axios from "axios";
 import { FiX, FiAlertCircle } from "react-icons/fi";
-
-const API = "http://localhost:5000/api";
+import api from "../api";
 
 function TaskForm({
   user,
@@ -38,14 +36,6 @@ function TaskForm({
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
 
-  const token = localStorage.getItem("token");
-
-  const config = {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  };
-
   // ============================================
   // DEFAULT FORM
   // ============================================
@@ -55,9 +45,7 @@ function TaskForm({
     description: "",
     type: "Follow-up",
     assignedTo:
-      user?.role === "sales"
-        ? user?.id || user?._id || ""
-        : "",
+      user?.role === "sales" ? user?.id || user?._id || "" : "",
     startDate: "",
     dueDate: "",
     priority: "Medium",
@@ -85,14 +73,9 @@ function TaskForm({
       return "";
     }
 
-    const offset =
-      d.getTimezoneOffset() * 60000;
+    const offset = d.getTimezoneOffset() * 60000;
 
-    return new Date(
-      d.getTime() - offset
-    )
-      .toISOString()
-      .slice(0, 16);
+    return new Date(d.getTime() - offset).toISOString().slice(0, 16);
   };
 
   // ============================================
@@ -108,70 +91,27 @@ function TaskForm({
 
     setForm({
       title: editingTask.title || "",
-      description:
-        editingTask.description || "",
-
-      type:
-        editingTask.type ||
-        "Follow-up",
-
-      assignedTo:
-        editingTask.assignedTo?._id ||
-        editingTask.assignedTo ||
-        "",
-
-      startDate: formatDateTime(
-        editingTask.startDate
-      ),
-
-      dueDate: formatDateTime(
-        editingTask.dueDate
-      ),
-
-      priority:
-        editingTask.priority ||
-        "Medium",
-
-      status:
-        editingTask.status ||
-        "Pending",
-
-      reminderEnabled:
-        editingTask.reminder?.enabled ||
-        false,
-
-      reminderAt: formatDateTime(
-        editingTask.reminder?.reminderAt
-      ),
-
-      relatedLead:
-        editingTask.relatedLead?._id ||
-        editingTask.relatedLead ||
-        "",
-
+      description: editingTask.description || "",
+      type: editingTask.type || "Follow-up",
+      assignedTo: editingTask.assignedTo?._id || editingTask.assignedTo || "",
+      startDate: formatDateTime(editingTask.startDate),
+      dueDate: formatDateTime(editingTask.dueDate),
+      priority: editingTask.priority || "Medium",
+      status: editingTask.status || "Pending",
+      reminderEnabled: editingTask.reminder?.enabled || false,
+      reminderAt: formatDateTime(editingTask.reminder?.reminderAt),
+      relatedLead: editingTask.relatedLead?._id || editingTask.relatedLead || "",
       relatedContact:
-        editingTask.relatedContact?._id ||
-        editingTask.relatedContact ||
-        "",
-
+        editingTask.relatedContact?._id || editingTask.relatedContact || "",
       relatedCompany:
-        editingTask.relatedCompany?._id ||
-        editingTask.relatedCompany ||
-        "",
-
-      relatedTrip:
-        editingTask.relatedTrip?._id ||
-        editingTask.relatedTrip ||
-        "",
-
-      notes:
-        editingTask.notes || "",
-
-      tags:
-        editingTask.tags?.join(", ") || "",
+        editingTask.relatedCompany?._id || editingTask.relatedCompany || "",
+      relatedTrip: editingTask.relatedTrip?._id || editingTask.relatedTrip || "",
+      notes: editingTask.notes || "",
+      tags: editingTask.tags?.join(", ") || "",
     });
 
     setFormError("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingTask, user]);
 
   // ============================================
@@ -180,24 +120,14 @@ function TaskForm({
 
   useEffect(() => {
     const onKey = (e) => {
-      if (
-        e.key === "Escape" &&
-        !saving
-      ) {
+      if (e.key === "Escape" && !saving) {
         onClose();
       }
     };
 
-    window.addEventListener(
-      "keydown",
-      onKey
-    );
+    window.addEventListener("keydown", onKey);
 
-    return () =>
-      window.removeEventListener(
-        "keydown",
-        onKey
-      );
+    return () => window.removeEventListener("keydown", onKey);
   }, [saving, onClose]);
 
   // ============================================
@@ -205,15 +135,11 @@ function TaskForm({
   // ============================================
 
   useEffect(() => {
-    const previousOverflow =
-      document.body.style.overflow;
-
-    document.body.style.overflow =
-      "hidden";
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
 
     return () => {
-      document.body.style.overflow =
-        previousOverflow;
+      document.body.style.overflow = previousOverflow;
     };
   }, []);
 
@@ -222,19 +148,11 @@ function TaskForm({
   // ============================================
 
   const handleChange = (e) => {
-    const {
-      name,
-      value,
-      type,
-      checked,
-    } = e.target;
+    const { name, value, type, checked } = e.target;
 
     setForm((prev) => ({
       ...prev,
-      [name]:
-        type === "checkbox"
-          ? checked
-          : value,
+      [name]: type === "checkbox" ? checked : value,
     }));
   };
 
@@ -247,53 +165,28 @@ function TaskForm({
 
     setFormError("");
 
-    // Title validation
     if (!form.title.trim()) {
-      setFormError(
-        "Task title is required"
-      );
+      setFormError("Task title is required");
       return;
     }
 
-    // Due date validation
     if (!form.dueDate) {
-      setFormError(
-        "Due date is required"
-      );
+      setFormError("Due date is required");
       return;
     }
 
-    // Start date cannot be after due date
-    if (
-      form.startDate &&
-      new Date(form.startDate) >
-        new Date(form.dueDate)
-    ) {
-      setFormError(
-        "Start date cannot be after due date"
-      );
+    if (form.startDate && new Date(form.startDate) > new Date(form.dueDate)) {
+      setFormError("Start date cannot be after due date");
       return;
     }
 
-    // Assignment validation
-    if (
-      user?.role !== "sales" &&
-      !form.assignedTo
-    ) {
-      setFormError(
-        "Please select an assignee"
-      );
+    if (user?.role !== "sales" && !form.assignedTo) {
+      setFormError("Please select an assignee");
       return;
     }
 
-    // Reminder validation
-    if (
-      form.reminderEnabled &&
-      !form.reminderAt
-    ) {
-      setFormError(
-        "Please select reminder date and time"
-      );
+    if (form.reminderEnabled && !form.reminderAt) {
+      setFormError("Please select reminder date and time");
       return;
     }
 
@@ -302,85 +195,42 @@ function TaskForm({
 
       const payload = {
         title: form.title.trim(),
-
-        description:
-          form.description.trim(),
-
+        description: form.description.trim(),
         type: form.type,
-
-        assignedTo:
-          form.assignedTo || undefined,
-
-        startDate:
-          form.startDate || null,
-
+        assignedTo: form.assignedTo || undefined,
+        startDate: form.startDate || null,
         dueDate: form.dueDate,
-
         priority: form.priority,
-
         status: form.status,
-
         reminder: {
-          enabled:
-            form.reminderEnabled,
-
+          enabled: form.reminderEnabled,
           reminderAt:
-            form.reminderEnabled &&
-            form.reminderAt
-              ? form.reminderAt
-              : null,
+            form.reminderEnabled && form.reminderAt ? form.reminderAt : null,
         },
-
-        relatedLead:
-          form.relatedLead || null,
-
-        relatedContact:
-          form.relatedContact || null,
-
-        relatedCompany:
-          form.relatedCompany || null,
-
-        relatedTrip:
-          form.relatedTrip || null,
-
-        notes:
-          form.notes.trim(),
-
+        relatedLead: form.relatedLead || null,
+        relatedContact: form.relatedContact || null,
+        relatedCompany: form.relatedCompany || null,
+        relatedTrip: form.relatedTrip || null,
+        notes: form.notes.trim(),
         tags: form.tags
           ? form.tags
               .split(",")
-              .map((tag) =>
-                tag.trim()
-              )
+              .map((tag) => tag.trim())
               .filter(Boolean)
           : [],
       };
 
       if (editingTask) {
-        await axios.put(
-          `${API}/tasks/${editingTask._id}`,
-          payload,
-          config
-        );
+        await api.put(`/tasks/${editingTask._id}`, payload);
       } else {
-        await axios.post(
-          `${API}/tasks`,
-          payload,
-          config
-        );
+        await api.post("/tasks", payload);
       }
 
       await onSaved();
     } catch (error) {
-      console.error(
-        "Save task error:",
-        error.response?.data ||
-          error.message
-      );
-
+      console.error("Save task error:", error.response?.data || error.message);
       setFormError(
-        error.response?.data?.message ||
-          "Failed to save task"
+        error.response?.data?.message || "Failed to save task"
       );
     } finally {
       setSaving(false);
@@ -392,20 +242,17 @@ function TaskForm({
   // ============================================
 
   const inputClass =
-    "w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 focus:bg-white transition";
+    "w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:border-brand-blue focus:bg-white transition";
 
   const selectClass =
-    "w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 focus:bg-white transition cursor-pointer";
+    "w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:border-brand-blue focus:bg-white transition cursor-pointer";
 
-  const labelClass =
-    "block text-xs font-medium text-gray-600 mb-1";
+  const labelClass = "block text-xs font-medium text-gray-600 mb-1";
 
   const sectionTitleClass =
     "text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3";
 
-  const canAssign =
-    user?.role === "admin" ||
-    user?.role === "manager";
+  const canAssign = user?.role === "admin" || user?.role === "manager";
 
   // ============================================
   // RENDER
@@ -413,29 +260,22 @@ function TaskForm({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] bg-gray-900/40 backdrop-blur-[2px] flex items-center justify-center p-4 overflow-y-auto animate-[fadeIn_.15s_ease-out]"
+      className="fixed inset-0 z-[100] bg-gray-900/40 backdrop-blur-[2px] flex items-center justify-center p-4 overflow-y-auto"
       onClick={(e) => {
-        if (
-          e.target === e.currentTarget &&
-          !saving
-        ) {
+        if (e.target === e.currentTarget && !saving) {
           onClose();
         }
       }}
     >
-      <div className="w-full max-w-[560px] max-h-[88vh] bg-white rounded-2xl shadow-2xl shadow-gray-900/20 flex flex-col overflow-hidden animate-[popIn_.18s_ease-out] my-auto">
-
+      <div className="w-full max-w-[560px] max-h-[88vh] bg-white rounded-2xl shadow-2xl shadow-gray-900/20 flex flex-col overflow-hidden my-auto">
         {/* ========================================
             HEADER
         ======================================== */}
 
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
-
           <div>
             <h2 className="text-base font-semibold text-gray-900">
-              {editingTask
-                ? "Edit Task"
-                : "New Task"}
+              {editingTask ? "Edit Task" : "New Task"}
             </h2>
 
             <p className="text-xs text-gray-500 mt-0.5">
@@ -464,20 +304,12 @@ function TaskForm({
           onSubmit={handleSubmit}
           className="flex-1 overflow-y-auto px-5 py-4 space-y-5"
         >
-
           {/* ERROR */}
 
           {formError && (
             <div className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 text-xs px-3 py-2 rounded-lg">
-
-              <FiAlertCircle
-                className="flex-shrink-0 mt-0.5"
-                size={14}
-              />
-
-              <span>
-                {formError}
-              </span>
+              <FiAlertCircle className="flex-shrink-0 mt-0.5" size={14} />
+              <span>{formError}</span>
             </div>
           )}
 
@@ -486,65 +318,33 @@ function TaskForm({
           ======================================== */}
 
           <section>
-            <h3
-              className={
-                sectionTitleClass
-              }
-            >
-              Basic Information
-            </h3>
+            <h3 className={sectionTitleClass}>Basic Information</h3>
 
             <div className="space-y-3.5">
-
-              {/* TITLE */}
-
               <div>
-                <label
-                  className={
-                    labelClass
-                  }
-                >
-                  Task Title{" "}
-                  <span className="text-red-500">
-                    *
-                  </span>
+                <label className={labelClass}>
+                  Task Title <span className="text-red-500">*</span>
                 </label>
 
                 <input
                   type="text"
                   name="title"
                   value={form.title}
-                  onChange={
-                    handleChange
-                  }
+                  onChange={handleChange}
                   placeholder="e.g. Follow up with Rahul"
                   maxLength="150"
                   autoFocus
-                  className={
-                    inputClass
-                  }
+                  className={inputClass}
                 />
               </div>
 
-              {/* DESCRIPTION */}
-
               <div>
-                <label
-                  className={
-                    labelClass
-                  }
-                >
-                  Description
-                </label>
+                <label className={labelClass}>Description</label>
 
                 <textarea
                   name="description"
-                  value={
-                    form.description
-                  }
-                  onChange={
-                    handleChange
-                  }
+                  value={form.description}
+                  onChange={handleChange}
                   placeholder="Describe what needs to be done..."
                   rows="2"
                   maxLength="2000"
@@ -552,126 +352,48 @@ function TaskForm({
                 />
               </div>
 
-              {/* TYPE + PRIORITY */}
-
               <div className="grid grid-cols-2 gap-3">
-
                 <div>
-                  <label
-                    className={
-                      labelClass
-                    }
-                  >
-                    Task Type
-                  </label>
+                  <label className={labelClass}>Task Type</label>
 
                   <select
                     name="type"
                     value={form.type}
-                    onChange={
-                      handleChange
-                    }
-                    className={
-                      selectClass
-                    }
+                    onChange={handleChange}
+                    className={selectClass}
                   >
-                    <option value="Call">
-                      Call
-                    </option>
-
-                    <option value="Email">
-                      Email
-                    </option>
-
-                    <option value="Meeting">
-                      Meeting
-                    </option>
-
-                    <option value="Follow-up">
-                      Follow-up
-                    </option>
-
-                    <option value="Quotation">
-                      Quotation
-                    </option>
-
-                    <option value="Booking">
-                      Booking
-                    </option>
-
-                    <option value="Hotel">
-                      Hotel
-                    </option>
-
-                    <option value="Transport">
-                      Transport
-                    </option>
-
-                    <option value="Visa">
-                      Visa
-                    </option>
-
-                    <option value="Documentation">
-                      Documentation
-                    </option>
-
-                    <option value="Payment">
-                      Payment
-                    </option>
-
-                    <option value="Itinerary">
-                      Itinerary
-                    </option>
-
-                    <option value="Customer Support">
-                      Customer Support
-                    </option>
-
-                    <option value="Other">
-                      Other
-                    </option>
+                    <option value="Call">Call</option>
+                    <option value="Email">Email</option>
+                    <option value="Meeting">Meeting</option>
+                    <option value="Follow-up">Follow-up</option>
+                    <option value="Quotation">Quotation</option>
+                    <option value="Booking">Booking</option>
+                    <option value="Hotel">Hotel</option>
+                    <option value="Transport">Transport</option>
+                    <option value="Visa">Visa</option>
+                    <option value="Documentation">Documentation</option>
+                    <option value="Payment">Payment</option>
+                    <option value="Itinerary">Itinerary</option>
+                    <option value="Customer Support">Customer Support</option>
+                    <option value="Other">Other</option>
                   </select>
                 </div>
 
                 <div>
-                  <label
-                    className={
-                      labelClass
-                    }
-                  >
-                    Priority
-                  </label>
+                  <label className={labelClass}>Priority</label>
 
                   <select
                     name="priority"
-                    value={
-                      form.priority
-                    }
-                    onChange={
-                      handleChange
-                    }
-                    className={
-                      selectClass
-                    }
+                    value={form.priority}
+                    onChange={handleChange}
+                    className={selectClass}
                   >
-                    <option value="Low">
-                      Low
-                    </option>
-
-                    <option value="Medium">
-                      Medium
-                    </option>
-
-                    <option value="High">
-                      High
-                    </option>
-
-                    <option value="Urgent">
-                      Urgent
-                    </option>
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                    <option value="Urgent">Urgent</option>
                   </select>
                 </div>
-
               </div>
             </div>
           </section>
@@ -681,174 +403,77 @@ function TaskForm({
           ======================================== */}
 
           <section>
-            <h3
-              className={
-                sectionTitleClass
-              }
-            >
-              Assignment & Schedule
-            </h3>
+            <h3 className={sectionTitleClass}>Assignment & Schedule</h3>
 
             <div className="space-y-3.5">
-
-              {/* ASSIGNMENT + STATUS */}
-
               <div className="grid grid-cols-2 gap-3">
-
                 {canAssign && (
                   <div>
-                    <label
-                      className={
-                        labelClass
-                      }
-                    >
-                      Assigned To{" "}
-                      <span className="text-red-500">
-                        *
-                      </span>
+                    <label className={labelClass}>
+                      Assigned To <span className="text-red-500">*</span>
                     </label>
 
                     <select
                       name="assignedTo"
-                      value={
-                        form.assignedTo
-                      }
-                      onChange={
-                        handleChange
-                      }
+                      value={form.assignedTo}
+                      onChange={handleChange}
                       required
-                      className={
-                        selectClass
-                      }
+                      className={selectClass}
                     >
-                      <option value="">
-                        Select user
-                      </option>
-
-                      {users.map(
-                        (item) => (
-                          <option
-                            key={
-                              item._id
-                            }
-                            value={
-                              item._id
-                            }
-                          >
-                            {item.name}{" "}
-                            (
-                            {item.role}
-                            )
-                          </option>
-                        )
-                      )}
+                      <option value="">Select user</option>
+                      {users.map((item) => (
+                        <option key={item._id} value={item._id}>
+                          {item.name} ({item.role})
+                        </option>
+                      ))}
                     </select>
                   </div>
                 )}
 
-                <div
-                  className={
-                    canAssign
-                      ? ""
-                      : "col-span-2"
-                  }
-                >
-                  <label
-                    className={
-                      labelClass
-                    }
-                  >
-                    Status
-                  </label>
+                <div className={canAssign ? "" : "col-span-2"}>
+                  <label className={labelClass}>Status</label>
 
                   <select
                     name="status"
-                    value={
-                      form.status
-                    }
-                    onChange={
-                      handleChange
-                    }
-                    className={
-                      selectClass
-                    }
+                    value={form.status}
+                    onChange={handleChange}
+                    className={selectClass}
                   >
-                    <option value="Pending">
-                      Pending
-                    </option>
-
-                    <option value="In Progress">
-                      In Progress
-                    </option>
-
-                    <option value="Completed">
-                      Completed
-                    </option>
-
-                    <option value="Cancelled">
-                      Cancelled
-                    </option>
+                    <option value="Pending">Pending</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Cancelled">Cancelled</option>
                   </select>
                 </div>
-
               </div>
 
-              {/* DATES */}
-
               <div className="grid grid-cols-2 gap-3">
-
                 <div>
-                  <label
-                    className={
-                      labelClass
-                    }
-                  >
-                    Start Date
-                  </label>
+                  <label className={labelClass}>Start Date</label>
 
                   <input
                     type="datetime-local"
                     name="startDate"
-                    value={
-                      form.startDate
-                    }
-                    onChange={
-                      handleChange
-                    }
-                    className={
-                      inputClass
-                    }
+                    value={form.startDate}
+                    onChange={handleChange}
+                    className={inputClass}
                   />
                 </div>
 
                 <div>
-                  <label
-                    className={
-                      labelClass
-                    }
-                  >
-                    Due Date{" "}
-                    <span className="text-red-500">
-                      *
-                    </span>
+                  <label className={labelClass}>
+                    Due Date <span className="text-red-500">*</span>
                   </label>
 
                   <input
                     type="datetime-local"
                     name="dueDate"
-                    value={
-                      form.dueDate
-                    }
-                    onChange={
-                      handleChange
-                    }
+                    value={form.dueDate}
+                    onChange={handleChange}
                     required
-                    className={
-                      inputClass
-                    }
+                    className={inputClass}
                   />
                 </div>
-
               </div>
             </div>
           </section>
@@ -858,59 +483,31 @@ function TaskForm({
           ======================================== */}
 
           <section>
-            <h3
-              className={
-                sectionTitleClass
-              }
-            >
-              Reminder
-            </h3>
+            <h3 className={sectionTitleClass}>Reminder</h3>
 
             <label className="inline-flex items-center gap-2 cursor-pointer select-none">
-
               <input
                 type="checkbox"
                 name="reminderEnabled"
-                checked={
-                  form.reminderEnabled
-                }
-                onChange={
-                  handleChange
-                }
-                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                checked={form.reminderEnabled}
+                onChange={handleChange}
+                className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30 cursor-pointer"
               />
 
-              <span className="text-sm text-gray-700">
-                Enable reminder
-              </span>
-
+              <span className="text-sm text-gray-700">Enable reminder</span>
             </label>
 
             {form.reminderEnabled && (
               <div className="mt-3">
-
-                <label
-                  className={
-                    labelClass
-                  }
-                >
-                  Reminder At
-                </label>
+                <label className={labelClass}>Reminder At</label>
 
                 <input
                   type="datetime-local"
                   name="reminderAt"
-                  value={
-                    form.reminderAt
-                  }
-                  onChange={
-                    handleChange
-                  }
-                  className={
-                    inputClass
-                  }
+                  value={form.reminderAt}
+                  onChange={handleChange}
+                  className={inputClass}
                 />
-
               </div>
             )}
           </section>
@@ -920,196 +517,82 @@ function TaskForm({
           ======================================== */}
 
           <section>
-            <h3
-              className={
-                sectionTitleClass
-              }
-            >
-              CRM Relationships
-            </h3>
+            <h3 className={sectionTitleClass}>CRM Relationships</h3>
 
             <div className="grid grid-cols-2 gap-3">
-
-              {/* LEAD */}
-
               <div>
-                <label
-                  className={
-                    labelClass
-                  }
-                >
-                  Related Lead
-                </label>
+                <label className={labelClass}>Related Lead</label>
 
                 <select
                   name="relatedLead"
-                  value={
-                    form.relatedLead
-                  }
-                  onChange={
-                    handleChange
-                  }
-                  className={
-                    selectClass
-                  }
+                  value={form.relatedLead}
+                  onChange={handleChange}
+                  className={selectClass}
                 >
-                  <option value="">
-                    None
-                  </option>
-
-                  {leads.map(
-                    (lead) => (
-                      <option
-                        key={
-                          lead._id
-                        }
-                        value={
-                          lead._id
-                        }
-                      >
-                        {lead.firstName}{" "}
-                        {lead.lastName}
-                      </option>
-                    )
-                  )}
+                  <option value="">None</option>
+                  {leads.map((lead) => (
+                    <option key={lead._id} value={lead._id}>
+                      {lead.firstName} {lead.lastName}
+                    </option>
+                  ))}
                 </select>
               </div>
 
-              {/* CONTACT */}
-
               <div>
-                <label
-                  className={
-                    labelClass
-                  }
-                >
-                  Related Contact
-                </label>
+                <label className={labelClass}>Related Contact</label>
 
                 <select
                   name="relatedContact"
-                  value={
-                    form.relatedContact
-                  }
-                  onChange={
-                    handleChange
-                  }
-                  className={
-                    selectClass
-                  }
+                  value={form.relatedContact}
+                  onChange={handleChange}
+                  className={selectClass}
                 >
-                  <option value="">
-                    None
-                  </option>
-
-                  {contacts.map(
-                    (contact) => (
-                      <option
-                        key={
-                          contact._id
-                        }
-                        value={
-                          contact._id
-                        }
-                      >
-                        {contact.firstName}{" "}
-                        {contact.lastName}
-                      </option>
-                    )
-                  )}
+                  <option value="">None</option>
+                  {contacts.map((contact) => (
+                    <option key={contact._id} value={contact._id}>
+                      {contact.firstName} {contact.lastName}
+                    </option>
+                  ))}
                 </select>
               </div>
 
-              {/* COMPANY */}
-
               <div>
-                <label
-                  className={
-                    labelClass
-                  }
-                >
-                  Related Company
-                </label>
+                <label className={labelClass}>Related Company</label>
 
                 <select
                   name="relatedCompany"
-                  value={
-                    form.relatedCompany
-                  }
-                  onChange={
-                    handleChange
-                  }
-                  className={
-                    selectClass
-                  }
+                  value={form.relatedCompany}
+                  onChange={handleChange}
+                  className={selectClass}
                 >
-                  <option value="">
-                    None
-                  </option>
-
-                  {companies.map(
-                    (company) => (
-                      <option
-                        key={
-                          company._id
-                        }
-                        value={
-                          company._id
-                        }
-                      >
-                        {company.name}
-                      </option>
-                    )
-                  )}
+                  <option value="">None</option>
+                  {companies.map((company) => (
+                    <option key={company._id} value={company._id}>
+                      {company.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 
-              {/* TRIP */}
-
               <div>
-                <label
-                  className={
-                    labelClass
-                  }
-                >
-                  Related Trip
-                </label>
+                <label className={labelClass}>Related Trip</label>
 
                 <select
                   name="relatedTrip"
-                  value={
-                    form.relatedTrip
-                  }
-                  onChange={
-                    handleChange
-                  }
-                  className={
-                    selectClass
-                  }
+                  value={form.relatedTrip}
+                  onChange={handleChange}
+                  className={selectClass}
                 >
-                  <option value="">
-                    None
-                  </option>
-
-                  {trips.map(
-                    (trip) => (
-                      <option
-                        key={
-                          trip._id
-                        }
-                        value={
-                          trip._id
-                        }
-                      >
-                        {trip.tripCode
-                          ? `${trip.tripCode} - ${trip.title}`
-                          : trip.title}
-                      </option>
-                    )
-                  )}
+                  <option value="">None</option>
+                  {trips.map((trip) => (
+                    <option key={trip._id} value={trip._id}>
+                      {trip.tripCode
+                        ? `${trip.tripCode} - ${trip.title}`
+                        : trip.title}
+                    </option>
+                  ))}
                 </select>
               </div>
-
             </div>
           </section>
 
@@ -1118,33 +601,16 @@ function TaskForm({
           ======================================== */}
 
           <section>
-            <h3
-              className={
-                sectionTitleClass
-              }
-            >
-              Additional Information
-            </h3>
+            <h3 className={sectionTitleClass}>Additional Information</h3>
 
             <div className="space-y-3.5">
-
-              {/* NOTES */}
-
               <div>
-                <label
-                  className={
-                    labelClass
-                  }
-                >
-                  Notes
-                </label>
+                <label className={labelClass}>Notes</label>
 
                 <textarea
                   name="notes"
                   value={form.notes}
-                  onChange={
-                    handleChange
-                  }
+                  onChange={handleChange}
                   placeholder="Additional notes..."
                   rows="2"
                   maxLength="2000"
@@ -1152,36 +618,22 @@ function TaskForm({
                 />
               </div>
 
-              {/* TAGS */}
-
               <div>
-                <label
-                  className={
-                    labelClass
-                  }
-                >
-                  Tags
-                </label>
+                <label className={labelClass}>Tags</label>
 
                 <input
                   type="text"
                   name="tags"
                   value={form.tags}
-                  onChange={
-                    handleChange
-                  }
+                  onChange={handleChange}
                   placeholder="crm, follow-up, important"
-                  className={
-                    inputClass
-                  }
+                  className={inputClass}
                 />
 
                 <p className="text-xs text-gray-500 mt-1.5">
-                  Separate multiple tags
-                  with commas.
+                  Separate multiple tags with commas.
                 </p>
               </div>
-
             </div>
           </section>
         </form>
@@ -1191,7 +643,6 @@ function TaskForm({
         ======================================== */}
 
         <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-gray-100 bg-gray-50/60 flex-shrink-0">
-
           <button
             type="button"
             onClick={onClose}
@@ -1205,7 +656,7 @@ function TaskForm({
             type="submit"
             form="task-form"
             disabled={saving}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-lg transition shadow-sm shadow-blue-600/20 disabled:opacity-60 min-w-[110px]"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-brand-blue hover:bg-brand-blue-dark active:bg-brand-blue-dark rounded-lg transition shadow-brand disabled:opacity-60 min-w-[110px]"
           >
             {saving ? (
               <>
@@ -1223,14 +674,12 @@ function TaskForm({
                     stroke="currentColor"
                     strokeWidth="4"
                   />
-
                   <path
                     className="opacity-75"
                     fill="currentColor"
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                   />
                 </svg>
-
                 Saving
               </>
             ) : editingTask ? (
@@ -1239,32 +688,8 @@ function TaskForm({
               "Create"
             )}
           </button>
-
         </div>
       </div>
-
-      <style>{`
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-          }
-          to {
-            opacity: 1;
-          }
-        }
-
-        @keyframes popIn {
-          from {
-            opacity: 0;
-            transform: scale(0.96) translateY(6px);
-          }
-
-          to {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-          }
-        }
-      `}</style>
     </div>,
     document.body
   );

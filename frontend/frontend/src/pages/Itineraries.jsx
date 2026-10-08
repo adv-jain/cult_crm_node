@@ -1,19 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  FiPlus,
   FiSearch,
   FiFilter,
   FiX,
   FiAlertCircle,
-  FiEye,
-  FiEdit2,
   FiTrash2,
   FiCalendar,
   FiMapPin,
   FiChevronLeft,
   FiChevronRight,
   FiFileText,
-  FiDownload,
   FiLink,
 } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
@@ -138,6 +134,7 @@ export default function Itineraries() {
 
   useEffect(() => {
     fetchItineraries();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, status]);
 
   // ===================================================
@@ -154,6 +151,7 @@ export default function Itineraries() {
     }, 350);
 
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
   // ===================================================
@@ -217,6 +215,14 @@ export default function Itineraries() {
   };
 
   // ===================================================
+  // OPEN VIEW
+  // ===================================================
+
+  const handleOpenView = (itinerary) => {
+    setViewing(itinerary);
+  };
+
+  // ===================================================
   // EDIT ITINERARY
   // ===================================================
 
@@ -257,7 +263,9 @@ export default function Itineraries() {
   // DELETE
   // ===================================================
 
-  const handleDelete = async (itinerary) => {
+  const handleDelete = async (itinerary, event) => {
+    event?.stopPropagation?.();
+
     const confirmed = window.confirm(
       `Delete itinerary "${itinerary.title}"?`
     );
@@ -281,7 +289,7 @@ export default function Itineraries() {
   };
 
   // ===================================================
-  // DOWNLOAD PDF
+  // DOWNLOAD PDF (used from inside ViewItinerary)
   // ===================================================
 
   const handleDownloadPDF = async (itinerary) => {
@@ -309,7 +317,7 @@ export default function Itineraries() {
     <div className="p-4 sm:p-6 lg:p-8 space-y-5 max-w-[1600px] mx-auto">
 
       {/* =================================================
-          INFO BANNER — How it works
+          INFO BANNER
       ================================================= */}
 
       <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
@@ -324,8 +332,8 @@ export default function Itineraries() {
 
           <p className="text-xs text-blue-700 mt-0.5 leading-5">
             Itineraries are automatically created when you create a
-            quotation. Open any itinerary below to view details, edit
-            day-wise plans, or download the PDF.
+            quotation. Click any row to view details, edit day-wise
+            plans, or download the PDF.
           </p>
         </div>
       </div>
@@ -335,8 +343,6 @@ export default function Itineraries() {
       ================================================= */}
 
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-
-        {/* SEARCH + FILTER */}
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
 
@@ -457,8 +463,6 @@ export default function Itineraries() {
             )}
           </div>
         </div>
-
-        {/* NO CREATE BUTTON — itineraries auto-create hote hain */}
       </div>
 
       {/* =================================================
@@ -569,9 +573,11 @@ export default function Itineraries() {
                     Status
                   </th>
 
-                  <th className="text-right px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
-                    Actions
-                  </th>
+                  {canDelete && (
+                    <th className="text-right px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                      Actions
+                    </th>
+                  )}
                 </tr>
               </thead>
 
@@ -579,13 +585,14 @@ export default function Itineraries() {
                 {itineraries.map((itinerary) => (
                   <tr
                     key={itinerary._id}
-                    className="hover:bg-gray-50/70 transition-colors"
+                    onClick={() => handleOpenView(itinerary)}
+                    className="hover:bg-blue-50/40 transition-colors cursor-pointer group"
                   >
                     {/* ITINERARY */}
 
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                        <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-100 transition">
                           <FiFileText size={17} />
                         </div>
 
@@ -664,57 +671,27 @@ export default function Itineraries() {
                       </span>
                     </td>
 
-                    {/* ACTIONS */}
+                    {/* ACTIONS — only Delete (admin) */}
 
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {/* VIEW */}
-
-                        <button
-                          type="button"
-                          onClick={() => setViewing(itinerary)}
-                          title="View"
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 bg-gray-50 hover:text-blue-600 hover:bg-blue-50"
-                        >
-                          <FiEye size={15} />
-                        </button>
-
-                        {/* PDF */}
-
-                        <button
-                          type="button"
-                          onClick={() => handleDownloadPDF(itinerary)}
-                          title="Download PDF"
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 bg-gray-50 hover:text-blue-600 hover:bg-blue-50"
-                        >
-                          <FiDownload size={15} />
-                        </button>
-
-                        {/* EDIT */}
-
-                        <button
-                          type="button"
-                          onClick={() => handleEdit(itinerary)}
-                          title="Edit"
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 bg-gray-50 hover:text-amber-600 hover:bg-amber-50"
-                        >
-                          <FiEdit2 size={15} />
-                        </button>
-
-                        {/* DELETE */}
-
-                        {canDelete && (
+                    {canDelete && (
+                      <td
+                        className="px-5 py-3.5"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <div className="flex items-center justify-end">
                           <button
                             type="button"
-                            onClick={() => handleDelete(itinerary)}
+                            onClick={(event) =>
+                              handleDelete(itinerary, event)
+                            }
                             title="Delete"
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 bg-gray-50 hover:text-red-600 hover:bg-red-50"
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 bg-transparent hover:text-red-600 hover:bg-red-50 transition"
                           >
                             <FiTrash2 size={15} />
                           </button>
-                        )}
-                      </div>
-                    </td>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -779,7 +756,11 @@ export default function Itineraries() {
         <ViewItinerary
           itinerary={viewing}
           onClose={() => setViewing(null)}
-          onDownloadPDF={handleDownloadPDF}
+          onDownloadPDF={(it) => handleDownloadPDF(it)}
+          onEdit={(it) => {
+            setViewing(null);
+            handleEdit(it);
+          }}
         />
       )}
 

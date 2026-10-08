@@ -3,12 +3,9 @@ import {
   FiAlertCircle,
   FiArchive,
   FiCheck,
-  FiChevronDown,
   FiChevronLeft,
   FiChevronRight,
-  FiChevronUp,
   FiEdit2,
-  FiEye,
   FiFilter,
   FiMapPin,
   FiPackage,
@@ -262,8 +259,6 @@ function Packages() {
   const [editingPackage, setEditingPackage] = useState(null);
   const [viewingPackage, setViewingPackage] = useState(null);
 
-  const [expandedPackage, setExpandedPackage] = useState(null);
-
   // =========================
   // FETCH PACKAGES
   // =========================
@@ -307,6 +302,7 @@ function Packages() {
 
   useEffect(() => {
     fetchPackages();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, statusFilter, typeFilter, featuredFilter]);
 
   // Debounced search
@@ -317,6 +313,7 @@ function Packages() {
     }, 350);
 
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
   // =========================
@@ -388,7 +385,9 @@ function Packages() {
     setError("");
   };
 
-  const handleDelete = async (pkg) => {
+  const handleDelete = async (pkg, event) => {
+    event?.stopPropagation?.();
+
     const confirmed = window.confirm(
       `Delete "${pkg.name}"? This action cannot be undone.`
     );
@@ -405,24 +404,6 @@ function Packages() {
       }
     } catch (err) {
       setError(err?.response?.data?.message || "Failed to delete package.");
-    }
-  };
-
-  const handleActivate = async (pkg) => {
-    try {
-      await api.patch(`/packages/${getId(pkg)}/activate`);
-      await fetchPackages();
-    } catch (err) {
-      setError(err?.response?.data?.message || "Failed to activate package.");
-    }
-  };
-
-  const handleArchive = async (pkg) => {
-    try {
-      await api.patch(`/packages/${getId(pkg)}/archive`);
-      await fetchPackages();
-    } catch (err) {
-      setError(err?.response?.data?.message || "Failed to archive package.");
     }
   };
 
@@ -725,22 +706,105 @@ function Packages() {
               <tbody className="divide-y divide-gray-100">
                 {packages.map((pkg) => {
                   const id = getId(pkg);
-                  const expanded = expandedPackage === id;
 
                   return (
-                    <PackageRow
+                    <tr
                       key={id}
-                      pkg={pkg}
-                      expanded={expanded}
-                      onExpand={() =>
-                        setExpandedPackage(expanded ? null : id)
-                      }
-                      onView={() => setViewingPackage(pkg)}
-                      onEdit={() => handleEdit(pkg)}
-                      onDelete={() => handleDelete(pkg)}
-                      onActivate={() => handleActivate(pkg)}
-                      onArchive={() => handleArchive(pkg)}
-                    />
+                      onClick={() => setViewingPackage(pkg)}
+                      className="hover:bg-brand-blue-50/40 transition-colors cursor-pointer group"
+                    >
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-lg bg-brand-blue-50 text-brand-blue-dark flex items-center justify-center shrink-0 group-hover:bg-brand-blue-100 transition">
+                            <FiPackage size={17} />
+                          </div>
+
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-semibold text-gray-800 truncate max-w-[220px]">
+                                {pkg.name}
+                              </p>
+
+                              {pkg.featured && (
+                                <FiStar
+                                  size={13}
+                                  className="text-amber-500 fill-amber-500 shrink-0"
+                                />
+                              )}
+                            </div>
+
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {pkg.packageCode || "No package code"}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-1.5 text-xs font-medium text-gray-700">
+                          <FiMapPin size={13} className="text-gray-400" />
+                          {pkg.destination || "—"}
+                        </div>
+
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {pkg.packageType || "Other"}
+                        </p>
+                      </td>
+
+                      <td className="px-5 py-3.5 text-xs text-gray-700">
+                        {pkg.duration?.days || 0} Days /{" "}
+                        {pkg.duration?.nights || 0} Nights
+                      </td>
+
+                      <td className="px-5 py-3.5">
+                        <p className="text-xs font-bold text-gray-800">
+                          {formatCurrency(
+                            pkg.pricing?.adultPrice,
+                            pkg.pricing?.currency || "INR"
+                          )}
+                        </p>
+
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Adult price
+                        </p>
+                      </td>
+
+                      <td className="px-5 py-3.5">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-1 rounded-full border text-[11px] font-semibold ${
+                            {
+                              Draft:
+                                "bg-amber-50 text-amber-700 border-amber-200",
+                              Active:
+                                "bg-emerald-50 text-emerald-700 border-emerald-200",
+                              Inactive:
+                                "bg-gray-100 text-gray-600 border-gray-200",
+                              Archived:
+                                "bg-red-50 text-red-700 border-red-200",
+                            }[pkg.status] ||
+                            "bg-gray-100 text-gray-600 border-gray-200"
+                          }`}
+                        >
+                          {pkg.status || "Draft"}
+                        </span>
+                      </td>
+
+                      <td
+                        className="px-5 py-3.5"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <div className="flex items-center justify-end">
+                          <button
+                            type="button"
+                            onClick={(event) => handleDelete(pkg, event)}
+                            title="Delete"
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 bg-transparent hover:text-red-600 hover:bg-red-50 transition"
+                          >
+                            <FiTrash2 size={15} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
                   );
                 })}
               </tbody>
@@ -831,202 +895,6 @@ function Packages() {
           }
         }
       `}</style>
-    </div>
-  );
-}
-
-// =====================================================
-// PACKAGE ROW
-// =====================================================
-
-function PackageRow({
-  pkg,
-  expanded,
-  onExpand,
-  onView,
-  onEdit,
-  onDelete,
-  onActivate,
-  onArchive,
-}) {
-  const statusClass = {
-    Draft: "bg-amber-50 text-amber-700 border-amber-200",
-    Active: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    Inactive: "bg-gray-100 text-gray-600 border-gray-200",
-    Archived: "bg-red-50 text-red-700 border-red-200",
-  };
-
-  return (
-    <>
-      <tr className="hover:bg-brand-blue-50/40 transition-colors">
-        <td className="px-5 py-3.5">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-brand-blue-50 text-brand-blue-dark flex items-center justify-center shrink-0">
-              <FiPackage size={17} />
-            </div>
-
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={onView}
-                  className="font-semibold text-gray-800 hover:text-brand-blue truncate max-w-[220px] text-left"
-                >
-                  {pkg.name}
-                </button>
-
-                {pkg.featured && (
-                  <FiStar
-                    size={13}
-                    className="text-amber-500 fill-amber-500 shrink-0"
-                  />
-                )}
-              </div>
-
-              <p className="text-xs text-gray-500 mt-0.5">
-                {pkg.packageCode || "No package code"}
-              </p>
-            </div>
-          </div>
-        </td>
-
-        <td className="px-5 py-3.5">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-gray-700">
-            <FiMapPin size={13} className="text-gray-400" />
-            {pkg.destination || "—"}
-          </div>
-
-          <p className="text-xs text-gray-500 mt-0.5">
-            {pkg.packageType || "Other"}
-          </p>
-        </td>
-
-        <td className="px-5 py-3.5 text-xs text-gray-700">
-          {pkg.duration?.days || 0} Days / {pkg.duration?.nights || 0} Nights
-        </td>
-
-        <td className="px-5 py-3.5">
-          <p className="text-xs font-bold text-gray-800">
-            {formatCurrency(
-              pkg.pricing?.adultPrice,
-              pkg.pricing?.currency || "INR"
-            )}
-          </p>
-
-          <p className="text-xs text-gray-500 mt-0.5">Adult price</p>
-        </td>
-
-        <td className="px-5 py-3.5">
-          <span
-            className={`inline-flex items-center px-2.5 py-1 rounded-full border text-[11px] font-semibold ${
-              statusClass[pkg.status] ||
-              "bg-gray-100 text-gray-600 border-gray-200"
-            }`}
-          >
-            {pkg.status || "Draft"}
-          </span>
-        </td>
-
-        <td className="px-5 py-3.5">
-          <div className="flex justify-end items-center gap-1.5">
-            <button
-              type="button"
-              onClick={onView}
-              title="View"
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 bg-gray-50 hover:text-brand-blue-dark hover:bg-brand-blue-50 transition"
-            >
-              <FiEye size={15} />
-            </button>
-
-            <button
-              type="button"
-              onClick={onEdit}
-              title="Edit"
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 bg-gray-50 hover:text-amber-600 hover:bg-amber-50 transition"
-            >
-              <FiEdit2 size={15} />
-            </button>
-
-            {pkg.status !== "Active" && (
-              <button
-                type="button"
-                onClick={onActivate}
-                title="Activate"
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 bg-gray-50 hover:text-emerald-600 hover:bg-emerald-50 transition"
-              >
-                <FiCheck size={15} />
-              </button>
-            )}
-
-            {pkg.status !== "Archived" && (
-              <button
-                type="button"
-                onClick={onArchive}
-                title="Archive"
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 bg-gray-50 hover:text-orange-600 hover:bg-orange-50 transition"
-              >
-                <FiArchive size={15} />
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={onDelete}
-              title="Delete"
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 bg-gray-50 hover:text-red-600 hover:bg-red-50 transition"
-            >
-              <FiTrash2 size={15} />
-            </button>
-
-            <button
-              type="button"
-              onClick={onExpand}
-              title="Expand"
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 bg-gray-50 hover:bg-gray-100 transition"
-            >
-              {expanded ? (
-                <FiChevronUp size={15} />
-              ) : (
-                <FiChevronDown size={15} />
-              )}
-            </button>
-          </div>
-        </td>
-      </tr>
-
-      {expanded && (
-        <tr className="bg-gray-50/50">
-          <td colSpan="6" className="px-5 py-4">
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-              <MiniInfo label="Hotel" value={pkg.hotelCategory || "—"} />
-              <MiniInfo label="Meals" value={pkg.mealPlan || "—"} />
-              <MiniInfo label="Transport" value={pkg.transportation || "—"} />
-              <MiniInfo
-                label="Travellers"
-                value={`${pkg.minTravellers || 1} - ${
-                  pkg.maxTravellers || 50
-                }`}
-              />
-              <MiniInfo
-                label="Valid Until"
-                value={formatDate(pkg.validity?.validUntil)}
-              />
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
-  );
-}
-
-function MiniInfo({ label, value }) {
-  return (
-    <div>
-      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
-        {label}
-      </p>
-
-      <p className="text-xs text-gray-700 mt-1">{value}</p>
     </div>
   );
 }

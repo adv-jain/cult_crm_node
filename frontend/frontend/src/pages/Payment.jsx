@@ -10,7 +10,6 @@ import {
   FiClock,
   FiCreditCard,
   FiDollarSign,
-  FiEye,
   FiFileText,
   FiFilter,
   FiHash,
@@ -18,7 +17,6 @@ import {
   FiPlus,
   FiRefreshCcw,
   FiSearch,
-  FiUser,
   FiX,
   FiXCircle,
 } from "react-icons/fi";
@@ -753,13 +751,11 @@ export default function Payment() {
             <table className="w-full text-sm min-w-[1100px]">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50/60">
-                  {["Payment", "Booking", "Customer", "Amount", "Method", "Date", "Status", "Actions"].map(
+                  {["Payment", "Booking", "Customer", "Amount", "Method", "Date", "Status"].map(
                     (heading, i) => (
                       <th
                         key={i}
-                        className={`px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide ${
-                          heading === "Actions" ? "text-right" : "text-left"
-                        }`}
+                        className="px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide text-left"
                       >
                         {heading}
                       </th>
@@ -884,11 +880,11 @@ function PaymentRow({ payment, onView }) {
   return (
     <tr
       onClick={() => onView(payment)}
-      className="hover:bg-brand-blue-50/40 transition-colors cursor-pointer"
+      className="hover:bg-brand-blue-50/40 transition-colors cursor-pointer group"
     >
       <td className="px-5 py-4">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-brand-blue-50 text-brand-blue flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 rounded-lg bg-brand-blue-50 text-brand-blue flex items-center justify-center shrink-0 group-hover:bg-brand-blue-100 transition">
             <FiHash size={15} />
           </div>
           <div className="min-w-0">
@@ -949,20 +945,6 @@ function PaymentRow({ payment, onView }) {
 
       <td className="px-5 py-4">
         <StatusBadge status={payment.status} />
-      </td>
-
-      <td className="px-5 py-4 text-right">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onView(payment);
-          }}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-brand-blue-50 hover:text-brand-blue transition"
-          title="View payment"
-        >
-          <FiEye size={15} />
-        </button>
       </td>
     </tr>
   );

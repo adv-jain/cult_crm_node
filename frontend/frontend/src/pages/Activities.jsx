@@ -79,9 +79,7 @@ function Activities() {
       params.page = page;
       params.limit = LIMIT;
 
-      const response = await api.get("/activities", {
-        params,
-      });
+      const response = await api.get("/activities", { params });
 
       setActivities(response.data.activities || []);
       setTotalActivities(response.data.total || 0);
@@ -93,8 +91,7 @@ function Activities() {
       );
 
       setErrorMessage(
-        error.response?.data?.message ||
-          "Failed to fetch activities"
+        error.response?.data?.message || "Failed to fetch activities"
       );
     } finally {
       setLoading(false);
@@ -141,6 +138,7 @@ function Activities() {
 
   useEffect(() => {
     fetchActivities();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, type, outcome]);
 
   useEffect(() => {
@@ -158,26 +156,17 @@ function Activities() {
 
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (
-        filterRef.current &&
-        !filterRef.current.contains(e.target)
-      ) {
+      if (filterRef.current && !filterRef.current.contains(e.target)) {
         setShowFilters(false);
       }
     };
 
     if (showFilters) {
-      document.addEventListener(
-        "mousedown",
-        handleClickOutside
-      );
+      document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener(
-        "mousedown",
-        handleClickOutside
-      );
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [showFilters]);
 
@@ -233,8 +222,7 @@ function Activities() {
       }
     } catch (error) {
       setErrorMessage(
-        error.response?.data?.message ||
-          "Failed to delete activity"
+        error.response?.data?.message || "Failed to delete activity"
       );
     }
   };
@@ -260,9 +248,7 @@ function Activities() {
     return {
       total: totalActivities,
 
-      calls: activities.filter(
-        (activity) => activity.type === "Call"
-      ).length,
+      calls: activities.filter((activity) => activity.type === "Call").length,
 
       meetings: activities.filter(
         (activity) => activity.type === "Meeting"
@@ -298,10 +284,7 @@ function Activities() {
           {/* LEFT: SEARCH + FILTER */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
             {/* SEARCH */}
-            <form
-              onSubmit={handleSearch}
-              className="relative w-full sm:w-64"
-            >
+            <form onSubmit={handleSearch} className="relative w-full sm:w-64">
               <FiSearch
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
                 size={15}
@@ -335,9 +318,7 @@ function Activities() {
             {/* FILTER */}
             <div className="relative" ref={filterRef}>
               <button
-                onClick={() =>
-                  setShowFilters((prev) => !prev)
-                }
+                onClick={() => setShowFilters((prev) => !prev)}
                 className={`inline-flex items-center justify-center gap-1.5 px-3 h-9 text-sm font-medium rounded-lg border transition whitespace-nowrap ${
                   dropdownFilterCount > 0
                     ? "bg-brand-blue-50 text-brand-blue-dark border-brand-blue/30"
@@ -553,19 +534,11 @@ function Activities() {
             <div className="flex items-center justify-center py-16">
               <div className="flex flex-col items-center gap-3">
                 <div className="w-7 h-7 border-[3px] border-brand-blue-50 border-t-brand-blue rounded-full animate-spin"></div>
-                <p className="text-sm text-gray-500">
-                  Loading activities...
-                </p>
+                <p className="text-sm text-gray-500">Loading activities...</p>
               </div>
             </div>
           ) : (
-            <ActivityTable
-              activities={activities}
-              user={user}
-              onView={handleView}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
+            <ActivityTable activities={activities} onView={handleView} />
           )}
         </div>
 
@@ -591,9 +564,8 @@ function Activities() {
 
             <div className="flex items-center gap-3">
               <p className="text-xs text-gray-500">
-                Page{" "}
-                <span className="font-medium text-gray-700">{page}</span> of{" "}
-                <span className="font-medium text-gray-700">{totalPages}</span>
+                Page <span className="font-medium text-gray-700">{page}</span>{" "}
+                of <span className="font-medium text-gray-700">{totalPages}</span>
               </p>
 
               {totalPages > 1 && (
@@ -641,9 +613,18 @@ function Activities() {
       {showView && selectedActivity && (
         <ViewActivity
           activity={selectedActivity}
+          user={user}
           onClose={() => {
             setShowView(false);
             setSelectedActivity(null);
+          }}
+          onEdit={(activity) => {
+            setShowView(false);
+            handleEdit(activity);
+          }}
+          onDelete={(activity) => {
+            setShowView(false);
+            handleDelete(activity);
           }}
         />
       )}

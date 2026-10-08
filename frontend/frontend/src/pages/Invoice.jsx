@@ -12,7 +12,6 @@ import {
   FiCalendar,
   FiMapPin,
   FiUser,
-  FiEye,
   FiCheck,
   FiSend,
   FiTrash2,
@@ -22,10 +21,6 @@ import {
   FiMail,
 } from "react-icons/fi";
 import api from "../api";
-
-/* =====================================================
-   CONSTANTS
-===================================================== */
 
 const RECORDS_PER_PAGE = 50;
 
@@ -37,21 +32,28 @@ const EMPTY_ITEM = {
 };
 
 const ITEM_CATEGORIES = [
-  "Hotel", "Transport", "Flight", "Train", "Activity",
-  "Visa", "Insurance", "Package", "Service", "Other",
+  "Hotel",
+  "Transport",
+  "Flight",
+  "Train",
+  "Activity",
+  "Visa",
+  "Insurance",
+  "Package",
+  "Service",
+  "Other",
 ];
 
 const STATUS_OPTIONS = [
-  "Draft", "Issued", "Sent", "Viewed",
-  "Partially Paid", "Paid", "Overdue", "Cancelled",
+  "Draft",
+  "Issued",
+  "Sent",
+  "Viewed",
+  "Partially Paid",
+  "Paid",
+  "Overdue",
+  "Cancelled",
 ];
-
-const PAYMENT_STATUS_OPTIONS = [
-  "Pending", "Partially Paid", "Paid", "Overdue", "Cancelled",
-];
-
-const DEFAULT_TERMS =
-  "Payment is due as per the agreed payment schedule. All services are subject to availability and applicable terms.";
 
 const todayISO = () => new Date().toISOString().split("T")[0];
 
@@ -63,22 +65,20 @@ const emptyForm = () => ({
   trip: "",
   invoiceDate: todayISO(),
   dueDate: "",
-  currency: "INR",
   items: [{ ...EMPTY_ITEM }],
   discountType: "Fixed",
   discountValue: 0,
   taxPercentage: 0,
   billingAddress: {
-    name: "", street: "", city: "", state: "",
-    country: "India", postalCode: "",
+    name: "",
+    street: "",
+    city: "",
+    state: "",
+    country: "India",
+    postalCode: "",
   },
   notes: "",
-  termsAndConditions: DEFAULT_TERMS,
 });
-
-/* =====================================================
-   COMPANY DETAILS
-===================================================== */
 
 const COMPANY = {
   name: "Cult Holidays",
@@ -92,27 +92,21 @@ const COMPANY = {
   logo: "/images/cult-holidays-logo.webp",
 };
 
-/* =====================================================
-   HELPERS
-===================================================== */
-
-const formatCurrency = (value, currency = "INR") => {
+const formatAmount = (value) => {
   const amount = Number(value || 0);
-  try {
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency", currency, maximumFractionDigits: 2,
-    }).format(amount);
-  } catch {
-    return `₹${amount.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
-  }
+  return `₹${amount.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 };
 
 const formatDate = (date) => {
   if (!date) return "-";
   const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) return "-";
+  if (Number.isNaN(parsed.getTime())) {
+    return typeof date === "string" ? date : "-";
+  }
   return parsed.toLocaleDateString("en-IN", {
-    day: "2-digit", month: "short", year: "numeric",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
   });
 };
 
@@ -122,39 +116,43 @@ const formatDateRange = (start, end) => {
   return formatDate(start || end);
 };
 
-const getBookingId = (b) =>
-  !b ? "" : typeof b === "string" ? b : b._id || b.id || "";
+const getId = (value) =>
+  !value ? "" : typeof value === "string" ? value : value._id || value.id || "";
 
-const getCustomerName = (c) => {
-  if (!c) return "-";
-  if (typeof c === "string") return c;
+const getCustomerName = (customer) => {
+  if (!customer) return "-";
+  if (typeof customer === "string") return customer;
   return (
-    c.name || c.fullName ||
-    `${c.firstName || ""} ${c.lastName || ""}`.trim() || "-"
+    customer.name ||
+    customer.fullName ||
+    `${customer.firstName || ""} ${customer.lastName || ""}`.trim() ||
+    "-"
   );
 };
 
-const getBookingLabel = (b) => {
-  if (!b) return "-";
-  if (typeof b === "string") {
-    return b.length === 24 ? `${b.slice(0, 6)}…${b.slice(-4)}` : b;
+const getBookingLabel = (booking) => {
+  if (!booking) return "-";
+  if (typeof booking === "string") {
+    return booking.length === 24
+      ? `${booking.slice(0, 6)}…${booking.slice(-4)}`
+      : booking;
   }
   return (
-    b.bookingNumber ||
-    b.bookingCode ||
-    b.referenceNumber ||
-    b.code ||
-    (b._id
-      ? `${String(b._id).slice(0, 6)}…${String(b._id).slice(-4)}`
+    booking.bookingNumber ||
+    booking.bookingCode ||
+    booking.referenceNumber ||
+    booking.code ||
+    (booking._id
+      ? `${String(booking._id).slice(0, 6)}…${String(booking._id).slice(-4)}`
       : "-")
   );
 };
 
-const getTravellerText = (b) => {
-  if (!b) return "-";
-  const adults = Number(b.adults || 0);
-  const children = Number(b.children || 0);
-  const infants = Number(b.infants || 0);
+const getTravellerText = (booking) => {
+  if (!booking) return "-";
+  const adults = Number(booking.adults || 0);
+  const children = Number(booking.children || 0);
+  const infants = Number(booking.infants || 0);
   const parts = [];
   if (adults) parts.push(`${adults} Adult${adults > 1 ? "s" : ""}`);
   if (children) parts.push(`${children} Child${children > 1 ? "ren" : ""}`);
@@ -183,85 +181,64 @@ const getStatusClasses = (status) => {
   }
 };
 
-/* =====================================================
-   MAIN COMPONENT
-===================================================== */
-
 function Invoice() {
   const [invoices, setInvoices] = useState([]);
   const [bookings, setBookings] = useState([]);
-
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [paymentStatusFilter, setPaymentStatusFilter] = useState("");
-
   const [showFilters, setShowFilters] = useState(false);
   const filterRef = useRef(null);
-
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalInvoices, setTotalInvoices] = useState(0);
-
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
-
   const [form, setForm] = useState(emptyForm());
-
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-
   const [summary, setSummary] = useState({
     totalInvoiceAmount: 0,
     totalPaid: 0,
     totalDue: 0,
   });
 
-  /* =====================================================
-     FETCH
-  ===================================================== */
-
   const fetchInvoices = async (page = currentPage) => {
     try {
       setLoading(true);
-      setErrorMessage("");
-
       const params = { page, limit: RECORDS_PER_PAGE };
       if (search.trim()) params.search = search.trim();
       if (statusFilter) params.status = statusFilter;
-      if (paymentStatusFilter) params.paymentStatus = paymentStatusFilter;
 
       const { data = {} } = await api.get("/invoices", { params });
-
-      setInvoices(data.invoices || data.data || []);
-      setCurrentPage(data.page || page);
-      setTotalPages(
-        Math.max(
-          1,
-          Number(
-            data.pagination?.totalPages ||
-              data.pages ||
-              Math.ceil((data.total || data.count || 0) / RECORDS_PER_PAGE)
-          )
+      const list = data.invoices || data.data || [];
+      const total = Number(data.total || data.count || 0);
+      const pages = Math.max(
+        1,
+        Number(
+          data.pagination?.totalPages ||
+            data.pages ||
+            Math.ceil(total / RECORDS_PER_PAGE)
         )
       );
-      setTotalInvoices(Number(data.total || data.count || 0));
 
+      setInvoices(list);
+      setCurrentPage(data.page || page);
+      setTotalPages(pages);
+      setTotalInvoices(total);
       setSummary({
         totalInvoiceAmount:
           data.totals?.totalInvoiceAmount ||
-          data.summary?.totalInvoiceAmount || 0,
+          data.summary?.totalInvoiceAmount ||
+          0,
         totalPaid: data.totals?.totalPaid || data.summary?.totalPaid || 0,
         totalDue: data.totals?.totalDue || data.summary?.totalDue || 0,
       });
     } catch (err) {
       console.error("Fetch invoices error:", err);
-      setErrorMessage(
-        err.response?.data?.message || "Failed to fetch invoices"
-      );
+      setErrorMessage(err.response?.data?.message || "Failed to fetch invoices");
     } finally {
       setLoading(false);
     }
@@ -278,22 +255,18 @@ function Invoice() {
     }
   };
 
-  /* =====================================================
-     EFFECTS
-  ===================================================== */
-
   useEffect(() => {
     fetchBookings();
   }, []);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, statusFilter, paymentStatusFilter]);
+  }, [search, statusFilter]);
 
   useEffect(() => {
     fetchInvoices(currentPage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, search, statusFilter, paymentStatusFilter]);
+  }, [currentPage, search, statusFilter]);
 
   useEffect(() => {
     if (!successMessage && !errorMessage) return;
@@ -305,21 +278,41 @@ function Invoice() {
   }, [successMessage, errorMessage]);
 
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (filterRef.current && !filterRef.current.contains(e.target)) {
+    const close = (event) => {
+      if (filterRef.current && !filterRef.current.contains(event.target)) {
         setShowFilters(false);
       }
     };
-    if (showFilters) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () =>
-      document.removeEventListener("mousedown", handleClickOutside);
+    if (showFilters) document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
   }, [showFilters]);
 
-  /* =====================================================
-     FORM HANDLERS
-  ===================================================== */
+  const calculatedTotals = useMemo(() => {
+    const subtotal = form.items.reduce(
+      (sum, item) =>
+        sum + Number(item.quantity || 0) * Number(item.unitPrice || 0),
+      0
+    );
+    const discountAmount =
+      form.discountType === "Percentage"
+        ? (subtotal * Number(form.discountValue || 0)) / 100
+        : Math.min(Number(form.discountValue || 0), subtotal);
+    const taxableAmount = Math.max(0, subtotal - discountAmount);
+    const taxAmount =
+      (taxableAmount * Number(form.taxPercentage || 0)) / 100;
+    return {
+      subtotal,
+      discountAmount,
+      taxableAmount,
+      taxAmount,
+      totalAmount: taxableAmount + taxAmount,
+    };
+  }, [form.items, form.discountType, form.discountValue, form.taxPercentage]);
+
+  const selectedBooking = useMemo(
+    () => bookings.find((booking) => getId(booking) === form.booking) || null,
+    [bookings, form.booking]
+  );
 
   const resetForm = () => setForm(emptyForm());
 
@@ -336,134 +329,106 @@ function Invoice() {
   };
 
   const handleBookingChange = (bookingId) => {
-    const booking = bookings.find((b) => getBookingId(b) === bookingId);
+    const booking = bookings.find((item) => getId(item) === bookingId);
     if (!booking) {
-      setForm((p) => ({
-        ...p, booking: "", customer: "", company: "", trip: "", quotation: "",
+      setForm((prev) => ({
+        ...prev,
+        booking: "",
+        customer: "",
+        company: "",
+        trip: "",
+        quotation: "",
       }));
       return;
     }
 
-    const pick = (obj) => obj?._id || obj?.id || obj || "";
-    const customerName = getCustomerName(booking.customer);
-    const bookingTotal =
-      booking.totalAmount || booking.total || booking.grandTotal ||
-      booking.amount || 0;
+    const customer = booking.customer;
+    const bookingTotal = Number(
+      booking.totalAmount ||
+        booking.total ||
+        booking.grandTotal ||
+        booking.amount ||
+        0
+    );
 
     setForm((prev) => ({
       ...prev,
       booking: bookingId,
-      customer: pick(booking.customer),
-      company: pick(booking.company),
-      trip: pick(booking.trip),
-      quotation: pick(booking.quotation),
+      customer: getId(customer),
+      company: getId(booking.company),
+      trip: getId(booking.trip),
+      quotation: getId(booking.quotation),
       billingAddress: {
         ...prev.billingAddress,
-        name: customerName,
-        city: booking.customer?.city || prev.billingAddress.city,
-        state: booking.customer?.state || prev.billingAddress.state,
-        country: booking.customer?.country || "India",
-        postalCode:
-          booking.customer?.postalCode || prev.billingAddress.postalCode,
+        name: getCustomerName(customer),
+        city: customer?.city || prev.billingAddress.city,
+        state: customer?.state || prev.billingAddress.state,
+        country: customer?.country || "India",
+        postalCode: customer?.postalCode || prev.billingAddress.postalCode,
       },
       items:
         bookingTotal > 0
-          ? [{
-              description: booking.destination
-                ? `Travel package - ${booking.destination}`
-                : "Travel services",
-              category: "Package",
-              quantity: 1,
-              unitPrice: Number(bookingTotal),
-            }]
+          ? [
+              {
+                description: booking.destination
+                  ? `Travel package - ${booking.destination}`
+                  : "Travel services",
+                category: "Package",
+                quantity: 1,
+                unitPrice: bookingTotal,
+              },
+            ]
           : [{ ...EMPTY_ITEM }],
     }));
   };
 
   const updateForm = (field, value) =>
-    setForm((p) => ({ ...p, [field]: value }));
+    setForm((prev) => ({ ...prev, [field]: value }));
 
   const updateBillingAddress = (field, value) =>
-    setForm((p) => ({
-      ...p,
-      billingAddress: { ...p.billingAddress, [field]: value },
+    setForm((prev) => ({
+      ...prev,
+      billingAddress: { ...prev.billingAddress, [field]: value },
     }));
 
   const updateItem = (index, field, value) =>
-    setForm((p) => {
-      const items = [...p.items];
+    setForm((prev) => {
+      const items = [...prev.items];
       items[index] = { ...items[index], [field]: value };
-      return { ...p, items };
+      return { ...prev, items };
     });
 
   const addItem = () =>
-    setForm((p) => ({ ...p, items: [...p.items, { ...EMPTY_ITEM }] }));
+    setForm((prev) => ({
+      ...prev,
+      items: [...prev.items, { ...EMPTY_ITEM }],
+    }));
 
   const removeItem = (index) =>
-    setForm((p) =>
-      p.items.length === 1
-        ? p
-        : { ...p, items: p.items.filter((_, i) => i !== index) }
+    setForm((prev) =>
+      prev.items.length === 1
+        ? prev
+        : { ...prev, items: prev.items.filter((_, i) => i !== index) }
     );
 
-  /* =====================================================
-     CALCULATIONS
-  ===================================================== */
-
-  const calculatedTotals = useMemo(() => {
-    const subtotal = form.items.reduce(
-      (sum, i) => sum + Number(i.quantity || 0) * Number(i.unitPrice || 0),
-      0
-    );
-    const discountAmount =
-      form.discountType === "Percentage"
-        ? (subtotal * Number(form.discountValue || 0)) / 100
-        : Math.min(Number(form.discountValue || 0), subtotal);
-    const taxableAmount = Math.max(0, subtotal - discountAmount);
-    const taxAmount = (taxableAmount * Number(form.taxPercentage || 0)) / 100;
-    const totalAmount = taxableAmount + taxAmount;
-    return { subtotal, discountAmount, taxableAmount, taxAmount, totalAmount };
-  }, [form.items, form.discountType, form.discountValue, form.taxPercentage]);
-
-  const selectedBooking = useMemo(
-    () => bookings.find((b) => getBookingId(b) === form.booking) || null,
-    [bookings, form.booking]
-  );
-
-  const activeFilterCount = useMemo(
-    () => [search, statusFilter, paymentStatusFilter].filter(Boolean).length,
-    [search, statusFilter, paymentStatusFilter]
-  );
-
-  const dropdownFilterCount = useMemo(
-    () => [statusFilter, paymentStatusFilter].filter(Boolean).length,
-    [statusFilter, paymentStatusFilter]
-  );
-
-  /* =====================================================
-     ACTIONS
-  ===================================================== */
-
-  const createInvoice = async (e) => {
-    e.preventDefault();
+  const createInvoice = async (event) => {
+    event.preventDefault();
     if (!form.booking) return setErrorMessage("Please select a booking.");
     if (!form.customer)
       return setErrorMessage("Customer information is required.");
 
     const validItems = form.items.filter(
-      (i) =>
-        i.description.trim() &&
-        Number(i.quantity) > 0 &&
-        Number(i.unitPrice) >= 0
+      (item) =>
+        item.description.trim() &&
+        Number(item.quantity) > 0 &&
+        Number(item.unitPrice) >= 0
     );
+
     if (!validItems.length)
       return setErrorMessage("Add at least one valid invoice item.");
 
     try {
       setSaving(true);
-      setErrorMessage("");
-
-      // invoiceNumber backend auto-generates (INV-YYYY-XXXXXXXX)
       await api.post("/invoices", {
         booking: form.booking,
         quotation: form.quotation || null,
@@ -472,12 +437,11 @@ function Invoice() {
         trip: form.trip || null,
         invoiceDate: form.invoiceDate || null,
         dueDate: form.dueDate || null,
-        currency: form.currency,
-        items: validItems.map((i) => ({
-          description: i.description.trim(),
-          category: i.category,
-          quantity: Number(i.quantity),
-          unitPrice: Number(i.unitPrice),
+        items: validItems.map((item) => ({
+          description: item.description.trim(),
+          category: item.category,
+          quantity: Number(item.quantity),
+          unitPrice: Number(item.unitPrice),
         })),
         discountType: form.discountType,
         discountValue: Number(form.discountValue || 0),
@@ -485,7 +449,6 @@ function Invoice() {
         amountPaid: 0,
         billingAddress: form.billingAddress,
         notes: form.notes,
-        termsAndConditions: form.termsAndConditions,
       });
 
       setSuccessMessage("Invoice created successfully");
@@ -494,9 +457,7 @@ function Invoice() {
       await fetchInvoices(currentPage);
     } catch (err) {
       console.error("Create invoice error:", err);
-      setErrorMessage(
-        err.response?.data?.message || "Failed to create invoice"
-      );
+      setErrorMessage(err.response?.data?.message || "Failed to create invoice");
     } finally {
       setSaving(false);
     }
@@ -504,26 +465,23 @@ function Invoice() {
 
   const viewInvoice = async (invoice) => {
     try {
-      setErrorMessage("");
       const id = invoice._id || invoice.id;
       const { data } = await api.get(`/invoices/${id}`);
       setSelectedInvoice(data?.invoice || data?.data || data);
       setShowViewModal(true);
     } catch (err) {
       console.error("View invoice error:", err);
-      setErrorMessage(
-        err.response?.data?.message || "Failed to load invoice"
-      );
+      setErrorMessage(err.response?.data?.message || "Failed to load invoice");
     }
   };
 
   const updateInvoiceStatus = async (invoice, action, message) => {
     try {
-      setErrorMessage("");
       const id = invoice._id || invoice.id;
       await api.put(`/invoices/${id}/${action}`);
       setSuccessMessage(message);
       await fetchInvoices(currentPage);
+
       if (
         selectedInvoice &&
         (selectedInvoice._id === id || selectedInvoice.id === id)
@@ -539,34 +497,39 @@ function Invoice() {
     }
   };
 
-  const issueInvoice = (inv) =>
-    updateInvoiceStatus(inv, "issue", "Invoice issued successfully");
+  const issueInvoice = (invoice) =>
+    updateInvoiceStatus(invoice, "issue", "Invoice issued successfully");
 
-  const sendInvoice = (inv) =>
-    updateInvoiceStatus(inv, "send", "Invoice marked as sent successfully");
+  const sendInvoice = (invoice) =>
+    updateInvoiceStatus(invoice, "send", "Invoice marked as sent successfully");
 
-  const cancelInvoice = async (inv) => {
-    if (!window.confirm(`Cancel ${inv.invoiceNumber}?`)) return;
-    await updateInvoiceStatus(inv, "cancel", "Invoice cancelled successfully");
+  const cancelInvoice = async (invoice) => {
+    if (!window.confirm(`Cancel ${invoice.invoiceNumber}?`)) return;
+    await updateInvoiceStatus(invoice, "cancel", "Invoice cancelled successfully");
   };
 
-  const deleteInvoice = async (inv) => {
-    if (!window.confirm(`Delete draft invoice ${inv.invoiceNumber}?`)) return;
+  const deleteInvoice = async (invoice, event) => {
+    event?.stopPropagation?.();
+
+    if (!window.confirm(`Delete draft invoice ${invoice.invoiceNumber}?`)) return;
+
     try {
-      await api.delete(`/invoices/${inv._id || inv.id}`);
+      await api.delete(`/invoices/${invoice._id || invoice.id}`);
       setSuccessMessage("Invoice deleted successfully");
-      await fetchInvoices(currentPage);
+      if (invoices.length === 1 && currentPage > 1) {
+        setCurrentPage((page) => page - 1);
+      } else {
+        await fetchInvoices(currentPage);
+      }
     } catch (err) {
       console.error("Delete invoice error:", err);
-      setErrorMessage(
-        err.response?.data?.message || "Failed to delete invoice"
-      );
+      setErrorMessage(err.response?.data?.message || "Failed to delete invoice");
     }
   };
 
-  const handleDownload = async (inv) => {
-    if (inv.pdfUrl) {
-      window.open(inv.pdfUrl, "_blank");
+  const handleDownload = async (invoice) => {
+    if (invoice.pdfUrl) {
+      window.open(invoice.pdfUrl, "_blank");
       return;
     }
 
@@ -576,42 +539,104 @@ function Invoice() {
       return;
     }
 
+    let wrapper = null;
+
     try {
       const html2pdf = (await import("html2pdf.js")).default;
 
-      const filename = `${inv.invoiceNumber || "invoice"}.pdf`;
+      const images = Array.from(element.querySelectorAll("img"));
+      await Promise.all(
+        images.map((img) =>
+          img.complete
+            ? Promise.resolve()
+            : new Promise((resolve) => {
+                img.onload = resolve;
+                img.onerror = resolve;
+              })
+        )
+      );
 
-      const options = {
-        margin: 0,
-        filename,
-        image: { type: "jpeg", quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, letterRendering: true },
-        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-        pagebreak: { mode: ["css", "legacy"] },
-      };
+      const clone = element.cloneNode(true);
 
-      await html2pdf().set(options).from(element).save();
+      wrapper = document.createElement("div");
+      wrapper.className = "fixed left-[-10000px] top-0 bg-white p-0 m-0";
+      wrapper.style.width = "194mm";
+      wrapper.style.backgroundColor = "#ffffff";
+      wrapper.style.boxSizing = "border-box";
+      wrapper.style.overflow = "visible";
+
+      clone.style.width = "194mm";
+      clone.style.maxWidth = "194mm";
+      clone.style.margin = "0";
+      clone.style.boxSizing = "border-box";
+      clone.style.backgroundColor = "#ffffff";
+      clone.style.boxShadow = "none";
+      clone.style.overflow = "visible";
+
+      clone.querySelectorAll("*").forEach((node) => {
+        node.style.maxWidth = "100%";
+        node.style.boxSizing = "border-box";
+        node.style.overflowWrap = "anywhere";
+        node.style.wordBreak = "break-word";
+      });
+
+      wrapper.appendChild(clone);
+      document.body.appendChild(wrapper);
+
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      await html2pdf()
+        .set({
+          margin: [8, 8, 8, 8],
+          filename: `${invoice.invoiceNumber || "invoice"}.pdf`,
+          image: { type: "jpeg", quality: 0.98 },
+          html2canvas: {
+            scale: 2,
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: "#ffffff",
+            logging: false,
+            width: wrapper.scrollWidth,
+            height: wrapper.scrollHeight,
+            windowWidth: wrapper.scrollWidth,
+            windowHeight: Math.max(wrapper.scrollHeight, 1200),
+            scrollX: 0,
+            scrollY: 0,
+          },
+          jsPDF: {
+            unit: "mm",
+            format: "a4",
+            orientation: "portrait",
+            compress: true,
+          },
+          pagebreak: {
+            mode: ["css", "legacy"],
+            avoid: [".invoice-section", ".invoice-card", "tr"],
+          },
+        })
+        .from(clone)
+        .save();
     } catch (err) {
       console.error("PDF generation error:", err);
       window.print();
+    } finally {
+      if (wrapper?.parentNode) {
+        wrapper.parentNode.removeChild(wrapper);
+      }
     }
   };
 
-  const handleClearFilters = () => {
+  const clearFilters = () => {
     setSearch("");
     setStatusFilter("");
-    setPaymentStatusFilter("");
     setCurrentPage(1);
     setShowFilters(false);
   };
 
-  /* =====================================================
-     RENDER
-  ===================================================== */
+  const activeFilterCount = [search, statusFilter].filter(Boolean).length;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-5 max-w-[1600px] mx-auto">
-      {/* HEADER */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
           <div className="relative w-full sm:w-64">
@@ -620,17 +645,16 @@ function Invoice() {
               size={15}
             />
             <input
-              type="text"
-              placeholder="Search invoice number..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-8 h-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/10 transition"
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search invoice number..."
+              className="w-full pl-9 pr-8 h-9 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/10"
             />
             {search && (
               <button
                 type="button"
                 onClick={() => setSearch("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-600"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400"
               >
                 <FiX size={13} />
               </button>
@@ -640,102 +664,45 @@ function Invoice() {
           <div className="relative" ref={filterRef}>
             <button
               type="button"
-              onClick={() => setShowFilters((prev) => !prev)}
-              className={`inline-flex items-center justify-center gap-1.5 px-3 h-9 text-sm font-medium rounded-lg border transition whitespace-nowrap ${
-                dropdownFilterCount > 0
-                  ? "bg-brand-blue-50 text-brand-blue-dark border-brand-blue/30"
-                  : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-              }`}
+              onClick={() => setShowFilters((value) => !value)}
+              className="inline-flex items-center justify-center gap-1.5 px-3 h-9 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
             >
               <FiFilter size={14} />
-              <span className="hidden sm:inline">Filters</span>
-              {dropdownFilterCount > 0 && (
-                <span className="inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[10px] font-semibold bg-brand-blue text-white rounded-full">
-                  {dropdownFilterCount}
+              <span>Filters</span>
+              {statusFilter && (
+                <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] bg-brand-blue text-white rounded-full">
+                  {statusFilter ? 1 : 0}
                 </span>
               )}
             </button>
 
             {showFilters && (
-              <div className="absolute left-0 top-full mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-lg z-30 overflow-hidden">
+              <div className="absolute left-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-xl z-30 overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                   <h3 className="text-sm font-semibold text-gray-900">Filters</h3>
-                  {dropdownFilterCount > 0 && (
-                    <button
-                      type="button"
-                      onClick={handleClearFilters}
-                      className="text-xs font-medium text-gray-500 hover:text-red-600 transition"
-                    >
-                      Reset
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="text-xs text-gray-500 hover:text-red-600"
+                  >
+                    Reset
+                  </button>
                 </div>
 
                 <div className="p-4 space-y-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-2">
-                      Status
-                    </label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {STATUS_OPTIONS.map((item) => (
-                        <button
-                          type="button"
-                          key={item}
-                          onClick={() =>
-                            setStatusFilter(statusFilter === item ? "" : item)
-                          }
-                          className={`px-2.5 py-1 text-xs font-medium rounded-md border transition ${
-                            statusFilter === item
-                              ? "bg-brand-blue text-white border-brand-blue"
-                              : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                          }`}
-                        >
-                          {item}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-2">
-                      Payment status
-                    </label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {PAYMENT_STATUS_OPTIONS.map((item) => (
-                        <button
-                          type="button"
-                          key={item}
-                          onClick={() =>
-                            setPaymentStatusFilter(
-                              paymentStatusFilter === item ? "" : item
-                            )
-                          }
-                          className={`px-2.5 py-1 text-xs font-medium rounded-md border transition ${
-                            paymentStatusFilter === item
-                              ? "bg-brand-blue text-white border-brand-blue"
-                              : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                          }`}
-                        >
-                          {item}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  <FilterGroup
+                    label="Status"
+                    value={statusFilter}
+                    options={STATUS_OPTIONS}
+                    onChange={setStatusFilter}
+                  />
                 </div>
 
-                <div className="flex items-center justify-between gap-2 px-4 py-3 bg-gray-50 border-t border-gray-100">
-                  <button
-                    type="button"
-                    onClick={handleClearFilters}
-                    disabled={dropdownFilterCount === 0}
-                    className="text-xs font-medium text-gray-600 hover:text-gray-900 transition disabled:opacity-40"
-                  >
-                    Clear all
-                  </button>
+                <div className="flex justify-end px-4 py-3 bg-gray-50 border-t border-gray-100">
                   <button
                     type="button"
                     onClick={() => setShowFilters(false)}
-                    className="px-3 py-1.5 text-xs font-semibold text-white bg-brand-blue hover:bg-brand-blue-dark rounded-md transition"
+                    className="px-3 py-1.5 text-xs font-semibold text-white bg-brand-blue rounded-md"
                   >
                     Apply
                   </button>
@@ -748,42 +715,22 @@ function Invoice() {
         <button
           type="button"
           onClick={openCreateModal}
-          className="inline-flex items-center justify-center gap-1.5 px-4 h-9 bg-brand-blue hover:bg-brand-blue-dark text-white text-sm font-medium rounded-lg transition shadow-brand whitespace-nowrap self-start lg:self-auto"
+          className="inline-flex items-center justify-center gap-1.5 px-4 h-9 bg-brand-blue hover:bg-brand-blue-dark text-white text-sm font-medium rounded-lg"
         >
           <FiPlus size={15} />
           New Invoice
         </button>
       </div>
 
-      {/* SUMMARY */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
         <SummaryCard
           title="Total Invoiced"
-          value={formatCurrency(summary.totalInvoiceAmount)}
+          value={formatAmount(summary.totalInvoiceAmount)}
           icon={<FiFileText size={16} />}
           iconClass="bg-blue-50 text-blue-600"
         />
-        <SummaryCard
-          title="Total Paid"
-          value={formatCurrency(summary.totalPaid)}
-          icon={<FiCheck size={16} />}
-          iconClass="bg-emerald-50 text-emerald-600"
-        />
-        <SummaryCard
-          title="Total Due"
-          value={formatCurrency(summary.totalDue)}
-          icon={<FiDollarSign size={16} />}
-          iconClass="bg-amber-50 text-amber-600"
-        />
-        <SummaryCard
-          title="Overdue"
-          value={invoices.filter((i) => i.paymentStatus === "Overdue").length}
-          icon={<FiAlertCircle size={16} />}
-          iconClass="bg-red-50 text-red-600"
-        />
       </div>
 
-      {/* ACTIVE FILTERS */}
       {activeFilterCount > 0 && (
         <div className="flex items-center gap-2 text-xs text-gray-500">
           <span>
@@ -791,44 +738,30 @@ function Invoice() {
           </span>
           <button
             type="button"
-            onClick={handleClearFilters}
-            className="text-brand-blue hover:text-brand-blue-dark font-medium"
+            onClick={clearFilters}
+            className="text-brand-blue font-medium"
           >
             Clear filters
           </button>
         </div>
       )}
 
-      {/* ALERTS */}
       {successMessage && (
-        <div className="flex items-start gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm px-4 py-3 rounded-lg">
-          <FiCheckCircle className="flex-shrink-0 mt-0.5" size={18} />
-          <p className="flex-1">{successMessage}</p>
-          <button
-            type="button"
-            onClick={() => setSuccessMessage("")}
-            className="text-emerald-600 hover:text-emerald-800 flex-shrink-0"
-          >
-            <FiX size={16} />
-          </button>
-        </div>
+        <Alert
+          type="success"
+          message={successMessage}
+          onClose={() => setSuccessMessage("")}
+        />
       )}
 
       {errorMessage && (
-        <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 text-sm px-4 py-3 rounded-lg">
-          <FiAlertCircle className="flex-shrink-0 mt-0.5" size={18} />
-          <p className="flex-1">{errorMessage}</p>
-          <button
-            type="button"
-            onClick={() => setErrorMessage("")}
-            className="text-red-600 hover:text-red-800 flex-shrink-0"
-          >
-            <FiX size={16} />
-          </button>
-        </div>
+        <Alert
+          type="error"
+          message={errorMessage}
+          onClose={() => setErrorMessage("")}
+        />
       )}
 
-      {/* TABLE */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16">
@@ -838,40 +771,19 @@ function Invoice() {
             </div>
           </div>
         ) : invoices.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
-            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
-              <FiFileText size={24} />
-            </div>
-            <h3 className="mt-4 text-sm font-semibold text-gray-800">
-              No invoices found
-            </h3>
-            <p className="mt-1 text-sm text-gray-500 max-w-sm">
-              Create your first invoice from a confirmed booking.
-            </p>
-            <button
-              type="button"
-              onClick={openCreateModal}
-              className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-brand-blue hover:bg-brand-blue-dark text-white text-sm font-medium rounded-lg transition"
-            >
-              <FiPlus size={15} />
-              Create Invoice
-            </button>
-          </div>
+          <EmptyState onCreate={openCreateModal} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm" style={{ minWidth: "1250px" }}>
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50/60">
-                  <th className="px-4 py-3 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider" style={{ width: "150px" }}>Invoice</th>
-                  <th className="px-4 py-3 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider" style={{ width: "160px" }}>Booking</th>
-                  <th className="px-4 py-3 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider" style={{ width: "180px" }}>Customer</th>
-                  <th className="px-4 py-3 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider" style={{ width: "220px" }}>Travel</th>
-                  <th className="px-4 py-3 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: "110px" }}>Date</th>
-                  <th className="px-4 py-3 text-right text-[10px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: "110px" }}>Total</th>
-                  <th className="px-4 py-3 text-right text-[10px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: "110px" }}>Paid</th>
-                  <th className="px-4 py-3 text-right text-[10px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: "110px" }}>Due</th>
-                  <th className="px-4 py-3 text-center text-[10px] font-semibold text-gray-500 uppercase tracking-wider" style={{ width: "130px" }}>Status</th>
-                  <th className="px-4 py-3 text-right text-[10px] font-semibold text-gray-500 uppercase tracking-wider" style={{ width: "80px" }}>Actions</th>
+                  <TableHead>Invoice</TableHead>
+                  <TableHead>Customer</TableHead>
+                  <TableHead>Travel</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead align="right">Total</TableHead>
+                  <TableHead align="center">Status</TableHead>
+                  <TableHead align="right">Actions</TableHead>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -880,9 +792,6 @@ function Invoice() {
                     key={invoice._id || invoice.id}
                     invoice={invoice}
                     onView={viewInvoice}
-                    onIssue={issueInvoice}
-                    onSend={sendInvoice}
-                    onCancel={cancelInvoice}
                     onDelete={deleteInvoice}
                   />
                 ))}
@@ -892,7 +801,6 @@ function Invoice() {
         )}
       </div>
 
-      {/* PAGINATION */}
       {!loading && totalInvoices > 0 && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-gray-500">
@@ -900,29 +808,31 @@ function Invoice() {
             <span className="font-medium text-gray-700">{invoices.length}</span>{" "}
             of{" "}
             <span className="font-medium text-gray-700">{totalInvoices}</span>{" "}
-            {totalInvoices === 1 ? "invoice" : "invoices"}
+            invoices
           </p>
 
           {totalPages > 1 && (
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
-                onClick={() => currentPage > 1 && setCurrentPage((p) => p - 1)}
                 disabled={currentPage === 1 || loading}
-                className="w-8 h-8 inline-flex items-center justify-center text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-40"
+                onClick={() =>
+                  currentPage > 1 && setCurrentPage((page) => page - 1)
+                }
+                className="w-8 h-8 flex items-center justify-center border border-gray-200 rounded-lg disabled:opacity-40"
               >
                 <FiChevronLeft size={16} />
               </button>
-              <span className="px-3 h-8 inline-flex items-center text-sm font-medium text-gray-700">
+              <span className="px-3 text-sm font-medium text-gray-700">
                 {currentPage} / {totalPages}
               </span>
               <button
                 type="button"
-                onClick={() =>
-                  currentPage < totalPages && setCurrentPage((p) => p + 1)
-                }
                 disabled={currentPage === totalPages || loading}
-                className="w-8 h-8 inline-flex items-center justify-center text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-40"
+                onClick={() =>
+                  currentPage < totalPages && setCurrentPage((page) => page + 1)
+                }
+                className="w-8 h-8 flex items-center justify-center border border-gray-200 rounded-lg disabled:opacity-40"
               >
                 <FiChevronRight size={16} />
               </button>
@@ -931,7 +841,6 @@ function Invoice() {
         </div>
       )}
 
-      {/* MODALS */}
       {showCreateModal && (
         <CreateInvoiceModal
           form={form}
@@ -967,10 +876,6 @@ function Invoice() {
   );
 }
 
-/* =====================================================
-   SUB-COMPONENTS
-===================================================== */
-
 function SummaryCard({ title, value, icon, iconClass }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4">
@@ -979,7 +884,9 @@ function SummaryCard({ title, value, icon, iconClass }) {
           <p className="text-xs font-medium text-gray-500">{title}</p>
           <h3 className="mt-1.5 text-lg font-bold text-gray-800">{value}</h3>
         </div>
-        <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${iconClass}`}>
+        <div
+          className={`flex h-9 w-9 items-center justify-center rounded-lg ${iconClass}`}
+        >
           {icon}
         </div>
       </div>
@@ -987,48 +894,86 @@ function SummaryCard({ title, value, icon, iconClass }) {
   );
 }
 
-function InvoiceRow({ invoice, onView, onIssue, onSend, onCancel, onDelete }) {
+function Alert({ type, message, onClose }) {
+  const success = type === "success";
+  return (
+    <div
+      className={`flex items-start gap-3 border text-sm px-4 py-3 rounded-lg ${
+        success
+          ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+          : "bg-red-50 border-red-200 text-red-800"
+      }`}
+    >
+      {success ? <FiCheckCircle size={18} /> : <FiAlertCircle size={18} />}
+      <p className="flex-1">{message}</p>
+      <button type="button" onClick={onClose}>
+        <FiX size={16} />
+      </button>
+    </div>
+  );
+}
+
+function FilterGroup({ label, value, options, onChange }) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-gray-500 mb-2">
+        {label}
+      </label>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((option) => (
+          <button
+            type="button"
+            key={option}
+            onClick={() => onChange(value === option ? "" : option)}
+            className={`px-2.5 py-1 text-xs font-medium rounded-md border ${
+              value === option
+                ? "bg-brand-blue text-white border-brand-blue"
+                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+            }`}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TableHead({ children, align = "left" }) {
+  return (
+    <th
+      className={`px-4 py-3 text-${align} text-[10px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap`}
+    >
+      {children}
+    </th>
+  );
+}
+
+function InvoiceRow({ invoice, onView, onDelete }) {
   const isDraft = invoice.status === "Draft";
-  const isPaid = invoice.status === "Paid" || invoice.paymentStatus === "Paid";
-  const canCancel = !isPaid && invoice.status !== "Cancelled";
-  const canDelete = isDraft;
   const booking = invoice.booking;
 
   return (
     <tr
       onClick={() => onView(invoice)}
-      className="hover:bg-brand-blue-50/40 transition-colors cursor-pointer"
+      className="hover:bg-brand-blue-50/40 transition-colors cursor-pointer group"
     >
       <td className="px-4 py-4">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-brand-blue-50 text-brand-blue flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-brand-blue-50 text-brand-blue flex items-center justify-center group-hover:bg-brand-blue-100 transition">
             <FiFileText size={14} />
           </div>
           <div className="min-w-0">
             <p className="text-[13px] font-semibold text-gray-800 truncate">
               {invoice.invoiceNumber || "-"}
             </p>
-            <p className="text-[10px] text-gray-400 mt-0.5">
-              {invoice.currency || "INR"}
-            </p>
           </div>
         </div>
       </td>
 
       <td className="px-4 py-4">
-        <p className="text-[12px] font-semibold text-gray-700 font-mono truncate">
-          {getBookingLabel(booking)}
-        </p>
-        {booking?.destination && (
-          <p className="text-[11px] text-gray-400 mt-0.5 truncate">
-            {booking.destination}
-          </p>
-        )}
-      </td>
-
-      <td className="px-4 py-4">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center shrink-0">
+          <div className="w-7 h-7 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center">
             <FiUser size={12} />
           </div>
           <p className="text-[12px] font-medium text-gray-800 truncate">
@@ -1041,14 +986,12 @@ function InvoiceRow({ invoice, onView, onIssue, onSend, onCancel, onDelete }) {
         {booking ? (
           <div className="space-y-0.5">
             <p className="flex items-center gap-1.5 text-[11px] text-gray-700">
-              <FiMapPin size={11} className="text-gray-400 shrink-0" />
-              <span className="truncate">{booking.destination || "-"}</span>
+              <FiMapPin size={11} className="text-gray-400" />
+              {booking.destination || "-"}
             </p>
             <p className="flex items-center gap-1.5 text-[11px] text-gray-500">
-              <FiCalendar size={11} className="text-gray-400 shrink-0" />
-              <span className="truncate">
-                {formatDateRange(booking.travelDate, booking.returnDate)}
-              </span>
+              <FiCalendar size={11} className="text-gray-400" />
+              {formatDateRange(booking.travelDate, booking.returnDate)}
             </p>
             <p className="text-[11px] text-gray-500 truncate">
               {getTravellerText(booking)}
@@ -1062,17 +1005,8 @@ function InvoiceRow({ invoice, onView, onIssue, onSend, onCancel, onDelete }) {
       <td className="px-4 py-4 text-gray-700 text-[12px] whitespace-nowrap">
         {formatDate(invoice.invoiceDate)}
       </td>
-
       <td className="px-4 py-4 text-right font-semibold text-gray-800 text-[12px] whitespace-nowrap">
-        {formatCurrency(invoice.totalAmount, invoice.currency || "INR")}
-      </td>
-
-      <td className="px-4 py-4 text-right font-medium text-emerald-600 text-[12px] whitespace-nowrap">
-        {formatCurrency(invoice.amountPaid, invoice.currency || "INR")}
-      </td>
-
-      <td className="px-4 py-4 text-right font-medium text-amber-600 text-[12px] whitespace-nowrap">
-        {formatCurrency(invoice.amountDue, invoice.currency || "INR")}
+        {formatAmount(invoice.totalAmount)}
       </td>
 
       <td className="px-4 py-4 text-center">
@@ -1085,37 +1019,20 @@ function InvoiceRow({ invoice, onView, onIssue, onSend, onCancel, onDelete }) {
         </span>
       </td>
 
-      <td className="px-4 py-4">
-        <div
-          className="flex items-center justify-end gap-0.5"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <ActionButton title="View" onClick={() => onView(invoice)}>
-            <FiEye size={15} />
-          </ActionButton>
-
+      <td
+        className="px-4 py-4"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-end">
           {isDraft && (
-            <ActionButton title="Issue" onClick={() => onIssue(invoice)}>
-              <FiCheck size={15} />
-            </ActionButton>
-          )}
-
-          {(invoice.status === "Issued" || invoice.status === "Viewed") && (
-            <ActionButton title="Send" onClick={() => onSend(invoice)}>
-              <FiSend size={15} />
-            </ActionButton>
-          )}
-
-          {canCancel && (
-            <ActionButton title="Cancel" danger onClick={() => onCancel(invoice)}>
-              <FiX size={15} />
-            </ActionButton>
-          )}
-
-          {canDelete && (
-            <ActionButton title="Delete" danger onClick={() => onDelete(invoice)}>
+            <button
+              type="button"
+              onClick={(event) => onDelete(invoice, event)}
+              title="Delete"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 bg-transparent hover:text-red-600 hover:bg-red-50 transition"
+            >
               <FiTrash2 size={15} />
-            </ActionButton>
+            </button>
           )}
         </div>
       </td>
@@ -1123,36 +1040,48 @@ function InvoiceRow({ invoice, onView, onIssue, onSend, onCancel, onDelete }) {
   );
 }
 
-function ActionButton({ children, onClick, title, danger = false }) {
+function EmptyState({ onCreate }) {
   return (
-    <button
-      type="button"
-      title={title}
-      onClick={onClick}
-      className={`rounded-lg p-1.5 transition ${
-        danger
-          ? "text-red-500 hover:bg-red-50"
-          : "text-gray-500 hover:bg-gray-100 hover:text-brand-blue"
-      }`}
-    >
-      {children}
-    </button>
+    <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+      <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
+        <FiFileText size={24} />
+      </div>
+      <h3 className="mt-4 text-sm font-semibold text-gray-800">
+        No invoices found
+      </h3>
+      <p className="mt-1 text-sm text-gray-500">
+        Create your first invoice from a confirmed booking.
+      </p>
+      <button
+        type="button"
+        onClick={onCreate}
+        className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-brand-blue text-white text-sm font-medium rounded-lg"
+      >
+        <FiPlus size={15} /> Create Invoice
+      </button>
+    </div>
   );
 }
 
-/* =====================================================
-   CREATE MODAL
-===================================================== */
-
 function CreateInvoiceModal({
-  form, saving, bookings, selectedBooking, calculatedTotals,
-  onClose, onSubmit, onBookingChange, updateForm,
-  updateBillingAddress, updateItem, addItem, removeItem,
+  form,
+  saving,
+  bookings,
+  selectedBooking,
+  calculatedTotals,
+  onClose,
+  onSubmit,
+  onBookingChange,
+  updateForm,
+  updateBillingAddress,
+  updateItem,
+  addItem,
+  removeItem,
 }) {
   return (
     <ModalShell
       title="Create Invoice"
-      subtitle="Create a draft invoice from a confirmed booking"
+      subtitle="Create a professional customer invoice from a confirmed booking"
       onClose={onClose}
       footer={
         <>
@@ -1160,7 +1089,7 @@ function CreateInvoiceModal({
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="rounded-lg border border-gray-200 bg-white px-4 h-9 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+            className="rounded-lg border border-gray-200 bg-white px-4 h-9 text-sm font-medium text-gray-600 hover:bg-gray-50"
           >
             Cancel
           </button>
@@ -1168,7 +1097,7 @@ function CreateInvoiceModal({
             type="submit"
             form="create-invoice-form"
             disabled={saving}
-            className="inline-flex items-center gap-2 rounded-lg bg-brand-blue px-4 h-9 text-sm font-medium text-white hover:bg-brand-blue-dark disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-lg bg-brand-blue px-4 h-9 text-sm font-medium text-white disabled:opacity-60"
           >
             {saving ? (
               <>
@@ -1183,26 +1112,22 @@ function CreateInvoiceModal({
         </>
       }
     >
-      <form
-        id="create-invoice-form"
-        onSubmit={onSubmit}
-        className="space-y-6 p-6"
-      >
+      <form id="create-invoice-form" onSubmit={onSubmit} className="space-y-6 p-6">
         <section>
           <SectionTitle icon={<FiFileText size={14} />} title="Booking Information" />
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
             <Field label="Booking *">
               <select
                 value={form.booking}
-                onChange={(e) => onBookingChange(e.target.value)}
+                onChange={(event) => onBookingChange(event.target.value)}
                 className="input"
                 required
               >
                 <option value="">Select Booking</option>
-                {bookings.map((b) => (
-                  <option key={getBookingId(b)} value={getBookingId(b)}>
-                    {getBookingLabel(b)}
-                    {b.customer ? ` - ${getCustomerName(b.customer)}` : ""}
+                {bookings.map((booking) => (
+                  <option key={getId(booking)} value={getId(booking)}>
+                    {getBookingLabel(booking)}
+                    {booking.customer ? ` - ${getCustomerName(booking.customer)}` : ""}
                   </option>
                 ))}
               </select>
@@ -1211,7 +1136,7 @@ function CreateInvoiceModal({
               <input
                 type="date"
                 value={form.invoiceDate}
-                onChange={(e) => updateForm("invoiceDate", e.target.value)}
+                onChange={(event) => updateForm("invoiceDate", event.target.value)}
                 className="input"
               />
             </Field>
@@ -1219,7 +1144,7 @@ function CreateInvoiceModal({
               <input
                 type="date"
                 value={form.dueDate}
-                onChange={(e) => updateForm("dueDate", e.target.value)}
+                onChange={(event) => updateForm("dueDate", event.target.value)}
                 className="input"
               />
             </Field>
@@ -1227,7 +1152,7 @@ function CreateInvoiceModal({
 
           {selectedBooking && (
             <div className="mt-4 rounded-xl border border-brand-blue/20 bg-brand-blue-50/40 p-4">
-              <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center justify-between mb-3">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-blue">
                     Selected Booking
@@ -1237,7 +1162,7 @@ function CreateInvoiceModal({
                   </h4>
                 </div>
                 <span
-                  className={`inline-flex items-center px-2.5 py-1 rounded-full border text-[11px] font-semibold ${getStatusClasses(
+                  className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getStatusClasses(
                     selectedBooking.status
                   )}`}
                 >
@@ -1245,22 +1170,41 @@ function CreateInvoiceModal({
                 </span>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <InfoMiniCard icon={<FiMapPin size={12} />} label="Destination" value={selectedBooking.destination || "-"} />
-                <InfoMiniCard icon={<FiCalendar size={12} />} label="Travel Dates" value={formatDateRange(selectedBooking.travelDate, selectedBooking.returnDate)} />
-                <InfoMiniCard icon={<FiUser size={12} />} label="Travellers" value={getTravellerText(selectedBooking)} />
-                <InfoMiniCard icon={<FiFileText size={12} />} label="Travel Type" value={selectedBooking.travelType || "-"} />
+                <InfoMiniCard
+                  icon={<FiMapPin size={12} />}
+                  label="Destination"
+                  value={selectedBooking.destination || "-"}
+                />
+                <InfoMiniCard
+                  icon={<FiCalendar size={12} />}
+                  label="Travel Dates"
+                  value={formatDateRange(
+                    selectedBooking.travelDate,
+                    selectedBooking.returnDate
+                  )}
+                />
+                <InfoMiniCard
+                  icon={<FiUser size={12} />}
+                  label="Travellers"
+                  value={getTravellerText(selectedBooking)}
+                />
+                <InfoMiniCard
+                  icon={<FiFileText size={12} />}
+                  label="Travel Type"
+                  value={selectedBooking.travelType || "-"}
+                />
               </div>
             </div>
           )}
         </section>
 
         <section>
-          <SectionTitle icon={<FiDollarSign size={14} />} title="Billing Information" />
+          <SectionTitle icon={<FiUser size={14} />} title="Billing Information" />
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             <Field label="Billing Name">
               <input
                 value={form.billingAddress.name}
-                onChange={(e) => updateBillingAddress("name", e.target.value)}
+                onChange={(event) => updateBillingAddress("name", event.target.value)}
                 className="input"
                 placeholder="Customer name"
               />
@@ -1268,7 +1212,7 @@ function CreateInvoiceModal({
             <Field label="Street">
               <input
                 value={form.billingAddress.street}
-                onChange={(e) => updateBillingAddress("street", e.target.value)}
+                onChange={(event) => updateBillingAddress("street", event.target.value)}
                 className="input"
                 placeholder="Street address"
               />
@@ -1276,7 +1220,7 @@ function CreateInvoiceModal({
             <Field label="City">
               <input
                 value={form.billingAddress.city}
-                onChange={(e) => updateBillingAddress("city", e.target.value)}
+                onChange={(event) => updateBillingAddress("city", event.target.value)}
                 className="input"
                 placeholder="City"
               />
@@ -1284,7 +1228,7 @@ function CreateInvoiceModal({
             <Field label="State">
               <input
                 value={form.billingAddress.state}
-                onChange={(e) => updateBillingAddress("state", e.target.value)}
+                onChange={(event) => updateBillingAddress("state", event.target.value)}
                 className="input"
                 placeholder="State"
               />
@@ -1292,14 +1236,16 @@ function CreateInvoiceModal({
             <Field label="Country">
               <input
                 value={form.billingAddress.country}
-                onChange={(e) => updateBillingAddress("country", e.target.value)}
+                onChange={(event) => updateBillingAddress("country", event.target.value)}
                 className="input"
               />
             </Field>
             <Field label="Postal Code">
               <input
                 value={form.billingAddress.postalCode}
-                onChange={(e) => updateBillingAddress("postalCode", e.target.value)}
+                onChange={(event) =>
+                  updateBillingAddress("postalCode", event.target.value)
+                }
                 className="input"
                 placeholder="Postal code"
               />
@@ -1339,8 +1285,8 @@ function CreateInvoiceModal({
                       <td className="px-3 py-2.5">
                         <input
                           value={item.description}
-                          onChange={(e) =>
-                            updateItem(index, "description", e.target.value)
+                          onChange={(event) =>
+                            updateItem(index, "description", event.target.value)
                           }
                           placeholder="e.g. Hotel accommodation"
                           className="input"
@@ -1350,13 +1296,13 @@ function CreateInvoiceModal({
                       <td className="px-3 py-2.5">
                         <select
                           value={item.category}
-                          onChange={(e) =>
-                            updateItem(index, "category", e.target.value)
+                          onChange={(event) =>
+                            updateItem(index, "category", event.target.value)
                           }
                           className="input"
                         >
-                          {ITEM_CATEGORIES.map((c) => (
-                            <option key={c} value={c}>{c}</option>
+                          {ITEM_CATEGORIES.map((category) => (
+                            <option key={category}>{category}</option>
                           ))}
                         </select>
                       </td>
@@ -1365,8 +1311,8 @@ function CreateInvoiceModal({
                           type="number"
                           min="1"
                           value={item.quantity}
-                          onChange={(e) =>
-                            updateItem(index, "quantity", e.target.value)
+                          onChange={(event) =>
+                            updateItem(index, "quantity", event.target.value)
                           }
                           className="input w-20"
                           required
@@ -1378,22 +1324,22 @@ function CreateInvoiceModal({
                           min="0"
                           step="0.01"
                           value={item.unitPrice}
-                          onChange={(e) =>
-                            updateItem(index, "unitPrice", e.target.value)
+                          onChange={(event) =>
+                            updateItem(index, "unitPrice", event.target.value)
                           }
                           className="input w-32"
                           required
                         />
                       </td>
                       <td className="px-3 py-2.5 font-semibold text-gray-700">
-                        {formatCurrency(amount)}
+                        {formatAmount(amount)}
                       </td>
                       <td className="px-3 py-2.5">
                         <button
                           type="button"
                           disabled={form.items.length === 1}
                           onClick={() => removeItem(index)}
-                          className="rounded-lg p-1.5 text-red-500 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-30"
+                          className="rounded-lg p-1.5 text-red-500 disabled:opacity-30"
                         >
                           <FiTrash2 size={15} />
                         </button>
@@ -1413,7 +1359,7 @@ function CreateInvoiceModal({
               <Field label="Discount Type">
                 <select
                   value={form.discountType}
-                  onChange={(e) => updateForm("discountType", e.target.value)}
+                  onChange={(event) => updateForm("discountType", event.target.value)}
                   className="input"
                 >
                   <option value="Fixed">Fixed</option>
@@ -1426,7 +1372,7 @@ function CreateInvoiceModal({
                   min="0"
                   step="0.01"
                   value={form.discountValue}
-                  onChange={(e) => updateForm("discountValue", e.target.value)}
+                  onChange={(event) => updateForm("discountValue", event.target.value)}
                   className="input"
                 />
               </Field>
@@ -1437,7 +1383,7 @@ function CreateInvoiceModal({
                   max="100"
                   step="0.01"
                   value={form.taxPercentage}
-                  onChange={(e) => updateForm("taxPercentage", e.target.value)}
+                  onChange={(event) => updateForm("taxPercentage", event.target.value)}
                   className="input"
                 />
               </Field>
@@ -1452,35 +1398,20 @@ function CreateInvoiceModal({
                 negative
               />
               <TotalRow label="Tax" value={calculatedTotals.taxAmount} />
-              <div className="border-t border-gray-200 pt-2.5">
-                <TotalRow
-                  label="Total Amount"
-                  value={calculatedTotals.totalAmount}
-                  strong
-                />
-              </div>
             </div>
           </div>
         </section>
 
         <section>
-          <SectionTitle icon={<FiFileText size={14} />} title="Notes & Terms" />
+          <SectionTitle icon={<FiFileText size={14} />} title="Notes" />
           <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Field label="Notes">
               <textarea
-                rows="3"
+                rows="4"
                 value={form.notes}
-                onChange={(e) => updateForm("notes", e.target.value)}
+                onChange={(event) => updateForm("notes", event.target.value)}
                 className="input resize-none"
-                placeholder="Additional notes..."
-              />
-            </Field>
-            <Field label="Terms & Conditions">
-              <textarea
-                rows="3"
-                value={form.termsAndConditions}
-                onChange={(e) => updateForm("termsAndConditions", e.target.value)}
-                className="input resize-none"
+                placeholder="Additional customer-facing notes..."
               />
             </Field>
           </div>
@@ -1490,39 +1421,46 @@ function CreateInvoiceModal({
   );
 }
 
-/* =====================================================
-   VIEW MODAL — A4 INVOICE (clean, no fake data)
-===================================================== */
+function InvoiceViewModal({ invoice, onClose, onDownload, onIssue, onSend, onCancel }) {
+  const booking = invoice.booking || null;
+  const customer = invoice.customer || null;
+  const trip = invoice.trip || booking?.trip || null;
 
-function InvoiceViewModal({
-  invoice, onClose, onDownload, onIssue, onSend, onCancel,
-}) {
-  const isPaid =
-    invoice.status === "Paid" || invoice.paymentStatus === "Paid";
+  const isPaid = invoice.status === "Paid" || invoice.paymentStatus === "Paid";
   const canIssue = invoice.status === "Draft";
   const canSend = invoice.status === "Issued" || invoice.status === "Viewed";
   const canCancel = !isPaid && invoice.status !== "Cancelled";
-  const booking = invoice.booking;
 
-  const subtotal = Number(invoice.subtotal || 0);
-  const discountAmount = Number(invoice.discountAmount || 0);
-  const taxAmount = Number(invoice.taxAmount || 0);
-  const taxPercentage = Number(invoice.taxPercentage || 0);
-  const totalAmount = Number(invoice.totalAmount || 0);
-  const amountPaid = Number(invoice.amountPaid || 0);
-  const amountDue = Number(invoice.amountDue ?? totalAmount - amountPaid);
+  const destination = booking?.destination || trip?.destination || "-";
+  const travelDate = booking?.travelDate || trip?.travelDate || trip?.startDate;
+  const returnDate = booking?.returnDate || trip?.returnDate || trip?.endDate;
+  const customerEmail = typeof customer === "object" ? customer?.email : "";
+  const customerPhone =
+    typeof customer === "object"
+      ? customer?.phone || customer?.mobile || customer?.phoneNumber
+      : "";
 
-  const hasMultipleItems = (invoice.items || []).length > 1;
+  const billing = invoice.billingAddress || {};
+  const billingCityState = [billing.city, billing.state].filter(Boolean).join(", ");
+  const billingCountryPostal = [billing.country, billing.postalCode]
+    .filter(Boolean)
+    .join(" - ");
+
+  const safeText = (value, fallback = "-") => {
+    if (value === null || value === undefined || value === "") return fallback;
+    return String(value);
+  };
 
   return (
     <ModalShell
-      title={`Invoice ${invoice.invoiceNumber}`}
-      subtitle="A4 invoice preview"
+      title={`Invoice ${invoice.invoiceNumber || ""}`}
+      subtitle="Professional A4 invoice preview"
       onClose={onClose}
       headerExtra={
         <button
+          type="button"
           onClick={() => onDownload(invoice)}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-brand-blue px-3 h-8 text-xs font-semibold text-white hover:bg-brand-blue-dark"
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand-blue px-3 text-xs font-semibold text-white hover:bg-brand-blue-dark"
         >
           <FiDownload size={14} /> Download PDF
         </button>
@@ -1531,24 +1469,27 @@ function InvoiceViewModal({
         <>
           {canIssue && (
             <button
+              type="button"
               onClick={() => onIssue(invoice)}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 h-9 text-sm font-medium text-white hover:bg-blue-700"
+              className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700"
             >
               <FiCheck size={15} /> Issue
             </button>
           )}
           {canSend && (
             <button
+              type="button"
               onClick={() => onSend(invoice)}
-              className="inline-flex items-center gap-2 rounded-lg bg-brand-blue px-4 h-9 text-sm font-medium text-white hover:bg-brand-blue-dark"
+              className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-blue px-4 text-sm font-medium text-white hover:bg-brand-blue-dark"
             >
               <FiMail size={15} /> Send
             </button>
           )}
           {canCancel && (
             <button
+              type="button"
               onClick={() => onCancel(invoice)}
-              className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-4 h-9 text-sm font-medium text-red-600 hover:bg-red-50"
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-red-200 px-4 text-sm font-medium text-red-600 hover:bg-red-50"
             >
               <FiX size={15} /> Cancel
             </button>
@@ -1556,292 +1497,301 @@ function InvoiceViewModal({
         </>
       }
     >
-      <div className="bg-gray-100 p-4 md:p-6">
+      <div className="bg-gray-100 p-3 sm:p-4 md:p-6 print:bg-white print:p-0">
         <div
           id="invoice-print-area"
-          className="mx-auto bg-white shadow-sm"
+          className="invoice-root invoice-section mx-auto w-full max-w-[190mm] overflow-visible bg-white p-[8mm] text-gray-800 shadow-sm sm:p-[9mm] print:max-w-none print:shadow-none"
           style={{
-            width: "210mm",
-            minHeight: "297mm",
-            padding: "22mm 18mm",
             fontFamily:
-              "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+              "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif",
+            overflowWrap: "anywhere",
+            wordBreak: "break-word",
           }}
         >
-          {/* ============ HEADER: LOGO + TITLE ============ */}
-          <div className="flex items-start justify-between gap-6 pb-8">
-            <img
-              src={COMPANY.logo}
-              alt={COMPANY.name}
-              className="h-14 w-auto object-contain"
-              crossOrigin="anonymous"
-            />
-            <h1 className="text-2xl font-bold text-gray-900 pt-2">
-              Travel Agency Invoice
-            </h1>
-          </div>
+          {/* ================= HEADER ================= */}
+          <section className="invoice-section break-inside-avoid">
+            <div className="grid min-w-0 grid-cols-[1fr_auto] gap-4">
+              <div className="min-w-0">
+                <img
+                  src={COMPANY.logo}
+                  alt={COMPANY.name}
+                  className="h-10 w-auto max-w-full object-contain object-left"
+                  crossOrigin="anonymous"
+                />
 
-          {/* ============ INVOICE META (right-aligned) ============ */}
-          <div className="flex justify-end pb-8">
-            <div className="w-64 text-[10px]">
-              <div className="flex justify-between py-1">
-                <span className="text-gray-500">Invoice no.:</span>
-                <span className="font-semibold text-gray-800">
-                  {invoice.invoiceNumber || "-"}
-                </span>
-              </div>
-              <div className="flex justify-between py-1">
-                <span className="text-gray-500">Invoice date:</span>
-                <span className="font-semibold text-gray-800">
-                  {formatDate(invoice.invoiceDate)}
-                </span>
-              </div>
-              <div className="flex justify-between py-1">
-                <span className="text-gray-500">Due:</span>
-                <span className="font-semibold text-gray-800">
-                  {invoice.dueDate ? formatDate(invoice.dueDate) : "-"}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* ============ FROM / BILL TO / SHIP TO ============ */}
-          <div className="grid grid-cols-2 gap-6 pb-10">
-            {/* LEFT — FROM */}
-            <div>
-              <p className="text-[12px] font-bold text-gray-900 mb-1.5">
-                From
-              </p>
-              <p className="text-[13px] font-bold text-gray-900">
-                {COMPANY.name}
-              </p>
-              <div className="mt-1 text-[10px] leading-[16px] text-gray-500">
-                {COMPANY.addressLines.map((line, i) => (
-                  <p key={i}>{line}</p>
-                ))}
-                <p className="mt-1">{COMPANY.email}</p>
-                <p>{COMPANY.phone}</p>
-              </div>
-            </div>
-
-            {/* RIGHT — BILL TO + SHIP TO */}
-            <div className="text-right">
-              <p className="text-[12px] font-bold text-gray-900 mb-1.5">
-                Bill to
-              </p>
-              <p className="text-[13px] font-bold text-gray-900">
-                {getCustomerName(invoice.customer) || "Customer"}
-              </p>
-              <div className="mt-1 text-[10px] leading-[16px] text-gray-500">
-                {invoice.customer?.email && <p>{invoice.customer.email}</p>}
-                {invoice.customer?.phone && <p>{invoice.customer.phone}</p>}
-                {invoice.billingAddress?.street && (
-                  <p>{invoice.billingAddress.street}</p>
-                )}
-                {(invoice.billingAddress?.city ||
-                  invoice.billingAddress?.state) && (
-                  <p>
-                    {[invoice.billingAddress.city, invoice.billingAddress.state]
-                      .filter(Boolean)
-                      .join(", ")}
+                <div className="mt-2 max-w-full text-[8px] leading-[12px] text-gray-500 break-words">
+                  {COMPANY.addressLines.map((line, index) => (
+                    <p key={index} className="m-0 break-words">
+                      {line}
+                    </p>
+                  ))}
+                  <p className="m-0 break-words">
+                    {COMPANY.phone} <span aria-hidden="true">•</span> {COMPANY.email}
                   </p>
-                )}
-                {invoice.billingAddress?.country && (
-                  <p>
-                    {[
-                      invoice.billingAddress.country,
-                      invoice.billingAddress.postalCode,
-                    ]
-                      .filter(Boolean)
-                      .join(" ")}
-                  </p>
-                )}
-              </div>
-
-              {booking && (
-                <div className="mt-5">
-                  <p className="text-[12px] font-bold text-gray-900 mb-1.5">
-                    Ship to
-                  </p>
-                  <p className="text-[10px] leading-[16px] text-gray-500">
-                    {booking.destination || "-"}
-                  </p>
-                  <p className="text-[10px] leading-[16px] text-gray-500">
-                    {formatDateRange(booking.travelDate, booking.returnDate)}
-                  </p>
-                  <p className="text-[10px] text-gray-500">
-                    {getTravellerText(booking)}
-                  </p>
+                  <p className="m-0 break-words">{COMPANY.website}</p>
                 </div>
-              )}
-            </div>
-          </div>
+              </div>
 
-          {/* ============ ITEMS TABLE ============ */}
-          <div className="mt-2">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr style={{ backgroundColor: "#2563eb" }}>
-                  <th className="py-2.5 px-3 text-left text-[10px] font-bold uppercase tracking-wider text-white w-[35%]">
-                    Description
-                  </th>
-                  <th className="py-2.5 px-3 text-right text-[10px] font-bold uppercase tracking-wider text-white w-[20%]">
-                    Rate
-                  </th>
-                  <th className="py-2.5 px-3 text-center text-[10px] font-bold uppercase tracking-wider text-white w-[10%]">
-                    Qty
-                  </th>
-                  <th className="py-2.5 px-3 text-center text-[10px] font-bold uppercase tracking-wider text-white w-[10%]">
-                    Tax
-                  </th>
-                  <th className="py-2.5 px-3 text-center text-[10px] font-bold uppercase tracking-wider text-white w-[10%]">
-                    Disc
-                  </th>
-                  <th className="py-2.5 px-3 text-right text-[10px] font-bold uppercase tracking-wider text-white w-[15%]">
-                    Amount
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {(invoice.items || []).map((item, i) => {
-                  const qty = Number(item.quantity || 1);
-                  const rate = Number(item.unitPrice || 0);
-                  const amount = Number(item.amount ?? qty * rate);
-                  const isEven = i % 2 === 0;
+              <div className="min-w-0 text-right">
+                <h1 className="m-0 text-[24px] font-bold leading-none text-gray-900">
+                  INVOICE
+                </h1>
 
-                  return (
-                    <tr
-                      key={i}
-                      style={{
-                        backgroundColor: isEven ? "#f9fafb" : "#ffffff",
-                      }}
-                    >
-                      <td className="py-3 px-3 text-[11px] text-gray-800 align-top">
-                        <p className="font-semibold">{item.description}</p>
-                        {item.category && (
-                          <p className="mt-0.5 text-[10px] text-gray-400">
-                            {item.category}
-                          </p>
-                        )}
-                      </td>
-                      <td className="py-3 px-3 text-right text-[11px] text-gray-700 align-top whitespace-nowrap">
-                        {formatCurrency(rate, invoice.currency)}
-                      </td>
-                      <td className="py-3 px-3 text-center text-[11px] text-gray-700 align-top whitespace-nowrap">
-                        {qty}
-                      </td>
-                      <td className="py-3 px-3 text-center text-[11px] text-gray-700 align-top whitespace-nowrap">
-                        {taxPercentage > 0 ? `${taxPercentage}%` : "-"}
-                      </td>
-                      <td className="py-3 px-3 text-center text-[11px] text-gray-700 align-top whitespace-nowrap">
-                        {discountAmount > 0 ? "Yes" : "-"}
-                      </td>
-                      <td className="py-3 px-3 text-right text-[11px] font-semibold text-gray-800 align-top whitespace-nowrap">
-                        {formatCurrency(amount, invoice.currency)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                <div className="mt-3 ml-auto grid max-w-full grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-[9px] leading-4">
+                  <span className="text-gray-500">Invoice No.</span>
+                  <span className="min-w-0 break-words font-semibold text-gray-900">
+                    {safeText(invoice.invoiceNumber)}
+                  </span>
 
-          {/* ============ TOTALS ============ */}
-          <div className="mt-8 grid grid-cols-2 gap-8">
-            {/* LEFT — empty spacer (payment instructions removed) */}
-            <div />
+                  <span className="text-gray-500">Invoice Date</span>
+                  <span className="min-w-0 break-words font-semibold text-gray-900">
+                    {formatDate(invoice.invoiceDate)}
+                  </span>
 
-            {/* RIGHT — Totals */}
-            <div>
-              <div className="text-[11px] space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Subtotal:</span>
-                  <span className="font-semibold text-gray-800">
-                    {formatCurrency(subtotal, invoice.currency)}
+                  <span className="text-gray-500">Due Date</span>
+                  <span className="min-w-0 break-words font-semibold text-gray-900">
+                    {invoice.dueDate ? formatDate(invoice.dueDate) : "-"}
                   </span>
                 </div>
+              </div>
+            </div>
 
-                {discountAmount > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Discount:</span>
-                    <span className="font-semibold text-red-500">
-                      - {formatCurrency(discountAmount, invoice.currency)}
-                    </span>
+            <div className="mt-4 border-t border-gray-200" />
+          </section>
+
+          {/* ================= CUSTOMER + TRIP ================= */}
+          <section className="invoice-section mt-4 break-inside-avoid">
+            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+              {/* BILL TO */}
+              <div className="invoice-card min-w-0 break-inside-avoid rounded-lg border border-gray-200 p-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[13px] text-brand-blue">
+                    👤
                   </div>
-                )}
-
-                {taxAmount > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">
-                      Tax {taxPercentage > 0 && `(${taxPercentage}%)`}:
-                    </span>
-                    <span className="font-semibold text-gray-800">
-                      {formatCurrency(taxAmount, invoice.currency)}
-                    </span>
+                  <div className="min-w-0">
+                    <p className="m-0 text-[9px] font-bold uppercase tracking-[0.5px] text-gray-400">
+                      Customer Details
+                    </p>
+                    <p className="m-0 text-xs font-bold text-gray-900">Bill To</p>
                   </div>
-                )}
-
-                <div className="flex justify-between border-t border-gray-200 pt-1.5">
-                  <span className="font-bold text-gray-800">Total:</span>
-                  <span className="font-bold text-gray-900">
-                    {formatCurrency(totalAmount, invoice.currency)}
-                  </span>
                 </div>
 
-                {amountPaid > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Amount paid:</span>
-                    <span className="font-semibold text-emerald-600">
-                      {formatCurrency(amountPaid, invoice.currency)}
-                    </span>
-                  </div>
-                )}
+                <p className="mt-2.5 mb-0 break-words text-[11px] font-bold leading-4 text-gray-900">
+                  {safeText(getCustomerName(customer))}
+                </p>
 
-                <div className="flex justify-between bg-gray-100 px-2 py-1.5 mt-1">
-                  <span className="font-bold text-gray-800">
-                    Balance Due:
-                  </span>
-                  <span className="font-bold text-gray-900">
-                    {formatCurrency(amountDue, invoice.currency)}
-                  </span>
+                <div className="mt-1.5 space-y-0.5 break-words text-[9px] leading-[14px] text-gray-500">
+                  {customerEmail && <p className="m-0 break-words">{customerEmail}</p>}
+                  {customerPhone && <p className="m-0 break-words">{customerPhone}</p>}
+                  {billing.street && <p className="m-0 break-words">{billing.street}</p>}
+                  {billingCityState && <p className="m-0 break-words">{billingCityState}</p>}
+                  {billingCountryPostal && (
+                    <p className="m-0 break-words">{billingCountryPostal}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* TRAVEL INFORMATION */}
+              <div className="invoice-card min-w-0 break-inside-avoid rounded-lg border border-gray-200 p-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[13px] text-brand-blue">
+                    📍
+                  </div>
+                  <div className="min-w-0">
+                    <p className="m-0 text-[9px] font-bold uppercase tracking-[0.5px] text-gray-400">
+                      Trip Details
+                    </p>
+                    <p className="m-0 text-xs font-bold text-gray-900">
+                      Travel Information
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-2.5 grid min-w-0 grid-cols-2 gap-x-3 gap-y-3">
+                  <div className="min-w-0">
+                    <p className="m-0 text-[8px] font-semibold uppercase tracking-[0.4px] text-gray-400">
+                      Destination
+                    </p>
+                    <p className="m-0 mt-0.5 break-words text-[10px] font-semibold leading-[14px] text-gray-700">
+                      {safeText(destination)}
+                    </p>
+                  </div>
+
+                  <div className="min-w-0">
+                    <p className="m-0 text-[8px] font-semibold uppercase tracking-[0.4px] text-gray-400">
+                      Travel Dates
+                    </p>
+                    <p className="m-0 mt-0.5 break-words text-[10px] font-semibold leading-[14px] text-gray-700">
+                      {formatDateRange(travelDate, returnDate)}
+                    </p>
+                  </div>
+
+                  <div className="min-w-0">
+                    <p className="m-0 text-[8px] font-semibold uppercase tracking-[0.4px] text-gray-400">
+                      Travellers
+                    </p>
+                    <p className="m-0 mt-0.5 break-words text-[10px] font-semibold leading-[14px] text-gray-700">
+                      {safeText(getTravellerText(booking))}
+                    </p>
+                  </div>
+
+                  <div className="min-w-0">
+                    <p className="m-0 text-[8px] font-semibold uppercase tracking-[0.4px] text-gray-400">
+                      Travel Type
+                    </p>
+                    <p className="m-0 mt-0.5 break-words text-[10px] font-semibold leading-[14px] text-gray-700">
+                      {safeText(booking?.travelType || trip?.travelType)}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          </section>
 
-          {/* ============ NOTES ============ */}
+          {/* ================= ITEMS ================= */}
+          <section className="invoice-section mt-5 break-inside-auto">
+            <p className="m-0 text-[8px] font-bold uppercase tracking-[0.5px] text-gray-400">
+              Invoice Breakdown
+            </p>
+            <h2 className="m-0 mt-0.5 mb-1.5 text-xs font-bold text-gray-900">
+              Services &amp; Charges
+            </h2>
+
+            <div className="w-full min-w-0 overflow-visible">
+              <table className="w-full table-fixed border-collapse text-left">
+                <colgroup>
+                  <col className="w-[40%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[16%]" />
+                  <col className="w-[16%]" />
+                </colgroup>
+                <thead>
+                  <tr className="bg-[#1f4f8f]">
+                    <th className="break-words px-2.5 py-2 text-left text-[8px] font-bold uppercase tracking-[0.5px] text-white">
+                      Description
+                    </th>
+                    <th className="break-words px-2.5 py-2 text-left text-[8px] font-bold uppercase tracking-[0.5px] text-white">
+                      Category
+                    </th>
+                    <th className="break-words px-2.5 py-2 text-center text-[8px] font-bold uppercase tracking-[0.5px] text-white">
+                      Qty
+                    </th>
+                    <th className="break-words px-2.5 py-2 text-right text-[8px] font-bold uppercase tracking-[0.5px] text-white">
+                      Rate
+                    </th>
+                    <th className="break-words px-2.5 py-2 text-right text-[8px] font-bold uppercase tracking-[0.5px] text-white">
+                      Amount
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {(invoice.items || []).map((item, index) => {
+                    const quantity = Number(item.quantity || 1);
+                    const rate = Number(item.unitPrice || 0);
+                    const amount = Number(item.amount ?? quantity * rate);
+
+                    return (
+                      <tr
+                        key={index}
+                        className={`${
+                          index % 2 === 0 ? "bg-gray-50" : "bg-white"
+                        } invoice-card break-inside-avoid`}
+                      >
+                        <td className="max-w-0 break-words border-b border-gray-100 px-2.5 py-2 align-top text-[9px] font-semibold leading-[13px] text-gray-800">
+                          {safeText(item.description)}
+                        </td>
+                        <td className="max-w-0 break-words border-b border-gray-100 px-2.5 py-2 align-top text-[8px] leading-[12px] text-gray-500">
+                          {safeText(item.category, "Service")}
+                        </td>
+                        <td className="break-words border-b border-gray-100 px-2.5 py-2 text-center align-top text-[9px] text-gray-700">
+                          {quantity}
+                        </td>
+                        <td className="break-words border-b border-gray-100 px-2.5 py-2 text-right align-top text-[9px] text-gray-700">
+                          {formatAmount(rate)}
+                        </td>
+                        <td className="break-words border-b border-gray-100 px-2.5 py-2 text-right align-top text-[9px] font-bold text-gray-800">
+                          {formatAmount(amount)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {/* ================= NOTES ================= */}
           {invoice.notes && (
-            <div className="mt-10">
-              <p className="text-[11px] font-bold text-gray-900 mb-2">
+            <section className="invoice-section invoice-card mt-5 break-inside-avoid rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <p className="m-0 text-[8px] font-bold uppercase tracking-[0.5px] text-gray-400">
                 Notes
               </p>
-              <p className="text-[10px] leading-[16px] text-gray-500 max-w-md whitespace-pre-line">
+              <p className="m-0 mt-1.5 whitespace-pre-line break-words text-[9px] leading-[14px] text-gray-600">
                 {invoice.notes}
               </p>
-            </div>
+            </section>
           )}
 
-          {/* ============ FOOTER ============ */}
-          <div className="mt-16 border-t border-gray-200 pt-4">
-            <p className="text-[10px] text-gray-500">
-              {COMPANY.website}
-            </p>
-          </div>
+          {/* ================= FOOTER ================= */}
+          <section className="invoice-section mt-6 break-inside-avoid">
+            <div
+              className="mt-6 border-t border-gray-200 pt-3"
+              style={{
+                breakInside: "avoid",
+                pageBreakInside: "avoid",
+              }}
+            >
+              <div className="flex w-full items-start justify-between gap-6">
+                {/* LEFT */}
+                <div className="min-w-0 flex-1">
+                  <p className="m-0 text-[10px] font-bold text-gray-800">
+                    Thank you for choosing Cult Holidays
+                  </p>
+
+                  <p className="mt-1 text-[8px] leading-[13px] text-gray-500">
+                    We look forward to making your journey memorable.
+                  </p>
+                </div>
+
+                {/* RIGHT */}
+                <div
+                  className="shrink-0 text-right"
+                  style={{
+                    width: "190px",
+                    minWidth: "190px",
+                    whiteSpace: "nowrap",
+                    wordBreak: "normal",
+                    overflowWrap: "normal",
+                  }}
+                >
+                  <p className="m-0 text-[8px] font-semibold leading-[13px] text-gray-600">
+                    {COMPANY.website}
+                  </p>
+
+                  <p className="m-0 text-[8px] leading-[13px] text-gray-600">
+                    {COMPANY.email}
+                  </p>
+
+                  <p className="m-0 text-[8px] leading-[13px] text-gray-600">
+                    {COMPANY.phone}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
     </ModalShell>
   );
 }
 
-/* =====================================================
-   PRIMITIVES
-===================================================== */
-
 function ModalShell({ title, subtitle, onClose, children, footer, headerExtra }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/50 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3.5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/50 p-4 backdrop-blur-sm print:bg-white print:p-0">
+      <div className="flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl print:max-h-none print:max-w-none print:shadow-none">
+        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3.5 print:hidden">
           <div>
             <h2 className="text-base font-bold text-gray-800">{title}</h2>
             {subtitle && <p className="text-xs text-gray-500">{subtitle}</p>}
@@ -1849,41 +1799,20 @@ function ModalShell({ title, subtitle, onClose, children, footer, headerExtra })
           <div className="flex items-center gap-2">
             {headerExtra}
             <button
+              type="button"
               onClick={onClose}
-              className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+              className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100"
             >
               <FiX size={18} />
             </button>
           </div>
         </div>
-
         <div className="overflow-y-auto">{children}</div>
-
         {footer && (
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3.5">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3.5 print:hidden">
             {footer}
           </div>
         )}
-      </div>
-    </div>
-  );
-}
-
-function InfoMiniCard({ icon, label, value }) {
-  return (
-    <div className="rounded-lg bg-white p-2.5 shadow-sm">
-      <div className="flex items-center gap-2">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-blue-50 text-brand-blue">
-          {icon}
-        </div>
-        <div className="min-w-0">
-          <p className="text-[9px] font-bold uppercase tracking-wide text-gray-400">
-            {label}
-          </p>
-          <p className="mt-0.5 truncate text-[11px] font-semibold text-gray-700">
-            {value}
-          </p>
-        </div>
       </div>
     </div>
   );
@@ -1911,20 +1840,91 @@ function Field({ label, children }) {
   );
 }
 
-function TotalRow({ label, value, negative = false, strong = false, valueClass = "" }) {
+function InfoMiniCard({ icon, label, value }) {
+  return (
+    <div className="rounded-lg bg-white p-2.5 shadow-sm">
+      <div className="flex items-center gap-2">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-blue-50 text-brand-blue">
+          {icon}
+        </div>
+        <div className="min-w-0">
+          <p className="text-[9px] font-bold uppercase tracking-wide text-gray-400">
+            {label}
+          </p>
+          <p className="mt-0.5 truncate text-[11px] font-semibold text-gray-700">
+            {value}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TotalRow({ label, value, negative = false, strong = false }) {
   return (
     <div className="flex items-center justify-between gap-5">
       <span className={strong ? "font-bold text-gray-800" : "text-gray-500"}>
         {label}
       </span>
       <span
-        className={`font-semibold ${
-          negative ? "text-red-500" : valueClass || "text-gray-700"
-        } ${strong ? "text-base" : ""}`}
+        className={`${strong ? "text-base" : "text-sm"} font-semibold ${
+          negative ? "text-red-500" : "text-gray-700"
+        }`}
       >
-        {formatCurrency(Math.abs(Number(value || 0)))}
-        {negative && Number(value || 0) !== 0 ? " -" : ""}
+        {negative && Number(value) !== 0 ? "- " : ""}
+        {formatAmount(Math.abs(Number(value || 0)))}
       </span>
+    </div>
+  );
+}
+
+function InvoiceMeta({ label, value }) {
+  return (
+    <div className="flex justify-between gap-8">
+      <span className="text-gray-500">{label}</span>
+      <span className="font-semibold text-gray-800">{value}</span>
+    </div>
+  );
+}
+
+function CardHeading({ icon, eyebrow, title }) {
+  return (
+    <div className="flex items-center gap-2 mb-3">
+      <div className="w-7 h-7 rounded-lg bg-brand-blue-50 text-brand-blue flex items-center justify-center">
+        {icon}
+      </div>
+      <div>
+        <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">
+          {eyebrow}
+        </p>
+        <p className="text-[12px] font-bold text-gray-900">{title}</p>
+      </div>
+    </div>
+  );
+}
+
+function InvoiceInfo({ label, value }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[8px] font-semibold uppercase tracking-wide text-gray-400">
+        {label}
+      </p>
+      <p className="mt-0.5 text-[10px] font-semibold text-gray-700 truncate">
+        {value || "-"}
+      </p>
+    </div>
+  );
+}
+
+function PolicyBox({ title, content }) {
+  return (
+    <div className="mt-5 rounded-lg border border-gray-200 bg-gray-50 p-3">
+      <p className="text-[8px] font-bold uppercase tracking-wider text-gray-400">
+        {title}
+      </p>
+      <p className="mt-1.5 text-[9px] leading-[14px] text-gray-600 whitespace-pre-line">
+        {content}
+      </p>
     </div>
   );
 }

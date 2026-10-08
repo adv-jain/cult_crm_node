@@ -2,6 +2,7 @@ import {
   FiCalendar,
   FiClock,
   FiDownload,
+  FiEdit2,
   FiMapPin,
   FiTruck,
   FiUsers,
@@ -14,7 +15,6 @@ import {
   FiCheck,
   FiXCircle,
   FiPhone,
-  FiUser,
   FiInfo,
 } from "react-icons/fi";
 
@@ -130,7 +130,7 @@ function SummaryCard({ icon, label, value, color = "blue" }) {
    VIEW ITINERARY
 ========================================================= */
 
-function ViewItinerary({ itinerary, onClose, onDownloadPDF }) {
+function ViewItinerary({ itinerary, onClose, onDownloadPDF, onEdit }) {
   const days = itinerary?.days || [];
 
   return (
@@ -675,10 +675,10 @@ function ViewItinerary({ itinerary, onClose, onDownloadPDF }) {
         </div>
 
         {/* =================================================
-            FOOTER
+            FOOTER — Download PDF + Edit (Close removed)
         ================================================= */}
 
-        <div className="flex shrink-0 items-center justify-between gap-2 border-t border-gray-100 bg-gradient-to-r from-gray-50 to-blue-50/30 px-5 py-3">
+        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-gray-100 bg-gradient-to-r from-gray-50 to-blue-50/30 px-5 py-3">
           <button
             type="button"
             onClick={() => onDownloadPDF(itinerary)}
@@ -688,13 +688,16 @@ function ViewItinerary({ itinerary, onClose, onDownloadPDF }) {
             Download PDF
           </button>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-9 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-600 transition hover:border-gray-300 hover:bg-gray-50"
-          >
-            Close
-          </button>
+          {onEdit && (
+            <button
+              type="button"
+              onClick={() => onEdit(itinerary)}
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-600 transition hover:border-gray-300 hover:bg-gray-50"
+            >
+              <FiEdit2 size={14} />
+              Edit
+            </button>
+          )}
         </div>
       </div>
     </div>

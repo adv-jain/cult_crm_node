@@ -1,18 +1,58 @@
 const mongoose = require("mongoose");
 
+// ======================================================
+// BOOKING NUMBER GENERATOR
+// FORMAT: BK-FC2FD8
+// ======================================================
+
+const generateBookingNumber = () => {
+  const characters =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+  let code = "";
+
+  for (let i = 0; i < 6; i++) {
+    code += characters.charAt(
+      Math.floor(
+        Math.random() * characters.length
+      )
+    );
+  }
+
+  return `BK-${code}`;
+};
+
+// ======================================================
+// BOOKING SCHEMA
+// ======================================================
+
 const bookingSchema = new mongoose.Schema(
   {
+    // ==================================================
+    // BOOKING NUMBER
+    // Example: BK-FC2FD8
+    // ==================================================
+
     bookingNumber: {
       type: String,
       unique: true,
       sparse: true,
       trim: true,
+      uppercase: true,
     },
+
+    // ==================================================
+    // BOOKING DATE
+    // ==================================================
 
     bookingDate: {
       type: Date,
       default: Date.now,
     },
+
+    // ==================================================
+    // REFERENCES
+    // ==================================================
 
     quotation: {
       type: mongoose.Schema.Types.ObjectId,
@@ -57,9 +97,16 @@ const bookingSchema = new mongoose.Schema(
       },
     ],
 
+    // ==================================================
+    // TRAVEL DETAILS
+    // ==================================================
+
     destination: {
       type: String,
-      required: [true, "Destination is required"],
+      required: [
+        true,
+        "Destination is required",
+      ],
       trim: true,
     },
 
@@ -70,7 +117,10 @@ const bookingSchema = new mongoose.Schema(
 
     travelDate: {
       type: Date,
-      required: [true, "Travel date is required"],
+      required: [
+        true,
+        "Travel date is required",
+      ],
     },
 
     returnDate: {
@@ -113,6 +163,10 @@ const bookingSchema = new mongoose.Schema(
       default: "Other",
     },
 
+    // ==================================================
+    // CURRENCY
+    // ==================================================
+
     currency: {
       type: String,
       default: "INR",
@@ -120,9 +174,9 @@ const bookingSchema = new mongoose.Schema(
       uppercase: true,
     },
 
-    // ======================================================
+    // ==================================================
     // BOOKING STATUS
-    // ======================================================
+    // ==================================================
 
     status: {
       type: String,
@@ -139,9 +193,9 @@ const bookingSchema = new mongoose.Schema(
       default: "Pending",
     },
 
-    // ======================================================
-    // SUPPLIER / SERVICE CONFIRMATION
-    // ======================================================
+    // ==================================================
+    // CONFIRMATION STATUS
+    // ==================================================
 
     confirmationStatus: {
       hotel: {
@@ -188,20 +242,9 @@ const bookingSchema = new mongoose.Schema(
       },
     },
 
-    // ======================================================
-    // PRICING
-    // ======================================================
-
-    /*
-      IMPORTANT:
-
-      These fields represent the final financial snapshot
-      copied from the accepted quotation during booking creation.
-
-      Do not blindly trust frontend values while creating
-      a booking. The controller should derive these values
-      from the accepted quotation.
-    */
+    // ==================================================
+    // FINANCIAL DETAILS
+    // ==================================================
 
     totalAmount: {
       type: Number,
@@ -233,10 +276,6 @@ const bookingSchema = new mongoose.Schema(
       default: 0,
     },
 
-    // ======================================================
-    // PAYMENT SUMMARY
-    // ======================================================
-
     amountPaid: {
       type: Number,
       default: 0,
@@ -248,6 +287,10 @@ const bookingSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+
+    // ==================================================
+    // PAYMENT STATUS
+    // ==================================================
 
     paymentStatus: {
       type: String,
@@ -266,9 +309,9 @@ const bookingSchema = new mongoose.Schema(
       default: null,
     },
 
-    // ======================================================
-    // ASSIGNED TEAM
-    // ======================================================
+    // ==================================================
+    // OWNERS
+    // ==================================================
 
     salesOwner: {
       type: mongoose.Schema.Types.ObjectId,
@@ -282,9 +325,9 @@ const bookingSchema = new mongoose.Schema(
       default: null,
     },
 
-    // ======================================================
+    // ==================================================
     // CANCELLATION
-    // ======================================================
+    // ==================================================
 
     cancellationReason: {
       type: String,
@@ -303,9 +346,9 @@ const bookingSchema = new mongoose.Schema(
       default: null,
     },
 
-    // ======================================================
+    // ==================================================
     // REFUND
-    // ======================================================
+    // ==================================================
 
     refundAmount: {
       type: Number,
@@ -329,9 +372,9 @@ const bookingSchema = new mongoose.Schema(
       default: null,
     },
 
-    // ======================================================
-    // INTERNAL INFORMATION
-    // ======================================================
+    // ==================================================
+    // NOTES
+    // ==================================================
 
     specialRequests: {
       type: String,
@@ -345,6 +388,10 @@ const bookingSchema = new mongoose.Schema(
       maxlength: 5000,
     },
 
+    // ==================================================
+    // CREATED BY
+    // ==================================================
+
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -357,53 +404,153 @@ const bookingSchema = new mongoose.Schema(
 );
 
 // ======================================================
-// AUTOMATICALLY CALCULATE PAYMENT SUMMARY
+// AUTO GENERATE BOOKING NUMBER
+// FORMAT: BK-FC2FD8
 // ======================================================
 
-bookingSchema.pre("save", function () {
-  const total = Math.max(
-    0,
-    Number(this.totalAmount) || 0
-  );
+bookingSchema.pre(
+  "validate",
+  async function (next) {
+    try {
+      // Agar bookingNumber already present hai
+      // to usko change nahi karna
+      if (this.bookingNumber) {
+        return next();
+      }
 
-  const paid = Math.max(
-    0,
-    Number(this.amountPaid) || 0
-  );
+      let bookingNumber;
+      let exists = true;
 
-  this.totalAmount = total;
-  this.amountPaid = paid;
+      // Unique number generate karo
+      while (exists) {
+        bookingNumber =
+          generateBookingNumber();
 
-  this.amountDue = Math.max(
-    0,
-    total - paid
-  );
+        exists =
+          await mongoose
+            .model("Booking")
+            .exists({
+              bookingNumber,
+            });
+      }
 
-  if (paid <= 0) {
-    this.paymentStatus = "Pending";
-  } else if (paid < total) {
-    this.paymentStatus = "Partially Paid";
-  } else {
-    this.paymentStatus = "Paid";
+      this.bookingNumber =
+        bookingNumber;
+
+      next();
+    } catch (error) {
+      next(error);
+    }
   }
-});
+);
+
+// ======================================================
+// PAYMENT CALCULATION
+// ======================================================
+
+bookingSchema.pre(
+  "save",
+  function (next) {
+    const total = Math.max(
+      0,
+      Number(this.totalAmount) || 0
+    );
+
+    const paid = Math.max(
+      0,
+      Number(this.amountPaid) || 0
+    );
+
+    this.totalAmount = total;
+
+    this.amountPaid = paid;
+
+    this.amountDue = Math.max(
+      0,
+      total - paid
+    );
+
+    // ==================================================
+    // PAYMENT STATUS
+    // ==================================================
+
+    if (paid <= 0) {
+      this.paymentStatus =
+        "Pending";
+    } else if (paid < total) {
+      this.paymentStatus =
+        "Partially Paid";
+    } else {
+      this.paymentStatus =
+        "Paid";
+    }
+
+    next();
+  }
+);
 
 // ======================================================
 // INDEXES
 // ======================================================
 
-bookingSchema.index({ customer: 1 });
-bookingSchema.index({ company: 1 });
-bookingSchema.index({ quotation: 1 });
-bookingSchema.index({ enquiry: 1 });
-bookingSchema.index({ trip: 1 });
-bookingSchema.index({ lead: 1 });
-bookingSchema.index({ travellers: 1 });
-bookingSchema.index({ travelDate: 1 });
-bookingSchema.index({ status: 1 });
-bookingSchema.index({ paymentStatus: 1 });
-bookingSchema.index({ salesOwner: 1 });
-bookingSchema.index({ operationsOwner: 1 });
-bookingSchema.index({ createdAt: -1 });
+bookingSchema.index({
+  customer: 1,
+});
 
-module.exports = mongoose.model("Booking", bookingSchema);
+bookingSchema.index({
+  company: 1,
+});
+
+bookingSchema.index({
+  quotation: 1,
+});
+
+bookingSchema.index({
+  enquiry: 1,
+});
+
+bookingSchema.index({
+  trip: 1,
+});
+
+bookingSchema.index({
+  lead: 1,
+});
+
+bookingSchema.index({
+  travellers: 1,
+});
+
+bookingSchema.index({
+  travelDate: 1,
+});
+
+bookingSchema.index({
+  status: 1,
+});
+
+bookingSchema.index({
+  paymentStatus: 1,
+});
+
+bookingSchema.index({
+  salesOwner: 1,
+});
+
+bookingSchema.index({
+  operationsOwner: 1,
+});
+
+bookingSchema.index({
+  createdAt: -1,
+});
+
+// ======================================================
+// EXPORT
+// ======================================================
+
+module.exports =
+  mongoose.model(
+    "Booking",
+    bookingSchema
+  );

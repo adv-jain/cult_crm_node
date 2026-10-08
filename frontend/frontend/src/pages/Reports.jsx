@@ -391,7 +391,7 @@ const Reports = () => {
       </div>
 
       {/* REPORT DIRECTORY */}
-      <div className="space-y-3">
+      {/* <div className="space-y-3">
         <div>
           <h2 className="text-sm font-bold text-gray-800">Detailed Reports</h2>
           <p className="mt-0.5 text-xs text-gray-500">
@@ -431,7 +431,7 @@ const Reports = () => {
             );
           })}
         </div>
-      </div>
+      </div> */}
 
       {/* FOOTER */}
       <div className="rounded-xl border border-gray-200 bg-white p-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

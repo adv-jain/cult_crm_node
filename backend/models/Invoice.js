@@ -353,6 +353,7 @@ invoiceSchema.pre("save", async function () {
     await this.constructor.generateInvoiceNumber();
 });
 
+
 // ============================================
 // PRE-SAVE #2
 // CALCULATE INVOICE TOTALS

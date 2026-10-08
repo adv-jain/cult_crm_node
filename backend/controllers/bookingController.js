@@ -1543,23 +1543,94 @@ const getBookings = async (req, res) => {
     // SEARCH
     // ==================================================
 
-    if (search) {
-      query.$or = [
-        {
-          bookingNumber: {
-            $regex: search,
-            $options: "i",
-          },
-        },
+   // ==================================================
+// SEARCH
+// ==================================================
 
-        {
-          destination: {
-            $regex: search,
-            $options: "i",
-          },
-        },
-      ];
-    }
+if (search && search.trim()) {
+  const searchRegex = {
+    $regex: search.trim(),
+    $options: "i",
+  };
+
+  const searchConditions = [
+    // Booking Number
+    {
+      bookingNumber: searchRegex,
+    },
+
+    // Destination
+    {
+      destination: searchRegex,
+    },
+  ];
+
+  // MongoDB ObjectId search
+  // Agar user actual MongoDB ID paste kare
+  if (isValidObjectId(search.trim())) {
+    searchConditions.push({
+      _id: toObjectId(search.trim()),
+    });
+  }
+
+  // Trip reference ke through Trip Code search
+  const matchingTrips = await Trip.find({
+    tripCode: searchRegex,
+  }).select("_id");
+
+  if (matchingTrips.length > 0) {
+    searchConditions.push({
+      trip: {
+        $in: matchingTrips.map((trip) => trip._id),
+      },
+    });
+  }
+
+  // Customer search
+  const matchingCustomers = await Customer.find({
+    $or: [
+      {
+        firstName: searchRegex,
+      },
+      {
+        lastName: searchRegex,
+      },
+      {
+        email: searchRegex,
+      },
+      {
+        phone: searchRegex,
+      },
+    ],
+  }).select("_id");
+
+  if (matchingCustomers.length > 0) {
+    searchConditions.push({
+      customer: {
+        $in: matchingCustomers.map(
+          (customer) => customer._id
+        ),
+      },
+    });
+  }
+
+  // Quotation number search
+  const matchingQuotations = await Quotation.find({
+    quotationNumber: searchRegex,
+  }).select("_id");
+
+  if (matchingQuotations.length > 0) {
+    searchConditions.push({
+      quotation: {
+        $in: matchingQuotations.map(
+          (quotation) => quotation._id
+        ),
+      },
+    });
+  }
+
+  query.$or = searchConditions;
+}
 
     const skip =
       (pageNumber - 1) *

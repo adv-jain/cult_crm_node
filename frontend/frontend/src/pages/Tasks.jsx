@@ -22,9 +22,6 @@ function Tasks() {
 
   const [tasks, setTasks] = useState([]);
 
-  // ========================================
-  // RELATED DATA
-  // ========================================
   const [leads, setLeads] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [companies, setCompanies] = useState([]);
@@ -39,39 +36,24 @@ function Tasks() {
   const [editingTask, setEditingTask] = useState(null);
   const [selectedTask, setSelectedTask] = useState(null);
 
-  // ========================================
-  // FILTERS
-  // ========================================
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [priority, setPriority] = useState("");
   const [type, setType] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
 
-  // ========================================
-  // PAGINATION
-  // ========================================
   const [page, setPage] = useState(1);
   const limit = 50;
 
   const [totalTasks, setTotalTasks] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
-  // ========================================
-  // ALERTS
-  // ========================================
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
-  // ========================================
-  // FILTER POPOVER
-  // ========================================
   const [showFilters, setShowFilters] = useState(false);
   const filterRef = useRef(null);
 
-  // ========================================
-  // FETCH TASKS
-  // ========================================
   const fetchTasks = async () => {
     try {
       setLoading(true);
@@ -91,18 +73,15 @@ function Tasks() {
       const response = await api.get("/tasks", { params });
 
       setTasks(response.data.tasks || []);
-
       setTotalTasks(
         response.data.total ?? response.data.totalTasks ?? 0
       );
-
       setTotalPages(response.data.totalPages || 1);
     } catch (error) {
       console.error(
         "Fetch tasks error:",
         error.response?.data || error.message
       );
-
       setErrorMessage(
         error.response?.data?.message || "Failed to fetch tasks"
       );
@@ -111,9 +90,6 @@ function Tasks() {
     }
   };
 
-  // ========================================
-  // FETCH RELATED DATA
-  // ========================================
   const fetchRelatedData = async () => {
     try {
       const requests = [
@@ -144,7 +120,6 @@ function Tasks() {
         "Fetch related data error:",
         error.response?.data || error.message
       );
-
       setErrorMessage(
         error.response?.data?.message ||
           "Failed to fetch related task data"
@@ -152,9 +127,6 @@ function Tasks() {
     }
   };
 
-  // ========================================
-  // EFFECTS
-  // ========================================
   useEffect(() => {
     if (!user) return;
     fetchRelatedData();
@@ -165,38 +137,29 @@ function Tasks() {
     fetchTasks();
   }, [user, page, status, priority, type, assignedTo]);
 
-  // Alert auto clear
   useEffect(() => {
     if (!successMessage && !errorMessage) return;
-
     const timer = setTimeout(() => {
       setSuccessMessage("");
       setErrorMessage("");
     }, 4000);
-
     return () => clearTimeout(timer);
   }, [successMessage, errorMessage]);
 
-  // Filter outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (filterRef.current && !filterRef.current.contains(e.target)) {
         setShowFilters(false);
       }
     };
-
     if (showFilters) {
       document.addEventListener("mousedown", handleClickOutside);
     }
-
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [showFilters]);
 
-  // ========================================
-  // HANDLERS
-  // ========================================
   const handleSearch = (e) => {
     e.preventDefault();
     setPage(1);
@@ -241,7 +204,6 @@ function Tasks() {
         "Delete task error:",
         error.response?.data || error.message
       );
-
       setErrorMessage(
         error.response?.data?.message || "Failed to delete task"
       );
@@ -258,14 +220,17 @@ function Tasks() {
       await api.put(`/tasks/${task._id}`, { status: "Completed" });
 
       setSuccessMessage("Task marked as completed");
-
       await fetchTasks();
+
+      // Refresh selected task in View modal
+      if (selectedTask && selectedTask._id === task._id) {
+        setSelectedTask({ ...selectedTask, status: "Completed" });
+      }
     } catch (error) {
       console.error(
         "Complete task error:",
         error.response?.data || error.message
       );
-
       setErrorMessage(
         error.response?.data?.message || "Failed to complete task"
       );
@@ -287,9 +252,6 @@ function Tasks() {
     setPage(1);
   };
 
-  // ========================================
-  // STATS
-  // ========================================
   const stats = useMemo(() => {
     return {
       total: totalTasks,
@@ -299,9 +261,6 @@ function Tasks() {
     };
   }, [tasks, totalTasks]);
 
-  // ========================================
-  // FILTER COUNTS
-  // ========================================
   const activeFilterCount = useMemo(() => {
     return [search, status, priority, type, assignedTo].filter(Boolean).length;
   }, [search, status, priority, type, assignedTo]);
@@ -310,25 +269,17 @@ function Tasks() {
     return [status, priority, type, assignedTo].filter(Boolean).length;
   }, [status, priority, type, assignedTo]);
 
-  // ========================================
-  // RENDER
-  // ========================================
   return (
     <>
       <div className="p-4 sm:p-6 lg:p-8 space-y-5 max-w-[1600px] mx-auto w-full">
         {/* HEADER */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
-            {/* SEARCH */}
-            <form
-              onSubmit={handleSearch}
-              className="relative w-full sm:w-64"
-            >
+            <form onSubmit={handleSearch} className="relative w-full sm:w-64">
               <FiSearch
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
                 size={15}
               />
-
               <input
                 type="text"
                 placeholder="Search tasks..."
@@ -339,7 +290,6 @@ function Tasks() {
                 }}
                 className="w-full pl-9 pr-8 h-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:border-brand-blue transition"
               />
-
               {search && (
                 <button
                   type="button"
@@ -354,7 +304,6 @@ function Tasks() {
               )}
             </form>
 
-            {/* FILTER */}
             <div className="relative" ref={filterRef}>
               <button
                 onClick={() => setShowFilters((prev) => !prev)}
@@ -365,9 +314,7 @@ function Tasks() {
                 }`}
               >
                 <FiFilter size={14} />
-
                 <span className="hidden sm:inline">Filters</span>
-
                 {dropdownFilterCount > 0 && (
                   <span className="inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[10px] font-semibold bg-brand-blue text-white rounded-full">
                     {dropdownFilterCount}
@@ -381,7 +328,6 @@ function Tasks() {
                     <h3 className="text-sm font-semibold text-gray-900">
                       Filters
                     </h3>
-
                     {dropdownFilterCount > 0 && (
                       <button
                         onClick={resetFilters}
@@ -393,12 +339,10 @@ function Tasks() {
                   </div>
 
                   <div className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
-                    {/* STATUS */}
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-2">
                         Status
                       </label>
-
                       <div className="flex flex-wrap gap-1.5">
                         {["Pending", "In Progress", "Completed", "Cancelled"].map(
                           (item) => (
@@ -421,12 +365,10 @@ function Tasks() {
                       </div>
                     </div>
 
-                    {/* PRIORITY */}
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-2">
                         Priority
                       </label>
-
                       <div className="flex flex-wrap gap-1.5">
                         {["Low", "Medium", "High", "Urgent"].map((item) => (
                           <button
@@ -447,12 +389,10 @@ function Tasks() {
                       </div>
                     </div>
 
-                    {/* TYPE */}
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-2">
                         Type
                       </label>
-
                       <select
                         value={type}
                         onChange={(e) => {
@@ -479,13 +419,11 @@ function Tasks() {
                       </select>
                     </div>
 
-                    {/* ASSIGNED TO */}
                     {(user?.role === "admin" || user?.role === "manager") && (
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-2">
                           Assigned To
                         </label>
-
                         <select
                           value={assignedTo}
                           onChange={(e) => {
@@ -495,7 +433,6 @@ function Tasks() {
                           className="w-full h-9 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:border-brand-blue cursor-pointer"
                         >
                           <option value="">All Assignees</option>
-
                           {users.map((item) => (
                             <option key={item._id} value={item._id}>
                               {item.name}
@@ -514,7 +451,6 @@ function Tasks() {
                     >
                       Clear all
                     </button>
-
                     <button
                       onClick={() => setShowFilters(false)}
                       className="px-3 py-1.5 text-xs font-semibold text-white bg-brand-blue hover:bg-brand-blue-dark rounded-md transition"
@@ -527,7 +463,6 @@ function Tasks() {
             </div>
           </div>
 
-          {/* CREATE TASK */}
           <button
             onClick={handleCreate}
             className="inline-flex items-center justify-center gap-1.5 px-4 h-9 bg-brand-blue hover:bg-brand-blue-dark text-white text-sm font-medium rounded-lg transition shadow-brand whitespace-nowrap self-start lg:self-auto"
@@ -626,9 +561,7 @@ function Tasks() {
               tasks={tasks}
               user={user}
               onView={handleView}
-              onEdit={handleEdit}
               onDelete={handleDelete}
-              onComplete={handleComplete}
             />
           )}
         </div>
@@ -638,13 +571,9 @@ function Tasks() {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             <p className="text-xs text-gray-500">
               Showing{" "}
-              <span className="font-medium text-gray-700">
-                {tasks.length}
-              </span>{" "}
+              <span className="font-medium text-gray-700">{tasks.length}</span>{" "}
               {tasks.length === 1 ? "task" : "tasks"}
-              {totalTasks > 0 && (
-                <span className="ml-1">of {totalTasks}</span>
-              )}
+              {totalTasks > 0 && <span className="ml-1">of {totalTasks}</span>}
               {activeFilterCount > 0 && (
                 <span className="ml-1">
                   · {activeFilterCount}{" "}
@@ -669,7 +598,6 @@ function Tasks() {
                   >
                     <FiChevronLeft size={16} />
                   </button>
-
                   <button
                     disabled={page === totalPages}
                     onClick={() => setPage((prev) => prev + 1)}
@@ -706,9 +634,19 @@ function Tasks() {
       {showView && selectedTask && (
         <ViewTask
           task={selectedTask}
+          user={user}
           onClose={() => {
             setShowView(false);
             setSelectedTask(null);
+          }}
+          onEdit={(task) => {
+            setShowView(false);
+            handleEdit(task);
+          }}
+          onComplete={handleComplete}
+          onDelete={(task) => {
+            setShowView(false);
+            handleDelete(task);
           }}
         />
       )}

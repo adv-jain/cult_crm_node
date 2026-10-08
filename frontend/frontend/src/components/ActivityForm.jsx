@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import axios from "axios";
 import { FiX, FiAlertCircle } from "react-icons/fi";
-
-const API = "http://localhost:5000/api";
+import api from "../api";
 
 function ActivityForm({
   user,
@@ -30,14 +28,6 @@ function ActivityForm({
 
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
-
-  const token = localStorage.getItem("token");
-
-  const config = {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  };
 
   // ==========================================
   // LOAD EDIT / DEFAULT DATA
@@ -73,9 +63,7 @@ function ActivityForm({
       const d = new Date(date);
       const offset = d.getTimezoneOffset() * 60000;
 
-      return new Date(d.getTime() - offset)
-        .toISOString()
-        .slice(0, 16);
+      return new Date(d.getTime() - offset).toISOString().slice(0, 16);
     };
 
     setForm({
@@ -116,7 +104,6 @@ function ActivityForm({
   // ==========================================
   useEffect(() => {
     const prev = document.body.style.overflow;
-
     document.body.style.overflow = "hidden";
 
     return () => {
@@ -155,27 +142,17 @@ function ActivityForm({
         description: form.description,
         activityDate: form.activityDate || new Date(),
         outcome: form.outcome,
-
         lead: form.lead || null,
         contact: form.contact || null,
         company: form.company || null,
         trip: form.trip || null,
-
         notes: form.notes,
       };
 
       if (editingActivity) {
-        await axios.put(
-          `${API}/activities/${editingActivity._id}`,
-          payload,
-          config
-        );
+        await api.put(`/activities/${editingActivity._id}`, payload);
       } else {
-        await axios.post(
-          `${API}/activities`,
-          payload,
-          config
-        );
+        await api.post("/activities", payload);
       }
 
       await onSaved();
@@ -186,8 +163,7 @@ function ActivityForm({
       );
 
       setFormError(
-        error.response?.data?.message ||
-          "Failed to save activity"
+        error.response?.data?.message || "Failed to save activity"
       );
     } finally {
       setSaving(false);
@@ -198,13 +174,12 @@ function ActivityForm({
   // HELPERS
   // ==========================================
   const inputClass =
-    "w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 focus:bg-white transition";
+    "w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:border-brand-blue focus:bg-white transition";
 
   const selectClass =
-    "w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 focus:bg-white transition cursor-pointer";
+    "w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:border-brand-blue focus:bg-white transition cursor-pointer";
 
-  const labelClass =
-    "block text-xs font-medium text-gray-600 mb-1";
+  const labelClass = "block text-xs font-medium text-gray-600 mb-1";
 
   const sectionTitleClass =
     "text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3";
@@ -214,24 +189,19 @@ function ActivityForm({
   // ==========================================
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] bg-gray-900/40 backdrop-blur-[2px] flex items-center justify-center p-4 overflow-y-auto animate-[fadeIn_.15s_ease-out]"
+      className="fixed inset-0 z-[100] bg-gray-900/40 backdrop-blur-[2px] flex items-center justify-center p-4 overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget && !saving) {
           onClose();
         }
       }}
     >
-      <div className="w-full max-w-[560px] max-h-[88vh] bg-white rounded-2xl shadow-2xl shadow-gray-900/20 flex flex-col overflow-hidden animate-[popIn_.18s_ease-out] my-auto">
-
-        {/* ============================================
-            HEADER
-        ============================================ */}
+      <div className="w-full max-w-[560px] max-h-[88vh] bg-white rounded-2xl shadow-2xl shadow-gray-900/20 flex flex-col overflow-hidden my-auto">
+        {/* HEADER */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <div>
             <h2 className="text-base font-semibold text-gray-900">
-              {editingActivity
-                ? "Edit Activity"
-                : "New Activity"}
+              {editingActivity ? "Edit Activity" : "New Activity"}
             </h2>
 
             <p className="text-xs text-gray-500 mt-0.5">
@@ -252,9 +222,7 @@ function ActivityForm({
           </button>
         </div>
 
-        {/* ============================================
-            SCROLLABLE BODY
-        ============================================ */}
+        {/* SCROLLABLE BODY */}
         <form
           id="activity-form"
           onSubmit={handleSubmit}
@@ -262,32 +230,20 @@ function ActivityForm({
         >
           {formError && (
             <div className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 text-xs px-3 py-2 rounded-lg">
-              <FiAlertCircle
-                className="flex-shrink-0 mt-0.5"
-                size={14}
-              />
-
+              <FiAlertCircle className="flex-shrink-0 mt-0.5" size={14} />
               <span>{formError}</span>
             </div>
           )}
 
-          {/* =========================================
-              SECTION: ACTIVITY INFORMATION
-          ========================================= */}
+          {/* SECTION: ACTIVITY INFORMATION */}
           <section>
-            <h3 className={sectionTitleClass}>
-              Activity Information
-            </h3>
+            <h3 className={sectionTitleClass}>Activity Information</h3>
 
             <div className="space-y-3.5">
-
-              {/* TYPE + OUTCOME */}
               <div className="grid grid-cols-2 gap-3">
-
                 <div>
                   <label className={labelClass}>
-                    Activity Type{" "}
-                    <span className="text-red-500">*</span>
+                    Activity Type <span className="text-red-500">*</span>
                   </label>
 
                   <select
@@ -300,43 +256,23 @@ function ActivityForm({
                     <option value="Email">Email</option>
                     <option value="Meeting">Meeting</option>
                     <option value="Note">Note</option>
-                    <option value="Follow-up">
-                      Follow-up
-                    </option>
-                    <option value="WhatsApp">
-                      WhatsApp
-                    </option>
+                    <option value="Follow-up">Follow-up</option>
+                    <option value="WhatsApp">WhatsApp</option>
                     <option value="SMS">SMS</option>
-                    <option value="Quotation">
-                      Quotation
-                    </option>
-                    <option value="Booking">
-                      Booking
-                    </option>
-                    <option value="Payment">
-                      Payment
-                    </option>
+                    <option value="Quotation">Quotation</option>
+                    <option value="Booking">Booking</option>
+                    <option value="Payment">Payment</option>
                     <option value="Hotel">Hotel</option>
-                    <option value="Transport">
-                      Transport
-                    </option>
-                    <option value="Itinerary">
-                      Itinerary
-                    </option>
-                    <option value="Document">
-                      Document
-                    </option>
-                    <option value="Customer Support">
-                      Customer Support
-                    </option>
+                    <option value="Transport">Transport</option>
+                    <option value="Itinerary">Itinerary</option>
+                    <option value="Document">Document</option>
+                    <option value="Customer Support">Customer Support</option>
                     <option value="Other">Other</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className={labelClass}>
-                    Outcome
-                  </label>
+                  <label className={labelClass}>Outcome</label>
 
                   <select
                     name="outcome"
@@ -344,33 +280,19 @@ function ActivityForm({
                     onChange={handleChange}
                     className={selectClass}
                   >
-                    <option value="Positive">
-                      Positive
-                    </option>
-                    <option value="Neutral">
-                      Neutral
-                    </option>
-                    <option value="Negative">
-                      Negative
-                    </option>
-                    <option value="No Response">
-                      No Response
-                    </option>
-                    <option value="Completed">
-                      Completed
-                    </option>
-                    <option value="Pending">
-                      Pending
-                    </option>
+                    <option value="Positive">Positive</option>
+                    <option value="Neutral">Neutral</option>
+                    <option value="Negative">Negative</option>
+                    <option value="No Response">No Response</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Pending">Pending</option>
                   </select>
                 </div>
               </div>
 
-              {/* TITLE */}
               <div>
                 <label className={labelClass}>
-                  Activity Title{" "}
-                  <span className="text-red-500">*</span>
+                  Activity Title <span className="text-red-500">*</span>
                 </label>
 
                 <input
@@ -385,13 +307,9 @@ function ActivityForm({
                 />
               </div>
 
-              {/* DATE + DESCRIPTION */}
               <div className="grid grid-cols-2 gap-3">
-
                 <div>
-                  <label className={labelClass}>
-                    Activity Date
-                  </label>
+                  <label className={labelClass}>Activity Date</label>
 
                   <input
                     type="datetime-local"
@@ -403,9 +321,7 @@ function ActivityForm({
                 </div>
 
                 <div>
-                  <label className={labelClass}>
-                    Description
-                  </label>
+                  <label className={labelClass}>Description</label>
 
                   <input
                     type="text"
@@ -420,21 +336,13 @@ function ActivityForm({
             </div>
           </section>
 
-          {/* =========================================
-              SECTION: CRM RELATIONSHIPS
-          ========================================= */}
+          {/* SECTION: CRM RELATIONSHIPS */}
           <section>
-            <h3 className={sectionTitleClass}>
-              CRM Relationships
-            </h3>
+            <h3 className={sectionTitleClass}>CRM Relationships</h3>
 
             <div className="grid grid-cols-2 gap-3">
-
-              {/* LEAD */}
               <div>
-                <label className={labelClass}>
-                  Lead
-                </label>
+                <label className={labelClass}>Lead</label>
 
                 <select
                   name="lead"
@@ -443,23 +351,16 @@ function ActivityForm({
                   className={selectClass}
                 >
                   <option value="">None</option>
-
                   {leads.map((lead) => (
-                    <option
-                      key={lead._id}
-                      value={lead._id}
-                    >
+                    <option key={lead._id} value={lead._id}>
                       {lead.firstName} {lead.lastName}
                     </option>
                   ))}
                 </select>
               </div>
 
-              {/* CONTACT */}
               <div>
-                <label className={labelClass}>
-                  Contact
-                </label>
+                <label className={labelClass}>Contact</label>
 
                 <select
                   name="contact"
@@ -468,24 +369,16 @@ function ActivityForm({
                   className={selectClass}
                 >
                   <option value="">None</option>
-
                   {contacts.map((contact) => (
-                    <option
-                      key={contact._id}
-                      value={contact._id}
-                    >
-                      {contact.firstName}{" "}
-                      {contact.lastName}
+                    <option key={contact._id} value={contact._id}>
+                      {contact.firstName} {contact.lastName}
                     </option>
                   ))}
                 </select>
               </div>
 
-              {/* COMPANY */}
               <div>
-                <label className={labelClass}>
-                  Company
-                </label>
+                <label className={labelClass}>Company</label>
 
                 <select
                   name="company"
@@ -494,23 +387,16 @@ function ActivityForm({
                   className={selectClass}
                 >
                   <option value="">None</option>
-
                   {companies.map((company) => (
-                    <option
-                      key={company._id}
-                      value={company._id}
-                    >
+                    <option key={company._id} value={company._id}>
                       {company.name}
                     </option>
                   ))}
                 </select>
               </div>
 
-              {/* TRIP */}
               <div>
-                <label className={labelClass}>
-                  Trip
-                </label>
+                <label className={labelClass}>Trip</label>
 
                 <select
                   name="trip"
@@ -519,16 +405,10 @@ function ActivityForm({
                   className={selectClass}
                 >
                   <option value="">None</option>
-
                   {trips.map((trip) => (
-                    <option
-                      key={trip._id}
-                      value={trip._id}
-                    >
+                    <option key={trip._id} value={trip._id}>
                       {trip.title}
-                      {trip.destination
-                        ? ` — ${trip.destination}`
-                        : ""}
+                      {trip.destination ? ` — ${trip.destination}` : ""}
                     </option>
                   ))}
                 </select>
@@ -536,13 +416,9 @@ function ActivityForm({
             </div>
           </section>
 
-          {/* =========================================
-              SECTION: NOTES
-          ========================================= */}
+          {/* SECTION: NOTES */}
           <section>
-            <h3 className={sectionTitleClass}>
-              Notes
-            </h3>
+            <h3 className={sectionTitleClass}>Notes</h3>
 
             <textarea
               name="notes"
@@ -555,11 +431,8 @@ function ActivityForm({
           </section>
         </form>
 
-        {/* ============================================
-            FOOTER
-        ============================================ */}
+        {/* FOOTER */}
         <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-gray-100 bg-gray-50/60 flex-shrink-0">
-
           <button
             type="button"
             onClick={onClose}
@@ -573,7 +446,7 @@ function ActivityForm({
             type="submit"
             form="activity-form"
             disabled={saving}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-lg transition shadow-sm shadow-blue-600/20 disabled:opacity-60 min-w-[110px]"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-brand-blue hover:bg-brand-blue-dark rounded-lg transition shadow-brand disabled:opacity-60 min-w-[110px]"
           >
             {saving ? (
               <>
@@ -591,14 +464,12 @@ function ActivityForm({
                     stroke="currentColor"
                     strokeWidth="4"
                   />
-
                   <path
                     className="opacity-75"
                     fill="currentColor"
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                   />
                 </svg>
-
                 Saving
               </>
             ) : editingActivity ? (
@@ -609,30 +480,6 @@ function ActivityForm({
           </button>
         </div>
       </div>
-
-      <style>{`
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-          }
-
-          to {
-            opacity: 1;
-          }
-        }
-
-        @keyframes popIn {
-          from {
-            opacity: 0;
-            transform: scale(0.96) translateY(6px);
-          }
-
-          to {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-          }
-        }
-      `}</style>
     </div>,
     document.body
   );

@@ -1,7 +1,4 @@
 import {
-  FiEye,
-  FiEdit2,
-  FiTrash2,
   FiInbox,
   FiPhone,
   FiMail,
@@ -19,13 +16,7 @@ import {
   FiDollarSign,
 } from "react-icons/fi";
 
-function ActivityTable({
-  activities,
-  user,
-  onView,
-  onEdit,
-  onDelete,
-}) {
+function ActivityTable({ activities, onView }) {
   // =========================
   // DATE FORMAT
   // =========================
@@ -66,15 +57,11 @@ function ActivityTable({
       transport: "bg-sky-50 text-sky-700 ring-sky-200",
       itinerary: "bg-violet-50 text-violet-700 ring-violet-200",
       document: "bg-gray-50 text-gray-700 ring-gray-200",
-      "customer support":
-        "bg-red-50 text-red-700 ring-red-200",
+      "customer support": "bg-red-50 text-red-700 ring-red-200",
       other: "bg-gray-50 text-gray-600 ring-gray-200",
     };
 
-    return (
-      map[t] ||
-      "bg-gray-50 text-gray-700 ring-gray-200"
-    );
+    return map[t] || "bg-gray-50 text-gray-700 ring-gray-200";
   };
 
   // =========================
@@ -112,29 +99,15 @@ function ActivityTable({
     const o = (outcome || "").toLowerCase();
 
     const map = {
-      positive:
-        "bg-green-50 text-green-700 ring-green-200",
-
-      neutral:
-        "bg-gray-50 text-gray-600 ring-gray-200",
-
-      negative:
-        "bg-red-50 text-red-700 ring-red-200",
-
-      "no response":
-        "bg-amber-50 text-amber-700 ring-amber-200",
-
-      completed:
-        "bg-emerald-50 text-emerald-700 ring-emerald-200",
-
-      pending:
-        "bg-yellow-50 text-yellow-700 ring-yellow-200",
+      positive: "bg-green-50 text-green-700 ring-green-200",
+      neutral: "bg-gray-50 text-gray-600 ring-gray-200",
+      negative: "bg-red-50 text-red-700 ring-red-200",
+      "no response": "bg-amber-50 text-amber-700 ring-amber-200",
+      completed: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+      pending: "bg-yellow-50 text-yellow-700 ring-yellow-200",
     };
 
-    return (
-      map[o] ||
-      "bg-gray-50 text-gray-600 ring-gray-200"
-    );
+    return map[o] || "bg-gray-50 text-gray-600 ring-gray-200";
   };
 
   // =========================
@@ -155,10 +128,7 @@ function ActivityTable({
 
     const idx = str
       .split("")
-      .reduce(
-        (acc, ch) => acc + ch.charCodeAt(0),
-        0
-      );
+      .reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
 
     return colors[idx % colors.length];
   };
@@ -209,9 +179,6 @@ function ActivityTable({
       });
     }
 
-    // =========================
-    // TRIP — OLD DEAL REMOVED
-    // =========================
     if (activity.trip) {
       items.push({
         label: "Trip",
@@ -233,10 +200,7 @@ function ActivityTable({
     return (
       <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
         <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-          <FiInbox
-            size={28}
-            className="text-gray-400"
-          />
+          <FiInbox size={28} className="text-gray-400" />
         </div>
 
         <h3 className="text-base font-semibold text-gray-800">
@@ -244,8 +208,7 @@ function ActivityTable({
         </h3>
 
         <p className="text-sm text-gray-500 mt-1 max-w-sm">
-          Try adjusting your filters or create a new
-          activity to get started.
+          Try adjusting your filters or create a new activity to get started.
         </p>
       </div>
     );
@@ -254,13 +217,11 @@ function ActivityTable({
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
-
         {/* =========================
             TABLE HEADER
         ========================= */}
         <thead>
           <tr className="border-b border-gray-200 bg-gray-50/60">
-
             <th className="text-left font-medium text-xs uppercase tracking-wider text-gray-500 px-5 py-3.5">
               Activity
             </th>
@@ -284,11 +245,6 @@ function ActivityTable({
             <th className="text-left font-medium text-xs uppercase tracking-wider text-gray-500 px-4 py-3.5 hidden lg:table-cell">
               Created By
             </th>
-
-            <th className="text-right font-medium text-xs uppercase tracking-wider text-gray-500 px-5 py-3.5">
-              Actions
-            </th>
-
           </tr>
         </thead>
 
@@ -296,21 +252,18 @@ function ActivityTable({
             TABLE BODY
         ========================= */}
         <tbody className="divide-y divide-gray-100">
-
           {activities.map((activity) => {
-            const relatedItems =
-              getRelatedItems(activity);
+            const relatedItems = getRelatedItems(activity);
 
             return (
               <tr
                 key={activity._id}
-                className="hover:bg-gray-50/70 transition-colors"
+                onClick={() => onView(activity)}
+                className="hover:bg-brand-blue-50/40 transition-colors cursor-pointer group"
               >
-
                 {/* ACTIVITY */}
                 <td className="px-5 py-3.5">
                   <div className="min-w-0 max-w-[280px]">
-
                     <p className="font-medium text-gray-800 truncate">
                       {activity.title}
                     </p>
@@ -318,20 +271,15 @@ function ActivityTable({
                     {activity.description && (
                       <p className="text-xs text-gray-500 truncate mt-0.5">
                         {activity.description.length > 60
-                          ? `${activity.description.substring(
-                              0,
-                              60
-                            )}...`
+                          ? `${activity.description.substring(0, 60)}...`
                           : activity.description}
                       </p>
                     )}
-
                   </div>
                 </td>
 
                 {/* TYPE */}
                 <td className="px-4 py-3.5">
-
                   {activity.type ? (
                     <span
                       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ring-1 ring-inset ${getTypeStyle(
@@ -339,67 +287,51 @@ function ActivityTable({
                       )}`}
                     >
                       {getTypeIcon(activity.type)}
-
                       {activity.type}
                     </span>
                   ) : (
-                    <span className="text-gray-400">
-                      —
-                    </span>
+                    <span className="text-gray-400">—</span>
                   )}
-
                 </td>
 
                 {/* RELATED TO */}
                 <td className="px-4 py-3.5 hidden lg:table-cell">
-
                   {relatedItems.length === 0 ? (
                     <span className="text-xs text-gray-400 italic">
                       No relation
                     </span>
                   ) : (
                     <div className="flex flex-col gap-0.5">
-
-                      {relatedItems
-                        .slice(0, 2)
-                        .map((item, i) => (
-                          <span
-                            key={i}
-                            className="text-xs text-gray-600 truncate"
-                          >
-                            <span className="text-gray-400">
-                              {item.label}:{" "}
-                            </span>
-
-                            {item.value}
+                      {relatedItems.slice(0, 2).map((item, i) => (
+                        <span
+                          key={i}
+                          className="text-xs text-gray-600 truncate"
+                        >
+                          <span className="text-gray-400">
+                            {item.label}:{" "}
                           </span>
-                        ))}
+                          {item.value}
+                        </span>
+                      ))}
 
                       {relatedItems.length > 2 && (
                         <span className="text-[10px] text-gray-400">
-                          +
-                          {relatedItems.length - 2}{" "}
-                          more
+                          +{relatedItems.length - 2} more
                         </span>
                       )}
-
                     </div>
                   )}
-
                 </td>
 
                 {/* DATE */}
                 <td className="px-4 py-3.5 hidden md:table-cell">
                   <span className="text-xs text-gray-700">
-                    {formatDate(
-                      activity.activityDate
-                    )}
+                    {formatDate(activity.activityDate)}
                   </span>
                 </td>
 
                 {/* OUTCOME */}
                 <td className="px-4 py-3.5">
-
                   {activity.outcome ? (
                     <span
                       className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ring-1 ring-inset ${getOutcomeStyle(
@@ -409,90 +341,33 @@ function ActivityTable({
                       {activity.outcome}
                     </span>
                   ) : (
-                    <span className="text-gray-400">
-                      —
-                    </span>
+                    <span className="text-gray-400">—</span>
                   )}
-
                 </td>
 
                 {/* CREATED BY */}
                 <td className="px-4 py-3.5 hidden lg:table-cell">
-
                   {activity.createdBy?.name ? (
                     <div className="flex items-center gap-2">
-
                       <div
                         className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${getAvatarColor(
                           activity.createdBy.name
                         )}`}
                       >
-                        {getInitials(
-                          activity.createdBy.name
-                        )}
+                        {getInitials(activity.createdBy.name)}
                       </div>
 
                       <span className="text-xs text-gray-700 truncate">
                         {activity.createdBy.name}
                       </span>
-
                     </div>
                   ) : (
-                    <span className="text-xs text-gray-400">
-                      Unknown
-                    </span>
+                    <span className="text-xs text-gray-400">Unknown</span>
                   )}
-
                 </td>
-
-                {/* ACTIONS */}
-                <td className="px-5 py-3.5">
-
-                  <div className="flex items-center justify-end gap-1">
-
-                    {/* VIEW */}
-                    <button
-                      onClick={() =>
-                        onView(activity)
-                      }
-                      title="View"
-                      className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition"
-                    >
-                      <FiEye size={16} />
-                    </button>
-
-                    {/* EDIT */}
-                    <button
-                      onClick={() =>
-                        onEdit(activity)
-                      }
-                      title="Edit"
-                      className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-amber-600 hover:bg-amber-50 transition"
-                    >
-                      <FiEdit2 size={16} />
-                    </button>
-
-                    {/* DELETE — ADMIN ONLY */}
-                    {user?.role === "admin" && (
-                      <button
-                        onClick={() =>
-                          onDelete(activity)
-                        }
-                        title="Delete"
-                        className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 transition"
-                      >
-                        <FiTrash2 size={16} />
-                      </button>
-                    )}
-
-                  </div>
-
-                </td>
-
               </tr>
             );
           })}
-
         </tbody>
       </table>
     </div>

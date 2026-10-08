@@ -10,7 +10,6 @@ import {
   FiClock,
   FiCreditCard,
   FiDollarSign,
-  FiEye,
   FiFileText,
   FiFilter,
   FiHash,
@@ -19,7 +18,6 @@ import {
   FiRefreshCcw,
   FiSearch,
   FiSend,
-  FiUser,
   FiX,
   FiXCircle,
 } from "react-icons/fi";
@@ -195,12 +193,10 @@ export default function Refund() {
   const canCreateRefund = CREATE_ROLES.includes(role);
   const canTakeAction = ACTION_ROLES.includes(role);
 
-  /* Data */
   const [refunds, setRefunds] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [payments, setPayments] = useState([]);
 
-  /* UI */
   const [loading, setLoading] = useState(true);
   const [bookingsLoading, setBookingsLoading] = useState(false);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
@@ -210,24 +206,20 @@ export default function Refund() {
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
-  /* Filters */
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [methodFilter, setMethodFilter] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const filterRef = useRef(null);
 
-  /* Pagination */
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalRefunds, setTotalRefunds] = useState(0);
 
-  /* Modals */
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedRefund, setSelectedRefund] = useState(null);
 
-  /* Form */
   const [form, setForm] = useState({
     booking: "", payment: "", invoice: "",
     amount: "", refundDate: getToday(),
@@ -894,13 +886,11 @@ export default function Refund() {
             <table className="w-full text-sm min-w-[1100px]">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50/60">
-                  {["Refund", "Booking", "Customer", "Amount", "Method", "Date", "Status", "Actions"].map(
+                  {["Refund", "Booking", "Customer", "Amount", "Method", "Date", "Status"].map(
                     (heading, i) => (
                       <th
                         key={i}
-                        className={`px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide ${
-                          heading === "Actions" ? "text-right" : "text-left"
-                        }`}
+                        className="px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide text-left"
                       >
                         {heading}
                       </th>
@@ -1039,11 +1029,11 @@ function RefundRow({ refund, onView }) {
   return (
     <tr
       onClick={() => onView(refund)}
-      className="hover:bg-brand-blue-50/40 transition-colors cursor-pointer"
+      className="hover:bg-brand-blue-50/40 transition-colors cursor-pointer group"
     >
       <td className="px-5 py-4">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-brand-blue-50 text-brand-blue flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 rounded-lg bg-brand-blue-50 text-brand-blue flex items-center justify-center shrink-0 group-hover:bg-brand-blue-100 transition">
             <FiHash size={16} />
           </div>
           <div className="min-w-0">
@@ -1104,20 +1094,6 @@ function RefundRow({ refund, onView }) {
 
       <td className="px-5 py-4">
         <StatusBadge status={refund.status} />
-      </td>
-
-      <td className="px-5 py-4 text-right">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onView(refund);
-          }}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-gray-400 transition hover:border-brand-blue/20 hover:bg-brand-blue-50 hover:text-brand-blue"
-          title="View refund"
-        >
-          <FiEye size={16} />
-        </button>
       </td>
     </tr>
   );

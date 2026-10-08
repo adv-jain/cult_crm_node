@@ -8,8 +8,6 @@ import {
   FiChevronRight,
   FiClock,
   FiDollarSign,
-  FiEdit2,
-  FiEye,
   FiFilter,
   FiInfo,
   FiPlus,
@@ -102,9 +100,7 @@ const getBookingLabel = (booking) => {
 
 const getTripName = (trip) => {
   if (!trip) return "No Trip";
-  return (
-    trip.tripTitle || trip.title || trip.name || trip.destination || "Trip"
-  );
+  return trip.tripTitle || trip.title || trip.name || trip.destination || "Trip";
 };
 
 const getStatusClasses = (status) => {
@@ -144,29 +140,24 @@ export default function Commission() {
   const userRole = user?.role?.toLowerCase?.() || "";
   const canCreate = CREATE_ROLES.includes(userRole);
 
-  /* Data */
   const [commissions, setCommissions] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [salesPeople, setSalesPeople] = useState([]);
 
-  /* Loading */
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
-  /* Filters */
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const filterRef = useRef(null);
 
-  /* Pagination */
   const [page, setPage] = useState(1);
   const [limit] = useState(RECORDS_PER_PAGE);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
-  /* Summary */
   const [summary, setSummary] = useState({
     totalCommissionAmount: 0,
     paidCommissionAmount: 0,
@@ -175,14 +166,12 @@ export default function Commission() {
     approvedCommissionAmount: 0,
   });
 
-  /* Modals */
   const [showForm, setShowForm] = useState(false);
   const [showView, setShowView] = useState(false);
   const [editingCommission, setEditingCommission] = useState(null);
   const [selectedCommission, setSelectedCommission] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
 
-  /* Form */
   const emptyForm = {
     booking: "", trip: "", customer: "", salesPerson: "",
     commissionType: "Percentage",
@@ -421,6 +410,17 @@ export default function Commission() {
 
       setConfirmAction(null);
       await fetchCommissions(page);
+
+      // If the action was performed from the View modal, refresh selection
+      if (selectedCommission && getId(selectedCommission) === id && action !== "delete") {
+        const { data } = await api.get(`/commissions/${id}`);
+        const fresh = data?.commission || data?.data || data;
+        if (fresh) setSelectedCommission(fresh);
+      }
+      if (action === "delete" && selectedCommission && getId(selectedCommission) === id) {
+        setShowView(false);
+        setSelectedCommission(null);
+      }
     } catch (error) {
       console.error(`${action} commission error:`, error);
       alert(getErrorMessage(error, `Failed to ${action} commission`));
@@ -448,6 +448,11 @@ export default function Commission() {
     setShowFilters(false);
   };
 
+  const openView = (commission) => {
+    setSelectedCommission(commission);
+    setShowView(true);
+  };
+
   /* =========================================================
      RENDER
   ========================================================= */
@@ -456,9 +461,7 @@ export default function Commission() {
     <div className="p-4 sm:p-6 lg:p-8 space-y-5 max-w-[1600px] mx-auto">
       {/* HEADER */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-        {/* LEFT: SEARCH + FILTER + REFRESH */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
-          {/* SEARCH */}
           <div className="relative w-full sm:w-64">
             <FiSearch
               className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
@@ -481,7 +484,6 @@ export default function Commission() {
             )}
           </div>
 
-          {/* FILTER */}
           <div className="relative" ref={filterRef}>
             <button
               type="button"
@@ -590,7 +592,6 @@ export default function Commission() {
             )}
           </div>
 
-          {/* REFRESH */}
           <button
             type="button"
             onClick={() => fetchCommissions(page)}
@@ -601,7 +602,6 @@ export default function Commission() {
           </button>
         </div>
 
-        {/* RIGHT: NEW COMMISSION */}
         {canCreate && (
           <button
             type="button"
@@ -739,12 +739,8 @@ export default function Commission() {
                   <CommissionRow
                     key={getId(commission)}
                     commission={commission}
-                    onView={(c) => {
-                      setSelectedCommission(c);
-                      setShowView(true);
-                    }}
-                    onEdit={openEdit}
-                    onAction={askAction}
+                    onView={openView}
+                    onDelete={(c) => askAction("delete", c)}
                   />
                 ))}
               </tbody>
@@ -817,7 +813,13 @@ export default function Commission() {
       {showView && selectedCommission && (
         <CommissionViewModal
           commission={selectedCommission}
+          canEdit={!["Paid", "Cancelled", "Payable"].includes(selectedCommission.status)}
           onClose={() => setShowView(false)}
+          onEdit={(c) => {
+            setShowView(false);
+            openEdit(c);
+          }}
+          onAction={askAction}
         />
       )}
 
@@ -880,17 +882,17 @@ function TypeBadge({ type }) {
   );
 }
 
-function CommissionRow({ commission, onView, onEdit, onAction }) {
-  const canEdit = !["Paid", "Cancelled", "Payable"].includes(commission.status);
+function CommissionRow({ commission, onView, onDelete }) {
+  const canDelete = commission.status !== "Paid";
 
   return (
     <tr
       onClick={() => onView(commission)}
-      className="hover:bg-brand-blue-50/40 transition-colors cursor-pointer"
+      className="hover:bg-brand-blue-50/40 transition-colors cursor-pointer group"
     >
       <td className="px-5 py-4">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-brand-blue-50 text-brand-blue flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 rounded-lg bg-brand-blue-50 text-brand-blue flex items-center justify-center shrink-0 group-hover:bg-brand-blue-100 transition">
             <FiDollarSign size={15} />
           </div>
           <div className="min-w-0">
@@ -956,90 +958,20 @@ function CommissionRow({ commission, onView, onEdit, onAction }) {
       </td>
 
       <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-end gap-1">
-          <ActionButton title="View" onClick={() => onView(commission)}>
-            <FiEye size={15} />
-          </ActionButton>
-
-          {canEdit && (
-            <ActionButton title="Edit" variant="info" onClick={() => onEdit(commission)}>
-              <FiEdit2 size={15} />
-            </ActionButton>
-          )}
-
-          {commission.status === "Pending" && (
-            <ActionButton
-              title="Approve"
-              variant="success"
-              onClick={() => onAction("approve", commission)}
-            >
-              <FiCheckCircle size={15} />
-            </ActionButton>
-          )}
-
-          {commission.status === "Approved" && (
-            <ActionButton
-              title="Mark Payable"
-              variant="purple"
-              onClick={() => onAction("payable", commission)}
-            >
-              <FiDollarSign size={15} />
-            </ActionButton>
-          )}
-
-          {commission.status === "Payable" && (
-            <ActionButton
-              title="Mark Paid"
-              variant="success"
-              onClick={() => onAction("paid", commission)}
-            >
-              <FiCheck size={15} />
-            </ActionButton>
-          )}
-
-          {!["Paid", "Cancelled"].includes(commission.status) && (
-            <ActionButton
-              title="Cancel"
-              variant="danger"
-              onClick={() => onAction("cancel", commission)}
-            >
-              <FiXCircle size={15} />
-            </ActionButton>
-          )}
-
-          {commission.status !== "Paid" && (
-            <ActionButton
+        <div className="flex items-center justify-end">
+          {canDelete && (
+            <button
+              type="button"
               title="Delete"
-              variant="danger"
-              onClick={() => onAction("delete", commission)}
+              onClick={() => onDelete(commission)}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 bg-transparent hover:text-red-600 hover:bg-red-50 transition"
             >
               <FiTrash2 size={15} />
-            </ActionButton>
+            </button>
           )}
         </div>
       </td>
     </tr>
-  );
-}
-
-function ActionButton({ children, onClick, title, variant = "default" }) {
-  const variantClass = {
-    default: "text-gray-500 hover:bg-gray-100 hover:text-brand-blue",
-    success: "text-emerald-600 hover:bg-emerald-50",
-    danger: "text-red-500 hover:bg-red-50",
-    info: "text-blue-600 hover:bg-blue-50",
-    purple: "text-purple-600 hover:bg-purple-50",
-  }[variant];
-
-  return (
-    <button
-      type="button"
-      title={title}
-      onClick={onClick}
-      className={`rounded-lg p-1.5 transition ${variantClass}`}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -1093,7 +1025,6 @@ function CommissionFormModal({
       }
     >
       <form id="commission-form" onSubmit={onSubmit} className="p-6 space-y-6">
-        {/* BOOKING */}
         <section>
           <SectionTitle icon={<FiDollarSign size={14} />} title="Booking" />
           <div className="mt-4">
@@ -1130,7 +1061,6 @@ function CommissionFormModal({
           )}
         </section>
 
-        {/* SALES PERSON */}
         <section>
           <SectionTitle icon={<FiUser size={14} />} title="Sales Person" />
           <div className="mt-4">
@@ -1152,7 +1082,6 @@ function CommissionFormModal({
           </div>
         </section>
 
-        {/* COMMISSION */}
         <section>
           <SectionTitle icon={<FiDollarSign size={14} />} title="Commission Details" />
 
@@ -1249,7 +1178,6 @@ function CommissionFormModal({
           )}
         </section>
 
-        {/* NOTES */}
         <section>
           <SectionTitle icon={<FiInfo size={14} />} title="Notes" />
           <div className="mt-4">
@@ -1285,27 +1213,89 @@ function BalanceCell({ label, value, valueClass = "text-gray-900" }) {
 }
 
 /* ============================================================================
-   VIEW MODAL
+   VIEW MODAL (with action buttons in footer)
 ============================================================================ */
 
-function CommissionViewModal({ commission, onClose }) {
+function CommissionViewModal({ commission, canEdit, onClose, onEdit, onAction }) {
+  const isPending = commission.status === "Pending";
+  const isApproved = commission.status === "Approved";
+  const isPayable = commission.status === "Payable";
+  const isPaid = commission.status === "Paid";
+  const isCancelled = commission.status === "Cancelled";
+
   return (
     <ModalShell
       title="Commission Details"
       subtitle={commission.commissionNumber}
       onClose={onClose}
       footer={
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-lg border border-gray-200 bg-white px-4 h-9 text-sm font-medium text-gray-600 hover:bg-gray-50"
-        >
-          Close
-        </button>
+        <>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => onEdit(commission)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-4 h-9 text-sm font-medium text-gray-600 hover:bg-gray-50"
+            >
+              <FiEdit2 size={14} />
+              Edit
+            </button>
+          )}
+
+          {isPending && (
+            <button
+              type="button"
+              onClick={() => onAction("approve", commission)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 h-9 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              <FiCheckCircle size={14} />
+              Approve
+            </button>
+          )}
+
+          {isApproved && (
+            <button
+              type="button"
+              onClick={() => onAction("payable", commission)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-4 h-9 text-sm font-medium text-white hover:bg-purple-700"
+            >
+              <FiDollarSign size={14} />
+              Mark Payable
+            </button>
+          )}
+
+          {isPayable && (
+            <button
+              type="button"
+              onClick={() => onAction("paid", commission)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 h-9 text-sm font-medium text-white hover:bg-emerald-700"
+            >
+              <FiCheck size={14} />
+              Mark Paid
+            </button>
+          )}
+
+          {!isPaid && !isCancelled && (
+            <button
+              type="button"
+              onClick={() => onAction("cancel", commission)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-4 h-9 text-sm font-medium text-red-600 hover:bg-red-50"
+            >
+              <FiXCircle size={14} />
+              Cancel
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-gray-200 bg-white px-4 h-9 text-sm font-medium text-gray-600 hover:bg-gray-50"
+          >
+            Close
+          </button>
+        </>
       }
     >
       <div className="p-6 space-y-6">
-        {/* AMOUNT + STATUS */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-5 border-b border-gray-200">
           <div className="min-w-0 flex-1">
             <p className="text-xs font-medium text-gray-500">Commission Amount</p>
@@ -1321,7 +1311,6 @@ function CommissionViewModal({ commission, onClose }) {
           </div>
         </div>
 
-        {/* COMMISSION INFO */}
         <section>
           <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">
             Commission Information
@@ -1342,7 +1331,6 @@ function CommissionViewModal({ commission, onClose }) {
           </div>
         </section>
 
-        {/* BOOKING INFO */}
         <section>
           <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">
             Booking Information
@@ -1355,7 +1343,6 @@ function CommissionViewModal({ commission, onClose }) {
           </div>
         </section>
 
-        {/* PAYMENT */}
         {(commission.status === "Paid" ||
           commission.paymentDate ||
           commission.paymentReference) && (
@@ -1376,7 +1363,6 @@ function CommissionViewModal({ commission, onClose }) {
           </section>
         )}
 
-        {/* APPROVAL */}
         {commission.approvedBy && (
           <section>
             <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">
@@ -1392,7 +1378,6 @@ function CommissionViewModal({ commission, onClose }) {
           </section>
         )}
 
-        {/* NOTES */}
         <section>
           <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">
             Notes

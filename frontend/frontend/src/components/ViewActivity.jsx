@@ -16,9 +16,17 @@ import {
   FiMap,
   FiTruck,
   FiHeadphones,
+  FiEdit2,
+  FiTrash2,
 } from "react-icons/fi";
 
-function ViewActivity({ activity, onClose }) {
+function ViewActivity({
+  activity,
+  user,
+  onClose,
+  onEdit,
+  onDelete,
+}) {
   if (!activity) return null;
 
   // =========================
@@ -63,15 +71,11 @@ function ViewActivity({ activity, onClose }) {
       transport: "bg-sky-50 text-sky-700 ring-sky-200",
       itinerary: "bg-violet-50 text-violet-700 ring-violet-200",
       document: "bg-gray-50 text-gray-700 ring-gray-200",
-      "customer support":
-        "bg-red-50 text-red-700 ring-red-200",
+      "customer support": "bg-red-50 text-red-700 ring-red-200",
       other: "bg-gray-50 text-gray-600 ring-gray-200",
     };
 
-    return (
-      map[t] ||
-      "bg-gray-50 text-gray-700 ring-gray-200"
-    );
+    return map[t] || "bg-gray-50 text-gray-700 ring-gray-200";
   };
 
   // =========================
@@ -109,29 +113,15 @@ function ViewActivity({ activity, onClose }) {
     const o = (outcome || "").toLowerCase();
 
     const map = {
-      positive:
-        "bg-green-50 text-green-700 ring-green-200",
-
-      neutral:
-        "bg-gray-50 text-gray-600 ring-gray-200",
-
-      negative:
-        "bg-red-50 text-red-700 ring-red-200",
-
-      "no response":
-        "bg-amber-50 text-amber-700 ring-amber-200",
-
-      completed:
-        "bg-emerald-50 text-emerald-700 ring-emerald-200",
-
-      pending:
-        "bg-yellow-50 text-yellow-700 ring-yellow-200",
+      positive: "bg-green-50 text-green-700 ring-green-200",
+      neutral: "bg-gray-50 text-gray-600 ring-gray-200",
+      negative: "bg-red-50 text-red-700 ring-red-200",
+      "no response": "bg-amber-50 text-amber-700 ring-amber-200",
+      completed: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+      pending: "bg-yellow-50 text-yellow-700 ring-yellow-200",
     };
 
-    return (
-      map[o] ||
-      "bg-gray-50 text-gray-600 ring-gray-200"
-    );
+    return map[o] || "bg-gray-50 text-gray-600 ring-gray-200";
   };
 
   // =========================
@@ -148,15 +138,11 @@ function ViewActivity({ activity, onClose }) {
   // RELATED NAMES
   // =========================
   const leadName = activity.lead
-    ? `${activity.lead.firstName || ""} ${
-        activity.lead.lastName || ""
-      }`.trim()
+    ? `${activity.lead.firstName || ""} ${activity.lead.lastName || ""}`.trim()
     : "";
 
   const contactName = activity.contact
-    ? `${activity.contact.firstName || ""} ${
-        activity.contact.lastName || ""
-      }`.trim()
+    ? `${activity.contact.firstName || ""} ${activity.contact.lastName || ""}`.trim()
     : "";
 
   // =========================
@@ -169,23 +155,19 @@ function ViewActivity({ activity, onClose }) {
       ""
     : "";
 
-  // ========================================
-  // RENDER — WITH PORTAL
-  // ========================================
+  const canDelete = user?.role === "admin";
+
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] bg-gray-900/40 backdrop-blur-[2px] flex items-center justify-center p-4 overflow-y-auto animate-[fadeIn_.15s_ease-out]"
+      className="fixed inset-0 z-[100] bg-gray-900/40 backdrop-blur-[2px] flex items-center justify-center p-4 overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
         }
       }}
     >
-      <div className="w-full max-w-[560px] max-h-[88vh] bg-white rounded-2xl shadow-2xl shadow-gray-900/20 flex flex-col overflow-hidden animate-[popIn_.18s_ease-out] my-auto">
-
-        {/* =====================================================
-            HEADER
-        ===================================================== */}
+      <div className="w-full max-w-[560px] max-h-[88vh] bg-white rounded-2xl shadow-2xl shadow-gray-900/20 flex flex-col overflow-hidden my-auto">
+        {/* HEADER */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <div>
             <h2 className="text-base font-semibold text-gray-900">
@@ -206,20 +188,15 @@ function ViewActivity({ activity, onClose }) {
           </button>
         </div>
 
-        {/* =====================================================
-            BODY
-        ===================================================== */}
+        {/* BODY */}
         <div className="flex-1 overflow-y-auto px-5 py-4">
-
           {/* AVATAR + TITLE + PILLS */}
           <div className="flex items-center gap-3.5 pb-4 mb-4 border-b border-gray-100">
-
             <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg flex-shrink-0 uppercase shadow-sm">
               {initials || "?"}
             </div>
 
             <div className="min-w-0 flex-1">
-
               <h3 className="text-base font-semibold text-gray-900 truncate">
                 {activity.title}
               </h3>
@@ -229,7 +206,6 @@ function ViewActivity({ activity, onClose }) {
               </p>
 
               <div className="flex items-center gap-2 mt-2 flex-wrap">
-
                 {activity.type && (
                   <span
                     className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium ring-1 ring-inset ${getTypeStyle(
@@ -250,14 +226,12 @@ function ViewActivity({ activity, onClose }) {
                     {activity.outcome}
                   </span>
                 )}
-
               </div>
             </div>
           </div>
 
           {/* FIELDS */}
           <div className="space-y-3.5">
-
             {/* DESCRIPTION */}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -288,7 +262,6 @@ function ViewActivity({ activity, onClose }) {
               </h3>
 
               <div className="grid grid-cols-2 gap-3">
-
                 <ReadOnlyField
                   label="Lead"
                   value={leadName}
@@ -307,7 +280,6 @@ function ViewActivity({ activity, onClose }) {
                   icon={<FiBriefcase size={13} />}
                 />
 
-                {/* TRIP */}
                 <ReadOnlyField
                   label="Trip"
                   value={tripName}
@@ -318,7 +290,6 @@ function ViewActivity({ activity, onClose }) {
                   }
                   icon={<FiTag size={13} />}
                 />
-
               </div>
             </section>
 
@@ -339,44 +310,37 @@ function ViewActivity({ activity, onClose }) {
           </div>
         </div>
 
-        {/* =====================================================
-            FOOTER
-        ===================================================== */}
-        <div className="flex items-center justify-end px-5 py-3.5 border-t border-gray-100 bg-gray-50/60 flex-shrink-0">
+        {/* FOOTER — Delete left, Edit right */}
+        <div className="flex items-center justify-between gap-2 px-5 py-3.5 border-t border-gray-100 bg-gray-50/60 flex-shrink-0">
+          {/* LEFT — Delete */}
+          <div>
+            {onDelete && canDelete && (
+              <button
+                type="button"
+                onClick={() => onDelete(activity)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition"
+              >
+                <FiTrash2 size={14} />
+                Delete
+              </button>
+            )}
+          </div>
 
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition"
-          >
-            Close
-          </button>
-
+          {/* RIGHT — Edit */}
+          <div className="flex items-center gap-2">
+            {onEdit && (
+              <button
+                type="button"
+                onClick={() => onEdit(activity)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition"
+              >
+                <FiEdit2 size={14} />
+                Edit
+              </button>
+            )}
+          </div>
         </div>
       </div>
-
-      <style>{`
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-          }
-
-          to {
-            opacity: 1;
-          }
-        }
-
-        @keyframes popIn {
-          from {
-            opacity: 0;
-            transform: scale(0.96) translateY(6px);
-          }
-
-          to {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-          }
-        }
-      `}</style>
     </div>,
     document.body
   );
@@ -385,13 +349,7 @@ function ViewActivity({ activity, onClose }) {
 // =====================================================
 // READ-ONLY FIELD
 // =====================================================
-function ReadOnlyField({
-  label,
-  value,
-  subvalue,
-  icon,
-  highlight,
-}) {
+function ReadOnlyField({ label, value, subvalue, icon, highlight }) {
   return (
     <div>
       <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -400,29 +358,21 @@ function ReadOnlyField({
 
       <div
         className={`w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm flex items-start gap-2 min-h-[38px] ${
-          highlight
-            ? "font-semibold text-gray-900"
-            : "text-gray-800"
+          highlight ? "font-semibold text-gray-900" : "text-gray-800"
         }`}
       >
         {icon && (
-          <span className="text-gray-400 flex-shrink-0 mt-0.5">
-            {icon}
-          </span>
+          <span className="text-gray-400 flex-shrink-0 mt-0.5">{icon}</span>
         )}
 
         <div className="min-w-0 flex-1">
-
-          <p className="truncate">
-            {value || "—"}
-          </p>
+          <p className="truncate">{value || "—"}</p>
 
           {subvalue && (
             <p className="text-[10px] text-gray-500 truncate mt-0.5">
               {subvalue}
             </p>
           )}
-
         </div>
       </div>
     </div>
