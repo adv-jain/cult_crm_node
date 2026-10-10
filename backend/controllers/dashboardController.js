@@ -1904,12 +1904,304 @@ const getDashboardRecent = async (
     });
   }
 };
+// =====================================================
+// PAYMENT DUE TRACKER
+// =====================================================
 
+const getPaymentDueTracker = async (req, res) => {
+  try {
+    const scope = await getDashboardScope(req);
+
+    // Role-based booking access
+    const bookingFilter = scope.isAllAccess
+      ? {}
+      : {
+          salesOwner: {
+            $in: scope.userIds,
+          },
+        };
+
+    // Exclude cancelled and refunded bookings
+    const bookings = await Booking.find({
+      ...bookingFilter,
+      status: {
+        $nin: ["Cancelled", "Refunded"],
+      },
+    })
+      .select(
+        "bookingNumber customer trip destination travelDate totalAmount amountPaid amountDue nextPaymentDueDate currency status paymentStatus salesOwner createdAt"
+      )
+      .populate(
+        "customer",
+        "name fullName firstName lastName"
+      )
+      .populate(
+        "trip",
+        "title tripCode destination"
+      )
+      .populate(
+        "salesOwner",
+        "name email"
+      )
+      .sort({
+        nextPaymentDueDate: 1,
+        createdAt: -1,
+      })
+      .lean();
+
+    // Only completed payments count as received.
+    const bookingIds = bookings.map(
+      (booking) => booking._id
+    );
+
+    const completedPayments = bookingIds.length
+      ? await Payment.aggregate([
+          {
+            $match: {
+              booking: {
+                $in: bookingIds,
+              },
+              status: "Completed",
+            },
+          },
+          {
+            $group: {
+              _id: "$booking",
+              totalPaid: {
+                $sum: "$amount",
+              },
+            },
+          },
+        ])
+      : [];
+
+    const paidByBooking = new Map(
+      completedPayments.map((payment) => [
+        String(payment._id),
+        Number(payment.totalPaid || 0),
+      ])
+    );
+
+    // Use Indian calendar dates consistently.
+    const getIndiaDateKey = (date = new Date()) => {
+      const parts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Asia/Kolkata",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).formatToParts(date);
+
+      const values = {};
+
+      parts.forEach((part) => {
+        if (part.type !== "literal") {
+          values[part.type] = part.value;
+        }
+      });
+
+      return `${values.year}-${values.month}-${values.day}`;
+    };
+
+    const todayKey = getIndiaDateKey();
+
+    const todayDate = new Date(
+      `${todayKey}T00:00:00+05:30`
+    );
+
+    const upcomingLimit = new Date(todayDate);
+    upcomingLimit.setUTCDate(
+      upcomingLimit.getUTCDate() + 7
+    );
+
+    const upcomingLimitKey =
+      getIndiaDateKey(upcomingLimit);
+
+    const toAmount = (value) =>
+      Math.max(0, Number(value) || 0);
+
+    // Build the booking-wise tracker.
+    const trackerBookings = bookings
+      .map((booking) => {
+        const totalAmount = toAmount(
+          booking.totalAmount
+        );
+
+        const amountPaid = Math.min(
+          totalAmount,
+          toAmount(
+            paidByBooking.get(String(booking._id))
+          )
+        );
+
+        const amountDue = Math.max(
+          0,
+          totalAmount - amountPaid
+        );
+
+        const dueDateKey = booking.nextPaymentDueDate
+          ? getIndiaDateKey(
+              new Date(booking.nextPaymentDueDate)
+            )
+          : null;
+
+        let dueStatus = "No due date";
+
+        if (amountDue <= 0) {
+          dueStatus = "Paid";
+        } else if (
+          dueDateKey &&
+          dueDateKey < todayKey
+        ) {
+          dueStatus = "Overdue";
+        } else if (dueDateKey === todayKey) {
+          dueStatus = "Due Today";
+        } else if (
+          dueDateKey &&
+          dueDateKey <= upcomingLimitKey
+        ) {
+          dueStatus = "Upcoming";
+        } else if (dueDateKey) {
+          dueStatus = "Scheduled";
+        }
+
+        const customer = booking.customer || {};
+
+        const customerName =
+          customer.name ||
+          customer.fullName ||
+          `${customer.firstName || ""} ${
+            customer.lastName || ""
+          }`.trim() ||
+          "Unknown customer";
+
+        return {
+          _id: booking._id,
+          bookingNumber:
+            booking.bookingNumber || "—",
+
+          customer: booking.customer,
+          customerName,
+
+          trip: booking.trip,
+
+          tripName:
+            booking.trip?.title ||
+            booking.trip?.tripCode ||
+            booking.destination ||
+            booking.trip?.destination ||
+            "—",
+
+          destination:
+            booking.destination ||
+            booking.trip?.destination ||
+            "—",
+
+          travelDate: booking.travelDate || null,
+
+          totalAmount,
+          amountPaid,
+          amountDue,
+
+          currency: booking.currency || "INR",
+
+          nextPaymentDueDate:
+            booking.nextPaymentDueDate || null,
+
+          dueDateKey,
+          dueStatus,
+
+          bookingStatus: booking.status,
+          paymentStatus:
+            amountDue <= 0 ? "Paid" : booking.paymentStatus,
+
+          salesOwner: booking.salesOwner,
+        };
+      })
+      .filter((booking) => booking.amountDue > 0);
+
+    const sumAmount = (items) =>
+      items.reduce(
+        (total, item) => total + item.amountDue,
+        0
+      );
+
+    const overdueBookings = trackerBookings
+      .filter(
+        (booking) => booking.dueStatus === "Overdue"
+      )
+      .sort((a, b) =>
+        a.dueDateKey.localeCompare(b.dueDateKey)
+      );
+
+    const dueTodayBookings = trackerBookings.filter(
+      (booking) => booking.dueStatus === "Due Today"
+    );
+
+    const upcomingDues = trackerBookings
+      .filter(
+        (booking) => booking.dueStatus === "Upcoming"
+      )
+      .sort((a, b) =>
+        a.dueDateKey.localeCompare(b.dueDateKey)
+      );
+
+    
+return res.status(200).json({
+  message: "Payment due tracker fetched successfully",
+  role: req.user.role,
+
+  // Dashboard summary cards
+  summary: {
+    paymentDue: sumAmount(trackerBookings),
+    totalPendingAmount: sumAmount(trackerBookings),
+    overdueAmount: sumAmount(overdueBookings),
+    dueTodayAmount: sumAmount(dueTodayBookings),
+    upcomingDueAmount: sumAmount(upcomingDues),
+    pendingBookings: trackerBookings.length,
+    overdueBookingsCount: overdueBookings.length,
+    dueTodayBookingsCount: dueTodayBookings.length,
+    upcomingBookingsCount: upcomingDues.length,
+  },
+
+  // Dashboard table reads bookings from the top level
+  bookings: trackerBookings,
+
+  // Preserve the existing detailed tracker response
+  tracker: {
+    totalPendingAmount: sumAmount(trackerBookings),
+    overdueAmount: sumAmount(overdueBookings),
+    dueTodayAmount: sumAmount(dueTodayBookings),
+    upcomingDueAmount: sumAmount(upcomingDues),
+    pendingBookings: trackerBookings.length,
+    overdueBookingsCount: overdueBookings.length,
+    dueTodayBookingsCount: dueTodayBookings.length,
+    upcomingBookingsCount: upcomingDues.length,
+    overdueBookings,
+    dueTodayBookings,
+    upcomingDues: upcomingDues.slice(0, 10),
+    bookings: trackerBookings,
+    asOfDate: todayKey,
+  },
+});
+
+  } catch (error) {
+    console.error(
+      "Payment Due Tracker Error:",
+      error
+    );
+
+    return res.status(500).json({
+      message: "Failed to fetch payment due tracker",
+      error: error.message,
+    });
+  }
+};
 // =====================================================
 // EXPORTS
 // =====================================================
 
 module.exports = {
+  getPaymentDueTracker,
   getDashboardSummary,
   getDashboardPipeline,
   getDashboardLeadSources,

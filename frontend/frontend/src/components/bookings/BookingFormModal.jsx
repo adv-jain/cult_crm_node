@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import {
   FiX,
@@ -113,7 +114,11 @@ export default function BookingFormModal({
         const usersData = usersRes.data || {};
 
         setAcceptedQuotations(quotationsData.quotations || []);
-        setUsers(Array.isArray(usersData) ? usersData : usersData.users || []);
+        setUsers(
+          Array.isArray(usersData)
+            ? usersData
+            : usersData.users || []
+        );
       } catch (err) {
         console.error("Fetch form data error:", err);
       } finally {
@@ -134,38 +139,62 @@ export default function BookingFormModal({
 
     if (editingBooking) {
       setForm({
+        ...INITIAL_BOOKING_FORM,
+
         quotation:
-          editingBooking.quotation?._id || editingBooking.quotation || "",
+          editingBooking.quotation?._id ||
+          editingBooking.quotation ||
+          "",
+
         destination: editingBooking.destination || "",
         departureCity: editingBooking.departureCity || "",
+
         travelDate: formatDateInput(editingBooking.travelDate),
         returnDate: formatDateInput(editingBooking.returnDate),
+
+        // Payment reminder due date
+        nextPaymentDueDate: formatDateInput(
+          editingBooking.nextPaymentDueDate
+        ),
+
         adults: Number(editingBooking.adults ?? 1),
         children: Number(editingBooking.children ?? 0),
         infants: Number(editingBooking.infants ?? 0),
+
         travelType: editingBooking.travelType || "Other",
         currency: editingBooking.currency || "INR",
+
         totalAmount: Number(editingBooking.totalAmount ?? 0),
         totalCost: Number(editingBooking.totalCost ?? 0),
         discountAmount: Number(editingBooking.discountAmount ?? 0),
         taxAmount: Number(editingBooking.taxAmount ?? 0),
+
         salesOwner:
-          editingBooking.salesOwner?._id || editingBooking.salesOwner || "",
+          editingBooking.salesOwner?._id ||
+          editingBooking.salesOwner ||
+          "",
+
         operationsOwner:
           editingBooking.operationsOwner?._id ||
           editingBooking.operationsOwner ||
           "",
+
         specialRequests: editingBooking.specialRequests || "",
         internalNotes: editingBooking.internalNotes || "",
       });
     } else if (prefillForm) {
-      /* Convert-to-booking flow: prefilled data */
+      // Convert-to-booking flow
       setForm({
         ...INITIAL_BOOKING_FORM,
         ...prefillForm,
+        nextPaymentDueDate:
+          prefillForm.nextPaymentDueDate || "",
       });
     } else {
-      setForm({ ...INITIAL_BOOKING_FORM });
+      setForm({
+        ...INITIAL_BOOKING_FORM,
+        nextPaymentDueDate: "",
+      });
     }
 
     setError("");
@@ -178,8 +207,10 @@ export default function BookingFormModal({
   useEffect(() => {
     if (!open) return;
 
-    const handleEscape = (e) => {
-      if (e.key === "Escape" && !saving) onClose();
+    const handleEscape = (event) => {
+      if (event.key === "Escape" && !saving) {
+        onClose();
+      }
     };
 
     document.addEventListener("keydown", handleEscape);
@@ -200,39 +231,76 @@ export default function BookingFormModal({
   const handleChange = (event) => {
     const { name, value, type } = event.target;
 
-    setForm((prev) => ({
-      ...prev,
-      [name]: type === "number" ? (value === "" ? "" : Number(value)) : value,
+    setForm((previous) => ({
+      ...previous,
+      [name]:
+        type === "number"
+          ? value === ""
+            ? ""
+            : Number(value)
+          : value,
     }));
+
+    if (error) {
+      setError("");
+    }
   };
 
   const handleQuotationChange = (quotationId) => {
-    const quotation = acceptedQuotations.find((q) => q._id === quotationId);
+    const quotation = acceptedQuotations.find(
+      (item) => item._id === quotationId
+    );
 
     if (!quotation) {
-      setForm((prev) => ({ ...prev, quotation: quotationId }));
+      setForm((previous) => ({
+        ...previous,
+        quotation: quotationId,
+      }));
       return;
     }
 
-    setForm((prev) => ({
-      ...prev,
+    setForm((previous) => ({
+      ...previous,
       quotation: quotationId,
+
       destination:
-        quotation.destination || quotation.enquiry?.destination || prev.destination,
+        quotation.destination ||
+        quotation.enquiry?.destination ||
+        previous.destination,
+
       travelDate:
-        formatDateInput(quotation.travelDate || quotation.enquiry?.travelDate) ||
-        prev.travelDate,
+        formatDateInput(
+          quotation.travelDate ||
+          quotation.enquiry?.travelDate
+        ) || previous.travelDate,
+
       returnDate:
-        formatDateInput(quotation.returnDate || quotation.enquiry?.returnDate) ||
-        prev.returnDate,
-      adults: Number(quotation.adults ?? prev.adults),
-      children: Number(quotation.children ?? prev.children),
-      infants: Number(quotation.infants ?? prev.infants),
-      currency: quotation.currency || prev.currency,
-      totalAmount: Number(quotation.totalAmount ?? prev.totalAmount),
-      totalCost: Number(quotation.costAmount ?? prev.totalCost),
-      discountAmount: Number(quotation.discountAmount ?? prev.discountAmount),
-      taxAmount: Number(quotation.taxAmount ?? prev.taxAmount),
+        formatDateInput(
+          quotation.returnDate ||
+          quotation.enquiry?.returnDate
+        ) || previous.returnDate,
+
+      adults: Number(quotation.adults ?? previous.adults),
+      children: Number(quotation.children ?? previous.children),
+      infants: Number(quotation.infants ?? previous.infants),
+
+      currency: quotation.currency || previous.currency,
+
+      totalAmount: Number(
+        quotation.totalAmount ?? previous.totalAmount
+      ),
+
+      totalCost: Number(
+        quotation.costAmount ?? previous.totalCost
+      ),
+
+      discountAmount: Number(
+        quotation.discountAmount ?? previous.discountAmount
+      ),
+
+      taxAmount: Number(
+        quotation.taxAmount ?? previous.taxAmount
+      ),
     }));
   };
 
@@ -252,24 +320,46 @@ export default function BookingFormModal({
         return;
       }
 
+      if (
+        form.nextPaymentDueDate &&
+        Number.isNaN(
+          new Date(
+            `${form.nextPaymentDueDate}T00:00:00`
+          ).getTime()
+        )
+      ) {
+        setError("Please select a valid payment due date.");
+        return;
+      }
+
       const payload = {
         destination: form.destination.trim(),
         departureCity: form.departureCity.trim(),
+
         travelDate: form.travelDate || null,
         returnDate: form.returnDate || null,
+
+        // Send selected payment due date to backend
+        nextPaymentDueDate:
+          form.nextPaymentDueDate || null,
+
         adults: Number(form.adults || 1),
         children: Number(form.children || 0),
         infants: Number(form.infants || 0),
+
         travelType: form.travelType || "Other",
         currency: form.currency || "INR",
+
         totalAmount: Number(form.totalAmount || 0),
         totalCost: Number(form.totalCost || 0),
         discountAmount: Number(form.discountAmount || 0),
         taxAmount: Number(form.taxAmount || 0),
+
         salesOwner: form.salesOwner || undefined,
         operationsOwner: form.operationsOwner || undefined,
-        specialRequests: form.specialRequests.trim(),
-        internalNotes: form.internalNotes.trim(),
+
+        specialRequests: (form.specialRequests || "").trim(),
+        internalNotes: (form.internalNotes || "").trim(),
       };
 
       if (!editingBooking) {
@@ -277,8 +367,12 @@ export default function BookingFormModal({
       }
 
       let response;
+
       if (editingBooking) {
-        response = await api.put(`/bookings/${editingBooking._id}`, payload);
+        response = await api.put(
+          `/bookings/${editingBooking._id}`,
+          payload
+        );
       } else {
         response = await api.post("/bookings", payload);
       }
@@ -287,10 +381,15 @@ export default function BookingFormModal({
         response?.data?.booking || null,
         editingBooking ? "updated" : "created"
       );
+
       onClose();
     } catch (err) {
       console.error("Save booking error:", err);
-      setError(err.response?.data?.message || "Failed to save booking");
+
+      setError(
+        err.response?.data?.message ||
+        "Failed to save booking"
+      );
     } finally {
       setSaving(false);
     }
@@ -300,13 +399,20 @@ export default function BookingFormModal({
      RENDER
   ===================================================== */
 
-  const profit = Number(form.totalAmount || 0) - Number(form.totalCost || 0);
+  const profit =
+    Number(form.totalAmount || 0) -
+    Number(form.totalCost || 0);
 
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget && !saving) onClose();
+      onMouseDown={(event) => {
+        if (
+          event.target === event.currentTarget &&
+          !saving
+        ) {
+          onClose();
+        }
       }}
     >
       <div className="w-full max-w-[720px] max-h-[90vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
@@ -316,12 +422,14 @@ export default function BookingFormModal({
             <h2 className="text-base font-semibold text-gray-900">
               {editingBooking ? "Edit Booking" : "New Booking"}
             </h2>
+
             <p className="text-xs text-gray-500 mt-0.5">
               {editingBooking
                 ? "Update booking details"
                 : "Create a booking from an accepted quotation"}
             </p>
           </div>
+
           <button
             type="button"
             onClick={onClose}
@@ -337,7 +445,10 @@ export default function BookingFormModal({
           <div className="px-5 py-4 space-y-5">
             {error && (
               <div className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 text-xs px-3 py-2 rounded-lg">
-                <FiAlertCircle size={15} className="mt-0.5 shrink-0" />
+                <FiAlertCircle
+                  size={15}
+                  className="mt-0.5 shrink-0"
+                />
                 <span>{error}</span>
               </div>
             )}
@@ -345,7 +456,12 @@ export default function BookingFormModal({
             {/* QUOTATION */}
             <section>
               <SectionHeading
-                icon={<FiCheck size={16} className="text-brand-blue" />}
+                icon={
+                  <FiCheck
+                    size={16}
+                    className="text-brand-blue"
+                  />
+                }
                 title="Quotation"
               />
 
@@ -354,7 +470,9 @@ export default function BookingFormModal({
                   <Select
                     name="quotation"
                     value={form.quotation}
-                    onChange={(e) => handleQuotationChange(e.target.value)}
+                    onChange={(event) =>
+                      handleQuotationChange(event.target.value)
+                    }
                     disabled={loadingQuotations || saving}
                     required
                   >
@@ -363,26 +481,34 @@ export default function BookingFormModal({
                         ? "Loading accepted quotations..."
                         : "Select accepted quotation"}
                     </option>
-                    {acceptedQuotations.map((q) => (
-                      <option key={q._id} value={q._id}>
-                        {getQuotationLabel(q)} —{" "}
-                        {q.title || q.destination || "Quotation"}
+
+                    {acceptedQuotations.map((quotation) => (
+                      <option
+                        key={quotation._id}
+                        value={quotation._id}
+                      >
+                        {getQuotationLabel(quotation)} —{" "}
+                        {quotation.title ||
+                          quotation.destination ||
+                          "Quotation"}
                       </option>
                     ))}
                   </Select>
 
-                  {acceptedQuotations.length === 0 && !loadingQuotations && (
-                    <p className="text-[11px] text-brand-gold-dark mt-1.5">
-                      No accepted quotations available. Please accept a
-                      quotation first.
-                    </p>
-                  )}
+                  {acceptedQuotations.length === 0 &&
+                    !loadingQuotations && (
+                      <p className="text-[11px] text-brand-gold-dark mt-1.5">
+                        No accepted quotations available.
+                        Please accept a quotation first.
+                      </p>
+                    )}
                 </Field>
               ) : (
                 <div className="bg-brand-blue-50 border border-brand-blue/20 rounded-lg px-3 py-2.5">
                   <p className="text-[11px] font-semibold text-brand-blue-dark uppercase tracking-wide">
                     Quotation
                   </p>
+
                   <p className="text-sm font-semibold text-brand-blue-dark mt-0.5">
                     {getQuotationLabel(editingBooking.quotation)}
                   </p>
@@ -393,7 +519,12 @@ export default function BookingFormModal({
             {/* TRIP DETAILS */}
             <section>
               <SectionHeading
-                icon={<FiMapPin size={16} className="text-brand-blue" />}
+                icon={
+                  <FiMapPin
+                    size={16}
+                    className="text-brand-blue"
+                  />
+                }
                 title="Trip Details"
               />
 
@@ -466,7 +597,12 @@ export default function BookingFormModal({
             {/* TRAVELLERS */}
             <section>
               <SectionHeading
-                icon={<FiUsers size={16} className="text-brand-blue" />}
+                icon={
+                  <FiUsers
+                    size={16}
+                    className="text-brand-blue"
+                  />
+                }
                 title="Travellers"
               />
 
@@ -480,6 +616,7 @@ export default function BookingFormModal({
                     onChange={handleChange}
                   />
                 </Field>
+
                 <Field label="Children">
                   <Input
                     type="number"
@@ -489,6 +626,7 @@ export default function BookingFormModal({
                     onChange={handleChange}
                   />
                 </Field>
+
                 <Field label="Infants">
                   <Input
                     type="number"
@@ -504,7 +642,12 @@ export default function BookingFormModal({
             {/* FINANCIALS */}
             <section>
               <SectionHeading
-                icon={<FiDollarSign size={16} className="text-brand-blue" />}
+                icon={
+                  <FiDollarSign
+                    size={16}
+                    className="text-brand-blue"
+                  />
+                }
                 title="Financials"
               />
 
@@ -518,6 +661,7 @@ export default function BookingFormModal({
                     onChange={handleChange}
                   />
                 </Field>
+
                 <Field label="Total Cost">
                   <Input
                     type="number"
@@ -527,6 +671,24 @@ export default function BookingFormModal({
                     onChange={handleChange}
                   />
                 </Field>
+
+                {/* NEW: NEXT PAYMENT DUE DATE */}
+                <div className="col-span-2">
+                  <Field label="Next Payment Due Date">
+                    <Input
+                      type="date"
+                      name="nextPaymentDueDate"
+                      value={form.nextPaymentDueDate || ""}
+                      onChange={handleChange}
+                    />
+
+                    <p className="mt-1 text-[11px] text-gray-400">
+                      Set the next date by which the customer
+                      should make a payment.
+                    </p>
+                  </Field>
+                </div>
+
                 <Field label="Discount">
                   <Input
                     type="number"
@@ -536,6 +698,7 @@ export default function BookingFormModal({
                     onChange={handleChange}
                   />
                 </Field>
+
                 <Field label="Tax">
                   <Input
                     type="number"
@@ -552,16 +715,25 @@ export default function BookingFormModal({
                   <p className="text-[11px] text-brand-blue-dark">
                     Estimated profit
                   </p>
+
                   <p className="text-sm font-semibold text-brand-blue-dark mt-0.5">
-                    {formatCurrency(profit, form.currency || "INR")}
+                    {formatCurrency(
+                      profit,
+                      form.currency || "INR"
+                    )}
                   </p>
                 </div>
+
                 <div className="bg-brand-gold-50 border border-brand-gold/30 rounded-lg px-3 py-2.5">
                   <p className="text-[11px] text-brand-gold-dark">
                     Initial amount due
                   </p>
+
                   <p className="text-sm font-semibold text-brand-gold-dark mt-0.5">
-                    {formatCurrency(form.totalAmount, form.currency || "INR")}
+                    {formatCurrency(
+                      form.totalAmount,
+                      form.currency || "INR"
+                    )}
                   </p>
                 </div>
               </div>
@@ -570,7 +742,12 @@ export default function BookingFormModal({
             {/* OWNERS */}
             <section>
               <SectionHeading
-                icon={<FiUser size={16} className="text-brand-blue" />}
+                icon={
+                  <FiUser
+                    size={16}
+                    className="text-brand-blue"
+                  />
+                }
                 title="Ownership"
               />
 
@@ -582,13 +759,19 @@ export default function BookingFormModal({
                     onChange={handleChange}
                   >
                     <option value="">Auto (You)</option>
+
                     {users
-                      .filter((u) =>
-                        ["admin", "manager", "sales"].includes(u.role)
+                      .filter((user) =>
+                        ["admin", "manager", "sales"].includes(
+                          user.role
+                        )
                       )
-                      .map((u) => (
-                        <option key={u._id} value={u._id}>
-                          {u.name || u.email} ({u.role})
+                      .map((user) => (
+                        <option
+                          key={user._id}
+                          value={user._id}
+                        >
+                          {user.name || user.email} ({user.role})
                         </option>
                       ))}
                   </Select>
@@ -601,11 +784,15 @@ export default function BookingFormModal({
                     onChange={handleChange}
                   >
                     <option value="">Unassigned</option>
+
                     {users
-                      .filter((u) => u.role === "operations")
-                      .map((u) => (
-                        <option key={u._id} value={u._id}>
-                          {u.name || u.email}
+                      .filter((user) => user.role === "operations")
+                      .map((user) => (
+                        <option
+                          key={user._id}
+                          value={user._id}
+                        >
+                          {user.name || user.email}
                         </option>
                       ))}
                   </Select>

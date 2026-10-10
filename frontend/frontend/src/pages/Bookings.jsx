@@ -549,7 +549,16 @@ function Bookings() {
                   <tr
                     key={booking._id}
                     onClick={() => handleView(booking)}
-                    className="hover:bg-brand-blue-50/40 transition-colors cursor-pointer"
+                  
+className={`transition-colors cursor-pointer ${
+  Number(booking.amountDue || 0) > 0 &&
+  !["cancelled", "canceled", "refunded"].includes(
+    String(booking.status || "").toLowerCase()
+  )
+    ? "bg-amber-50 hover:bg-amber-100 border-l-4 border-l-amber-400"
+    : "hover:bg-brand-blue-50/40"
+}`}
+
                   >
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">

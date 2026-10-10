@@ -1,3 +1,5 @@
+
+
 const mongoose = require("mongoose");
 
 // ======================================================
@@ -6,9 +8,7 @@ const mongoose = require("mongoose");
 // ======================================================
 
 const generateBookingNumber = () => {
-  const characters =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-
+  const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   let code = "";
 
   for (let i = 0; i < 6; i++) {
@@ -26,10 +26,7 @@ const generateBookingNumber = () => {
 
 const bookingSchema = new mongoose.Schema(
   {
-    // ==================================================
     // BOOKING NUMBER
-    // Example: BK-FC2FD8
-    // ==================================================
 
     bookingNumber: {
       type: String,
@@ -39,18 +36,14 @@ const bookingSchema = new mongoose.Schema(
       uppercase: true,
     },
 
-    // ==================================================
     // BOOKING DATE
-    // ==================================================
 
     bookingDate: {
       type: Date,
       default: Date.now,
     },
 
-    // ==================================================
     // REFERENCES
-    // ==================================================
 
     quotation: {
       type: mongoose.Schema.Types.ObjectId,
@@ -95,13 +88,11 @@ const bookingSchema = new mongoose.Schema(
       },
     ],
 
-    // ==================================================
     // TRAVEL DETAILS
-    // ==================================================
 
     destination: {
       type: String,
-      required: ["Destination is required"],
+      required: [true, "Destination is required"],
       trim: true,
     },
 
@@ -112,7 +103,7 @@ const bookingSchema = new mongoose.Schema(
 
     travelDate: {
       type: Date,
-      required: ["Travel date is required"],
+      required: [true, "Travel date is required"],
     },
 
     returnDate: {
@@ -155,9 +146,7 @@ const bookingSchema = new mongoose.Schema(
       default: "Other",
     },
 
-    // ==================================================
     // CURRENCY
-    // ==================================================
 
     currency: {
       type: String,
@@ -166,9 +155,7 @@ const bookingSchema = new mongoose.Schema(
       uppercase: true,
     },
 
-    // ==================================================
     // BOOKING STATUS
-    // ==================================================
 
     status: {
       type: String,
@@ -185,9 +172,7 @@ const bookingSchema = new mongoose.Schema(
       default: "Pending",
     },
 
-    // ==================================================
     // CONFIRMATION STATUS
-    // ==================================================
 
     confirmationStatus: {
       hotel: {
@@ -234,9 +219,7 @@ const bookingSchema = new mongoose.Schema(
       },
     },
 
-    // ==================================================
     // FINANCIAL DETAILS
-    // ==================================================
 
     totalAmount: {
       type: Number,
@@ -280,9 +263,7 @@ const bookingSchema = new mongoose.Schema(
       min: 0,
     },
 
-    // ==================================================
     // PAYMENT STATUS
-    // ==================================================
 
     paymentStatus: {
       type: String,
@@ -296,14 +277,13 @@ const bookingSchema = new mongoose.Schema(
       default: "Pending",
     },
 
+    // Next payment reminder date
     nextPaymentDueDate: {
       type: Date,
       default: null,
     },
 
-    // ==================================================
     // OWNERS
-    // ==================================================
 
     salesOwner: {
       type: mongoose.Schema.Types.ObjectId,
@@ -317,9 +297,7 @@ const bookingSchema = new mongoose.Schema(
       default: null,
     },
 
-    // ==================================================
     // CANCELLATION
-    // ==================================================
 
     cancellationReason: {
       type: String,
@@ -338,9 +316,7 @@ const bookingSchema = new mongoose.Schema(
       default: null,
     },
 
-    // ==================================================
     // REFUND
-    // ==================================================
 
     refundAmount: {
       type: Number,
@@ -364,9 +340,7 @@ const bookingSchema = new mongoose.Schema(
       default: null,
     },
 
-    // ==================================================
     // NOTES
-    // ==================================================
 
     specialRequests: {
       type: String,
@@ -380,9 +354,7 @@ const bookingSchema = new mongoose.Schema(
       maxlength: 5000,
     },
 
-    // ==================================================
     // CREATED BY
-    // ==================================================
 
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -397,50 +369,38 @@ const bookingSchema = new mongoose.Schema(
 
 // ======================================================
 // AUTO GENERATE BOOKING NUMBER
-// FORMAT: BK-FC2FD8
+// Mongoose promise-style middleware: no next() callback
 // ======================================================
 
-bookingSchema.pre("validate", async function (next) {
-  try {
-    // Existing booking number ko overwrite mat karo
-    if (this.bookingNumber) {
-      this.bookingNumber =
-        String(this.bookingNumber)
-          .trim()
-          .toUpperCase();
+bookingSchema.pre("validate", async function () {
+  // Existing booking number ko overwrite mat karo
+  if (this.bookingNumber) {
+    this.bookingNumber = String(this.bookingNumber)
+      .trim()
+      .toUpperCase();
 
-      return next();
-    }
-
-    let bookingNumber;
-    let exists = true;
-
-    while (exists) {
-      bookingNumber =
-        generateBookingNumber();
-
-      exists =
-        await mongoose
-          .model("Booking")
-          .exists({
-            bookingNumber,
-          });
-    }
-
-    this.bookingNumber =
-      bookingNumber;
-
-    next();
-  } catch (error) {
-    next(error);
+    return;
   }
+
+  let bookingNumber;
+  let exists = true;
+
+  while (exists) {
+    bookingNumber = generateBookingNumber();
+
+    exists = await mongoose
+      .model("Booking")
+      .exists({ bookingNumber });
+  }
+
+  this.bookingNumber = bookingNumber;
 });
 
 // ======================================================
 // PAYMENT CALCULATION
 // ======================================================
 
-bookingSchema.pre("save", function (next) {
+bookingSchema.pre("save", function () {
   const total = Math.max(
     0,
     Number(this.totalAmount) || 0
@@ -454,10 +414,7 @@ bookingSchema.pre("save", function (next) {
   this.totalAmount = total;
   this.amountPaid = paid;
 
-  this.amountDue = Math.max(
-    0,
-    total - paid
-  );
+  this.amountDue = Math.max(0, total - paid);
 
   if (paid <= 0) {
     this.paymentStatus = "Pending";
@@ -466,69 +423,30 @@ bookingSchema.pre("save", function (next) {
   } else {
     this.paymentStatus = "Paid";
   }
-
-  next();
 });
 
 // ======================================================
 // INDEXES
 // ======================================================
 
-bookingSchema.index({
-  customer: 1,
-});
-
-bookingSchema.index({
-  company: 1,
-});
-
-bookingSchema.index({
-  quotation: 1,
-});
-
-bookingSchema.index({
-  enquiry: 1,
-});
-
-bookingSchema.index({
-  trip: 1,
-});
-
-bookingSchema.index({
-  lead: 1,
-});
-
-bookingSchema.index({
-  travellers: 1,
-});
-
-bookingSchema.index({
-  travelDate: 1,
-});
-
-bookingSchema.index({
-  status: 1,
-});
-
-bookingSchema.index({
-  paymentStatus: 1,
-});
-
-bookingSchema.index({
-  salesOwner: 1,
-});
-
-bookingSchema.index({
-  operationsOwner: 1,
-});
-
-bookingSchema.index({
-  createdAt: -1,
-});
+bookingSchema.index({ customer: 1 });
+bookingSchema.index({ company: 1 });
+bookingSchema.index({ quotation: 1 });
+bookingSchema.index({ enquiry: 1 });
+bookingSchema.index({ trip: 1 });
+bookingSchema.index({ lead: 1 });
+bookingSchema.index({ travellers: 1 });
+bookingSchema.index({ travelDate: 1 });
+bookingSchema.index({ status: 1 });
+bookingSchema.index({ paymentStatus: 1 });
+bookingSchema.index({ salesOwner: 1 });
+bookingSchema.index({ operationsOwner: 1 });
+bookingSchema.index({ nextPaymentDueDate: 1 });
+bookingSchema.index({ createdAt: -1 });
 
 // ======================================================
 // EXPORT
 // ======================================================
 
-module.exports =
-  mongoose.model("Booking", bookingSchema);
+module.exports = mongoose.model("Booking", bookingSchema);
+

@@ -1081,7 +1081,7 @@ export default function QuotationForm({
             </Section>
 
             {/* QUOTATION DETAILS */}
-            <Section
+            {/* <Section
               icon={<FiCheck size={15} />}
               iconColor="emerald"
               title="Quotation Details"
@@ -1138,7 +1138,7 @@ export default function QuotationForm({
                   />
                 </div>
               </div>
-            </Section>
+            </Section> */}
           </div>
 
           {/* FOOTER */}

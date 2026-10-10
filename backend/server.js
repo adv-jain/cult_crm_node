@@ -35,7 +35,9 @@ const customerRoutes = require("./routes/customerRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const supplierRoutes = require("./routes/supplierRoutes");
 dotenv.config();
-
+const {
+  startPaymentReminderScheduler,
+} = require("./services/paymentReminderScheduler");
 const app = express();
 
 // ======================================================
@@ -131,11 +133,24 @@ app.use((err, req, res, next) => {
 });
 
 // ======================================================
-// SERVER
+// SERVER + DATABASE + PAYMENT REMINDER SCHEDULER
 // ======================================================
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+const startServer = async () => {
+  try {
+    await connectDB();
+
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+
+      startPaymentReminderScheduler();
+    });
+  } catch (error) {
+    console.error("Server startup failed:", error.message);
+    process.exit(1);
+  }
+};
+
+startServer();

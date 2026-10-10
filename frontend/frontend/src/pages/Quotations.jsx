@@ -1,4 +1,3 @@
-
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -18,6 +17,7 @@ import {
   FiUsers,
   FiX,
   FiBriefcase,
+  FiMoreVertical,
 } from "react-icons/fi";
 
 import { useLocation, useNavigate } from "react-router-dom";
@@ -88,30 +88,12 @@ function LoadingSpinner({ small = false }) {
 ========================================================= */
 
 const PIPELINE_STAGES = [
-  {
-    key: "Draft",
-    label: "Draft",
-  },
-  {
-    key: "Prepared",
-    label: "Prepared",
-  },
-  {
-    key: "Sent",
-    label: "Sent",
-  },
-  {
-    key: "Viewed",
-    label: "Viewed",
-  },
-  {
-    key: "Negotiation",
-    label: "Negotiation",
-  },
-  {
-    key: "Accepted",
-    label: "Accepted",
-  },
+  { key: "Draft", label: "Draft" },
+  { key: "Prepared", label: "Prepared" },
+  { key: "Sent", label: "Sent" },
+  { key: "Viewed", label: "Viewed" },
+  { key: "Negotiation", label: "Negotiation" },
+  { key: "Accepted", label: "Accepted" },
 ];
 
 /* =========================================================
@@ -216,6 +198,13 @@ export default function Quotations() {
     useState(null);
 
   /* =======================================================
+     INLINE STATUS UPDATE + ROW MENU
+  ======================================================= */
+
+  const [statusUpdating, setStatusUpdating] = useState(null);
+  const [openMenuId, setOpenMenuId] = useState(null);
+
+  /* =======================================================
      AUTO HIDE SUCCESS
   ======================================================= */
 
@@ -257,6 +246,26 @@ export default function Quotations() {
   }, []);
 
   /* =======================================================
+     CLOSE ROW MENU ON OUTSIDE CLICK
+  ======================================================= */
+
+  useEffect(() => {
+    const handleOutside = (event) => {
+      if (!event.target.closest("[data-row-menu]")) {
+        setOpenMenuId(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutside);
+
+    return () =>
+      document.removeEventListener(
+        "mousedown",
+        handleOutside
+      );
+  }, []);
+
+  /* =======================================================
      FETCH QUOTATIONS
   ======================================================= */
 
@@ -275,10 +284,7 @@ export default function Quotations() {
       }
 
       if (search.trim()) {
-        params.set(
-          "search",
-          search.trim()
-        );
+        params.set("search", search.trim());
       }
 
       const response = await api.get(
@@ -300,22 +306,11 @@ export default function Quotations() {
           ) || 0,
 
         page:
-          Number(
-            data?.pagination?.page ??
-              page
-          ) || page,
+          Number(data?.pagination?.page ?? page) || page,
 
-        pages:
-          Number(
-            data?.pagination?.pages ??
-              1
-          ) || 1,
+        pages: Number(data?.pagination?.pages ?? 1) || 1,
 
-        limit:
-          Number(
-            data?.pagination?.limit ??
-              10
-          ) || 10,
+        limit: Number(data?.pagination?.limit ?? 10) || 10,
       });
     } catch (err) {
       setError(
@@ -342,19 +337,8 @@ export default function Quotations() {
       params.set("limit", "1000");
 
       if (search.trim()) {
-        params.set(
-          "search",
-          search.trim()
-        );
+        params.set("search", search.trim());
       }
-
-      /*
-        Pipeline intentionally does not send
-        the status filter here.
-
-        Otherwise a selected status would hide
-        the other pipeline columns.
-      */
 
       const response = await api.get(
         `/quotations?${params.toString()}`
@@ -388,13 +372,9 @@ export default function Quotations() {
     try {
       setEnquiriesLoading(true);
 
-      const response = await api.get(
-        "/enquiries?limit=100"
-      );
+      const response = await api.get("/enquiries?limit=100");
 
-      setEnquiries(
-        getList(response)
-      );
+      setEnquiries(getList(response));
     } catch (err) {
       setError(
         err.response?.data?.message ||
@@ -415,12 +395,7 @@ export default function Quotations() {
     } else {
       fetchQuotations();
     }
-  }, [
-    viewMode,
-    page,
-    status,
-    search,
-  ]);
+  }, [viewMode, page, status, search]);
 
   /* =======================================================
      INITIAL ENQUIRY FETCH
@@ -450,16 +425,12 @@ export default function Quotations() {
      CREATE
   ======================================================= */
 
-  const openCreate = (
-    selectedEnquiry = null
-  ) => {
+  const openCreate = (selectedEnquiry = null) => {
     setEditingQuotation(null);
 
     if (selectedEnquiry) {
       setForm({
-        ...enquiryToForm(
-          selectedEnquiry
-        ),
+        ...enquiryToForm(selectedEnquiry),
         status: "Draft",
       });
     } else {
@@ -479,44 +450,26 @@ export default function Quotations() {
 
   useEffect(() => {
     const selectedEnquiry =
-      location.state
-        ?.createQuotationFromEnquiry;
+      location.state?.createQuotationFromEnquiry;
 
     if (!selectedEnquiry) return;
 
-    openCreate(
-      selectedEnquiry
-    );
+    openCreate(selectedEnquiry);
 
-    navigate(
-      location.pathname,
-      {
-        replace: true,
-        state: {},
-      }
-    );
-  }, [
-    location.state,
-    location.pathname,
-    navigate,
-  ]);
+    navigate(location.pathname, {
+      replace: true,
+      state: {},
+    });
+  }, [location.state, location.pathname, navigate]);
 
   /* =======================================================
      EDIT
   ======================================================= */
 
-  const openEdit = (
-    quotation
-  ) => {
-    setEditingQuotation(
-      quotation
-    );
+  const openEdit = (quotation) => {
+    setEditingQuotation(quotation);
 
-    setForm(
-      quotationToForm(
-        quotation
-      )
-    );
+    setForm(quotationToForm(quotation));
 
     setFormError("");
     setFormOpen(true);
@@ -538,33 +491,23 @@ export default function Quotations() {
      SUBMIT
   ======================================================= */
 
-  const handleSubmit = async (
-    event
-  ) => {
-    if (
-      event?.preventDefault
-    ) {
+  const handleSubmit = async (event) => {
+    if (event?.preventDefault) {
       event.preventDefault();
     }
 
     if (!form.title?.trim()) {
-      setFormError(
-        "Quotation title is required."
-      );
+      setFormError("Quotation title is required.");
       return;
     }
 
     if (!form.enquiry) {
-      setFormError(
-        "Please select an enquiry."
-      );
+      setFormError("Please select an enquiry.");
       return;
     }
 
     if (!form.destination?.trim()) {
-      setFormError(
-        "Destination is required."
-      );
+      setFormError("Destination is required.");
       return;
     }
 
@@ -572,14 +515,11 @@ export default function Quotations() {
       setSaving(true);
       setFormError("");
 
-      const payload =
-        buildPayload(form);
+      const payload = buildPayload(form);
 
-      payload.status =
-        editingQuotation
-          ? form.status ||
-            "Draft"
-          : "Draft";
+      payload.status = editingQuotation
+        ? form.status || "Draft"
+        : "Draft";
 
       if (editingQuotation) {
         await api.put(
@@ -591,10 +531,7 @@ export default function Quotations() {
           "Quotation updated successfully."
         );
       } else {
-        await api.post(
-          "/quotations",
-          payload
-        );
+        await api.post("/quotations", payload);
 
         setSuccessMessage(
           "Quotation created successfully."
@@ -605,18 +542,13 @@ export default function Quotations() {
       setEditingQuotation(null);
       setFormError("");
 
-      if (
-        viewMode === "pipeline"
-      ) {
+      if (viewMode === "pipeline") {
         await fetchPipelineQuotations();
       } else {
         await fetchQuotations();
       }
     } catch (err) {
-      console.error(
-        "QUOTATION SAVE ERROR:",
-        err
-      );
+      console.error("QUOTATION SAVE ERROR:", err);
 
       setFormError(
         err.response?.data?.message ||
@@ -631,39 +563,29 @@ export default function Quotations() {
      VIEW
   ======================================================= */
 
-  const handleView = async (
-    quotation
-  ) => {
+  const handleView = async (quotation) => {
     try {
-      setActionLoading(
-        `view-${quotation._id}`
-      );
+      setActionLoading(`view-${quotation._id}`);
 
       setError("");
 
-      const response =
-        await api.get(
-          `/quotations/${quotation._id}`
-        );
+      const response = await api.get(
+        `/quotations/${quotation._id}`
+      );
 
       const fullQuotation =
-        response.data
-          ?.quotation ||
+        response.data?.quotation ||
         response.data?.data ||
         response.data;
 
-      setViewQuotation(
-        fullQuotation
-      );
+      setViewQuotation(fullQuotation);
     } catch (err) {
       setError(
         err.response?.data?.message ||
           "Failed to open quotation."
       );
     } finally {
-      setActionLoading(
-        null
-      );
+      setActionLoading(null);
     }
   };
 
@@ -671,18 +593,57 @@ export default function Quotations() {
      CONVERT TO BOOKING
   ======================================================= */
 
-  const handleConvertToBooking = (
-    quotation
-  ) => {
-    navigate(
-      "/bookings",
-      {
-        state: {
-          createFromQuotation:
-            quotation,
-        },
-      }
-    );
+  const handleConvertToBooking = (quotation) => {
+    navigate("/bookings", {
+      state: {
+        createFromQuotation: quotation,
+      },
+    });
+  };
+
+  /* =======================================================
+     INLINE STATUS CHANGE
+  ======================================================= */
+
+  const handleStatusChange = async (quotation, newStatus) => {
+    if (!quotation || !newStatus) return;
+
+    if (
+      String(quotation.status || "Draft")
+        .trim()
+        .toLowerCase() ===
+      String(newStatus).trim().toLowerCase()
+    ) {
+      return;
+    }
+
+    try {
+      setStatusUpdating(quotation._id);
+      setError("");
+
+      await api.put(`/quotations/${quotation._id}`, {
+        status: newStatus,
+      });
+
+      setQuotations((prev) =>
+        prev.map((q) =>
+          String(q._id) === String(quotation._id)
+            ? { ...q, status: newStatus }
+            : q
+        )
+      );
+
+      setSuccessMessage(`Status changed to ${newStatus}.`);
+    } catch (err) {
+      console.error("STATUS UPDATE ERROR:", err);
+
+      setError(
+        err.response?.data?.message ||
+          "Failed to update status."
+      );
+    } finally {
+      setStatusUpdating(null);
+    }
   };
 
   /* =======================================================
@@ -695,17 +656,13 @@ export default function Quotations() {
     if (!isAdmin) {
       setConfirmDelete(null);
 
-      setError(
-        "Only admins can delete quotations."
-      );
+      setError("Only admins can delete quotations.");
 
       return;
     }
 
     try {
-      setActionLoading(
-        `delete-${confirmDelete._id}`
-      );
+      setActionLoading(`delete-${confirmDelete._id}`);
 
       setError("");
 
@@ -719,17 +676,9 @@ export default function Quotations() {
         "Quotation deleted successfully."
       );
 
-      if (
-        quotations.length === 1 &&
-        page > 1
-      ) {
-        setPage(
-          (previous) =>
-            previous - 1
-        );
-      } else if (
-        viewMode === "pipeline"
-      ) {
+      if (quotations.length === 1 && page > 1) {
+        setPage((previous) => previous - 1);
+      } else if (viewMode === "pipeline") {
         await fetchPipelineQuotations();
       } else {
         await fetchQuotations();
@@ -740,9 +689,7 @@ export default function Quotations() {
           "Failed to delete quotation."
       );
     } finally {
-      setActionLoading(
-        null
-      );
+      setActionLoading(null);
     }
   };
 
@@ -750,80 +697,43 @@ export default function Quotations() {
      PIPELINE DROP
   ======================================================= */
 
-  const handlePipelineDrop = async (
-    newStatus
-  ) => {
+  const handlePipelineDrop = async (newStatus) => {
     if (!draggedQuotation) {
       return;
     }
 
-    const quotation =
-      draggedQuotation;
+    const quotation = draggedQuotation;
 
-    if (
-      quotation.status ===
-      newStatus
-    ) {
-      setDraggedQuotation(
-        null
-      );
+    if (quotation.status === newStatus) {
+      setDraggedQuotation(null);
 
       return;
     }
 
-    /*
-      Accepted should NOT be changed
-      by drag & drop.
-
-      Existing Accept action should
-      be used so backend side-effects
-      remain consistent.
-    */
-
-    if (
-      newStatus === "Accepted"
-    ) {
+    if (newStatus === "Accepted") {
       setSuccessMessage(
         "Use the Accept action to accept this quotation."
       );
 
-      setDraggedQuotation(
-        null
-      );
+      setDraggedQuotation(null);
 
       return;
     }
 
-    /*
-      Converted is intentionally
-      not a pipeline stage.
-    */
-
-    if (
-      newStatus ===
-      "Converted"
-    ) {
-      setDraggedQuotation(
-        null
-      );
+    if (newStatus === "Converted") {
+      setDraggedQuotation(null);
 
       return;
     }
 
     try {
-      setPipelineLoading(
-        true
-      );
+      setPipelineLoading(true);
 
       setError("");
 
-      await api.put(
-        `/quotations/${quotation._id}`,
-        {
-          status:
-            newStatus,
-        }
-      );
+      await api.put(`/quotations/${quotation._id}`, {
+        status: newStatus,
+      });
 
       setSuccessMessage(
         `Quotation moved to ${newStatus}.`
@@ -836,13 +746,9 @@ export default function Quotations() {
           "Failed to update quotation status."
       );
     } finally {
-      setPipelineLoading(
-        false
-      );
+      setPipelineLoading(false);
 
-      setDraggedQuotation(
-        null
-      );
+      setDraggedQuotation(null);
     }
   };
 
@@ -850,58 +756,30 @@ export default function Quotations() {
      PIPELINE CARD
   ======================================================= */
 
-  const renderPipelineCard = (
-    quotation
-  ) => {
-    const customerName =
-      getName(
-        quotation.customer ||
-          quotation.enquiry
-            ?.customer,
-        "No Customer"
-      );
+  const renderPipelineCard = (quotation) => {
+    const customerName = getName(
+      quotation.customer || quotation.enquiry?.customer,
+      "No Customer"
+    );
 
     const totalTravellers =
-      Number(
-        quotation.adults || 0
-      ) +
-      Number(
-        quotation.children ||
-          0
-      ) +
-      Number(
-        quotation.infants ||
-          0
-      );
+      Number(quotation.adults || 0) +
+      Number(quotation.children || 0) +
+      Number(quotation.infants || 0);
 
     const quotationNumber =
       quotation.quotationNumber ||
-      `Q-${String(
-        quotation._id
-      ).slice(-6)}`;
+      `Q-${String(quotation._id).slice(-6)}`;
 
     return (
       <div
         key={quotation._id}
         draggable
-        onDragStart={() =>
-          setDraggedQuotation(
-            quotation
-          )
-        }
-        onDragEnd={() =>
-          setDraggedQuotation(
-            null
-          )
-        }
-        onClick={() =>
-          handleView(
-            quotation
-          )
-        }
+        onDragStart={() => setDraggedQuotation(quotation)}
+        onDragEnd={() => setDraggedQuotation(null)}
+        onClick={() => handleView(quotation)}
         className="group mb-3 cursor-grab rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md active:cursor-grabbing"
       >
-        {/* TOP */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-blue">
@@ -909,8 +787,7 @@ export default function Quotations() {
             </p>
 
             <h3 className="mt-1 text-sm font-semibold text-gray-800 truncate">
-              {quotation.title ||
-                "Untitled Quotation"}
+              {quotation.title || "Untitled Quotation"}
             </h3>
           </div>
 
@@ -920,57 +797,34 @@ export default function Quotations() {
           />
         </div>
 
-        {/* CUSTOMER */}
         <div className="mt-4 flex items-center gap-2 text-xs text-gray-600">
-          <FiUsers
-            size={13}
-            className="text-gray-400"
-          />
+          <FiUsers size={13} className="text-gray-400" />
+
+          <span className="truncate">{customerName}</span>
+        </div>
+
+        <div className="mt-2 flex items-center gap-2 text-xs text-gray-600">
+          <FiMapPin size={13} className="text-gray-400" />
 
           <span className="truncate">
-            {customerName}
+            {quotation.destination || "No destination"}
           </span>
         </div>
 
-        {/* DESTINATION */}
         <div className="mt-2 flex items-center gap-2 text-xs text-gray-600">
-          <FiMapPin
-            size={13}
-            className="text-gray-400"
-          />
+          <FiCalendar size={13} className="text-gray-400" />
 
-          <span className="truncate">
-            {quotation.destination ||
-              "No destination"}
-          </span>
+          <span>{formatDate(quotation.travelDate)}</span>
         </div>
 
-        {/* DATE */}
-        <div className="mt-2 flex items-center gap-2 text-xs text-gray-600">
-          <FiCalendar
-            size={13}
-            className="text-gray-400"
-          />
-
-          <span>
-            {formatDate(
-              quotation.travelDate
-            )}
-          </span>
-        </div>
-
-        {/* FOOTER */}
         <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
           <div>
-            <p className="text-[10px] text-gray-400">
-              Total
-            </p>
+            <p className="text-[10px] text-gray-400">Total</p>
 
             <p className="text-sm font-bold text-gray-800">
               {formatCurrency(
                 quotation.totalAmount,
-                quotation.currency ||
-                  "INR"
+                quotation.currency || "INR"
               )}
             </p>
           </div>
@@ -1000,15 +854,11 @@ export default function Quotations() {
     setShowFilters(false);
   };
 
-  const activeFilterCount =
-    [
-      search,
-      status,
-    ].filter(Boolean).length;
+  const activeFilterCount = [search, status].filter(
+    Boolean
+  ).length;
 
-  const dropdownFilterCount =
-    [status].filter(Boolean)
-      .length;
+  const dropdownFilterCount = [status].filter(Boolean).length;
 
   /* =======================================================
      PAGINATION
@@ -1016,22 +866,13 @@ export default function Quotations() {
 
   const handlePreviousPage = () => {
     if (page > 1) {
-      setPage(
-        (previous) =>
-          previous - 1
-      );
+      setPage((previous) => previous - 1);
     }
   };
 
   const handleNextPage = () => {
-    if (
-      page <
-      pagination.pages
-    ) {
-      setPage(
-        (previous) =>
-          previous + 1
-      );
+    if (page < pagination.pages) {
+      setPage((previous) => previous + 1);
     }
   };
 
@@ -1041,14 +882,10 @@ export default function Quotations() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-5 max-w-[1600px] mx-auto">
-      {/* ===================================================
-          HEADER
-      =================================================== */}
-
+      {/* HEADER */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
           {/* SEARCH */}
-
           <div className="relative w-full sm:w-64">
             <FiSearch
               className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
@@ -1060,10 +897,7 @@ export default function Quotations() {
               placeholder="Search quotations..."
               value={search}
               onChange={(event) => {
-                setSearch(
-                  event.target.value
-                );
-
+                setSearch(event.target.value);
                 setPage(1);
               }}
               className="w-full pl-9 pr-8 h-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:border-brand-blue transition"
@@ -1084,38 +918,25 @@ export default function Quotations() {
           </div>
 
           {/* FILTER */}
-
-          <div
-            className="relative"
-            ref={filterRef}
-          >
+          <div className="relative" ref={filterRef}>
             <button
               type="button"
               onClick={() =>
-                setShowFilters(
-                  (previous) =>
-                    !previous
-                )
+                setShowFilters((previous) => !previous)
               }
               className={`inline-flex items-center justify-center gap-1.5 px-3 h-9 text-sm font-medium rounded-lg border transition whitespace-nowrap ${
-                dropdownFilterCount >
-                0
+                dropdownFilterCount > 0
                   ? "bg-brand-blue-50 text-brand-blue-dark border-brand-blue/30"
                   : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
               }`}
             >
               <FiFilter size={14} />
 
-              <span className="hidden sm:inline">
-                Filters
-              </span>
+              <span className="hidden sm:inline">Filters</span>
 
-              {dropdownFilterCount >
-                0 && (
+              {dropdownFilterCount > 0 && (
                 <span className="inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[10px] font-semibold bg-brand-blue text-white rounded-full">
-                  {
-                    dropdownFilterCount
-                  }
+                  {dropdownFilterCount}
                 </span>
               )}
             </button>
@@ -1127,13 +948,10 @@ export default function Quotations() {
                     Filters
                   </h3>
 
-                  {dropdownFilterCount >
-                    0 && (
+                  {dropdownFilterCount > 0 && (
                     <button
                       type="button"
-                      onClick={
-                        handleClearFilters
-                      }
+                      onClick={handleClearFilters}
                       className="text-xs font-medium text-gray-500 hover:text-red-600 transition"
                     >
                       Reset
@@ -1147,47 +965,34 @@ export default function Quotations() {
                   </label>
 
                   <div className="flex flex-wrap gap-1.5">
-                    {STATUS_OPTIONS.map(
-                      (item) => (
-                        <button
-                          type="button"
-                          key={item}
-                          onClick={() => {
-                            setStatus(
-                              status ===
-                                item
-                                ? ""
-                                : item
-                            );
+                    {STATUS_OPTIONS.map((item) => (
+                      <button
+                        type="button"
+                        key={item}
+                        onClick={() => {
+                          setStatus(
+                            status === item ? "" : item
+                          );
 
-                            setPage(
-                              1
-                            );
-                          }}
-                          className={`px-2.5 py-1 text-xs font-medium rounded-md border transition ${
-                            status ===
-                            item
-                              ? "bg-brand-blue text-white border-brand-blue"
-                              : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                          }`}
-                        >
-                          {item}
-                        </button>
-                      )
-                    )}
+                          setPage(1);
+                        }}
+                        className={`px-2.5 py-1 text-xs font-medium rounded-md border transition ${
+                          status === item
+                            ? "bg-brand-blue text-white border-brand-blue"
+                            : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                        }`}
+                      >
+                        {item}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between gap-2 px-4 py-3 bg-gray-50 border-t border-gray-100">
                   <button
                     type="button"
-                    onClick={
-                      handleClearFilters
-                    }
-                    disabled={
-                      dropdownFilterCount ===
-                      0
-                    }
+                    onClick={handleClearFilters}
+                    disabled={dropdownFilterCount === 0}
                     className="text-xs font-medium text-gray-600 hover:text-gray-900 transition disabled:opacity-40"
                   >
                     Clear all
@@ -1195,11 +1000,7 @@ export default function Quotations() {
 
                   <button
                     type="button"
-                    onClick={() =>
-                      setShowFilters(
-                        false
-                      )
-                    }
+                    onClick={() => setShowFilters(false)}
                     className="px-3 py-1.5 text-xs font-semibold text-white bg-brand-blue hover:bg-brand-blue-dark rounded-md transition"
                   >
                     Apply
@@ -1211,96 +1012,65 @@ export default function Quotations() {
         </div>
 
         {/* RIGHT SIDE */}
-
         <div className="flex items-center gap-2 self-start lg:self-auto">
           {/* VIEW TOGGLE */}
-
           <div className="flex items-center p-1 bg-white border border-gray-200 rounded-lg">
             <button
               type="button"
               onClick={() => {
-                setViewMode(
-                  "table"
-                );
-
+                setViewMode("table");
                 setPage(1);
               }}
               className={`inline-flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-semibold transition ${
-                viewMode ===
-                "table"
+                viewMode === "table"
                   ? "bg-blue-900 text-white"
                   : "text-gray-600 hover:bg-gray-50"
               }`}
             >
-              <FiFileText
-                size={14}
-              />
-
+              <FiFileText size={14} />
               Table
             </button>
 
             <button
               type="button"
               onClick={() => {
-                setViewMode(
-                  "pipeline"
-                );
-
+                setViewMode("pipeline");
                 setPage(1);
               }}
               className={`inline-flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-semibold transition ${
-                viewMode ===
-                "pipeline"
+                viewMode === "pipeline"
                   ? "bg-blue-900 text-white"
                   : "text-gray-600 hover:bg-gray-50"
               }`}
             >
-              <FiColumns
-                size={14}
-              />
-
+              <FiColumns size={14} />
               Pipeline
             </button>
           </div>
 
           {/* NEW QUOTATION */}
-
           <button
             type="button"
-            onClick={() =>
-              openCreate()
-            }
+            onClick={() => openCreate()}
             className="inline-flex items-center justify-center gap-1.5 px-4 h-9 bg-brand-blue hover:bg-brand-blue-dark text-white text-sm font-medium rounded-lg transition shadow-brand whitespace-nowrap"
           >
             <FiPlus size={15} />
-
             New Quotation
           </button>
         </div>
       </div>
 
-      {/* ===================================================
-          ACTIVE FILTER
-      =================================================== */}
-
-      {activeFilterCount >
-        0 && (
+      {/* ACTIVE FILTER */}
+      {activeFilterCount > 0 && (
         <div className="flex items-center gap-2 text-xs text-gray-500">
           <span>
-            {activeFilterCount}{" "}
-            filter
-            {activeFilterCount >
-            1
-              ? "s"
-              : ""}{" "}
-            active
+            {activeFilterCount} filter
+            {activeFilterCount > 1 ? "s" : ""} active
           </span>
 
           <button
             type="button"
-            onClick={
-              handleClearFilters
-            }
+            onClick={handleClearFilters}
             className="text-brand-blue hover:text-brand-blue-dark font-medium"
           >
             Clear filters
@@ -1308,28 +1078,16 @@ export default function Quotations() {
         </div>
       )}
 
-      {/* ===================================================
-          SUCCESS
-      =================================================== */}
-
+      {/* SUCCESS */}
       {successMessage && (
         <div className="flex items-start gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm px-4 py-3 rounded-lg">
-          <FiCheck
-            className="flex-shrink-0 mt-0.5"
-            size={18}
-          />
+          <FiCheck className="flex-shrink-0 mt-0.5" size={18} />
 
-          <p className="flex-1">
-            {successMessage}
-          </p>
+          <p className="flex-1">{successMessage}</p>
 
           <button
             type="button"
-            onClick={() =>
-              setSuccessMessage(
-                ""
-              )
-            }
+            onClick={() => setSuccessMessage("")}
             className="text-emerald-600 hover:text-emerald-800"
           >
             <FiX size={16} />
@@ -1337,10 +1095,7 @@ export default function Quotations() {
         </div>
       )}
 
-      {/* ===================================================
-          ERROR
-      =================================================== */}
-
+      {/* ERROR */}
       {error && (
         <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 text-sm px-4 py-3 rounded-lg">
           <FiAlertCircle
@@ -1348,15 +1103,11 @@ export default function Quotations() {
             size={18}
           />
 
-          <p className="flex-1">
-            {error}
-          </p>
+          <p className="flex-1">{error}</p>
 
           <button
             type="button"
-            onClick={() =>
-              setError("")
-            }
+            onClick={() => setError("")}
             className="text-red-600 hover:text-red-800"
           >
             <FiX size={16} />
@@ -1364,16 +1115,11 @@ export default function Quotations() {
         </div>
       )}
 
-      {/* ===================================================
-          CONTENT
-      =================================================== */}
-
-      {viewMode ===
-      "pipeline" ? (
-        /* =================================================
+      {/* CONTENT */}
+      {viewMode === "pipeline" ? (
+        /* ==============================
            PIPELINE VIEW
-        ================================================= */
-
+        ============================== */
         <div className="bg-white rounded-xl border border-gray-200 p-4 overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center py-16">
@@ -1381,163 +1127,114 @@ export default function Quotations() {
                 <LoadingSpinner />
 
                 <p className="text-sm text-gray-500">
-                  Loading quotation
-                  pipeline...
+                  Loading quotation pipeline...
                 </p>
               </div>
             </div>
-          ) : filteredQuotations.length ===
-            0 ? (
+          ) : filteredQuotations.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
               <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
-                <FiFileText
-                  size={24}
-                />
+                <FiFileText size={24} />
               </div>
 
               <h3 className="mt-4 text-sm font-semibold text-gray-800">
-                No quotations
-                found
+                No quotations found
               </h3>
 
               <p className="mt-1 text-sm text-gray-500 max-w-sm">
-                Create a quotation
-                from an enquiry to
-                start managing your
-                sales pipeline.
+                Create a quotation from an enquiry to start
+                managing your sales pipeline.
               </p>
 
               <button
                 type="button"
-                onClick={() =>
-                  openCreate()
-                }
+                onClick={() => openCreate()}
                 className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-brand-blue hover:bg-brand-blue-dark text-white text-sm font-medium rounded-lg transition"
               >
-                <FiPlus
-                  size={15}
-                />
-
-                Create
-                Quotation
+                <FiPlus size={15} />
+                Create Quotation
               </button>
             </div>
           ) : (
             <div className="overflow-x-auto pb-2">
               <div className="grid grid-cols-6 gap-4 min-w-[1450px]">
-                {PIPELINE_STAGES.map(
-                  (stage) => {
-                    const stageQuotations =
-                      filteredQuotations.filter(
-                        (
-                          quotation
-                        ) =>
-                          String(
-                            quotation.status ||
-                              "Draft"
-                          )
-                            .trim()
-                            .toLowerCase() ===
-                          stage.key
-                            .toLowerCase()
-                      );
-
-                    return (
-                      <div
-                        key={
-                          stage.key
-                        }
-                        onDragOver={(
-                          event
-                        ) =>
-                          event.preventDefault()
-                        }
-                        onDrop={() =>
-                          handlePipelineDrop(
-                            stage.key
-                          )
-                        }
-                        className={`min-h-[560px] rounded-2xl p-3 transition ${
-                          draggedQuotation
-                            ? "bg-gray-100 ring-1 ring-gray-200"
-                            : "bg-gray-50"
-                        }`}
-                      >
-                        {/* COLUMN HEADER */}
-
-                        <div className="flex items-center justify-between mb-3 px-1">
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-xs font-bold text-gray-700">
-                              {
-                                stage.label
-                              }
-                            </h3>
-
-                            <span className="inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-full bg-white border border-gray-200 text-[10px] font-semibold text-gray-500">
-                              {
-                                stageQuotations.length
-                              }
-                            </span>
-                          </div>
-
-                          <StatusBadge
-                            status={
-                              stage.key
-                            }
-                          />
-                        </div>
-
-                        {/* DROP AREA */}
-
-                        <div className="space-y-0.5">
-                          {stageQuotations.length ===
-                          0 ? (
-                            <div className="min-h-[140px] flex items-center justify-center rounded-xl border border-dashed border-gray-200 bg-white/60">
-                              <div className="text-center">
-                                <FiMove
-                                  size={
-                                    18
-                                  }
-                                  className="mx-auto text-gray-300"
-                                />
-
-                                <p className="mt-2 text-[11px] text-gray-400">
-                                  Drop quotation
-                                  here
-                                </p>
-                              </div>
-                            </div>
-                          ) : (
-                            stageQuotations.map(
-                              renderPipelineCard
-                            )
-                          )}
-                        </div>
-                      </div>
+                {PIPELINE_STAGES.map((stage) => {
+                  const stageQuotations =
+                    filteredQuotations.filter(
+                      (quotation) =>
+                        String(quotation.status || "Draft")
+                          .trim()
+                          .toLowerCase() ===
+                        stage.key.toLowerCase()
                     );
-                  }
-                )}
+
+                  return (
+                    <div
+                      key={stage.key}
+                      onDragOver={(event) =>
+                        event.preventDefault()
+                      }
+                      onDrop={() =>
+                        handlePipelineDrop(stage.key)
+                      }
+                      className={`min-h-[560px] rounded-2xl p-3 transition ${
+                        draggedQuotation
+                          ? "bg-gray-100 ring-1 ring-gray-200"
+                          : "bg-gray-50"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-3 px-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-xs font-bold text-gray-700">
+                            {stage.label}
+                          </h3>
+
+                          <span className="inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-full bg-white border border-gray-200 text-[10px] font-semibold text-gray-500">
+                            {stageQuotations.length}
+                          </span>
+                        </div>
+
+                        <StatusBadge status={stage.key} />
+                      </div>
+
+                      <div className="space-y-0.5">
+                        {stageQuotations.length === 0 ? (
+                          <div className="min-h-[140px] flex items-center justify-center rounded-xl border border-dashed border-gray-200 bg-white/60">
+                            <div className="text-center">
+                              <FiMove
+                                size={18}
+                                className="mx-auto text-gray-300"
+                              />
+
+                              <p className="mt-2 text-[11px] text-gray-400">
+                                Drop quotation here
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          stageQuotations.map(
+                            renderPipelineCard
+                          )
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
 
-          {/* PIPELINE LOADING */}
-
           {pipelineLoading && (
             <div className="fixed bottom-5 right-5 z-50 flex items-center gap-2 px-4 py-3 bg-gray-900 text-white rounded-xl shadow-xl text-xs font-medium">
-              <LoadingSpinner
-                small
-              />
-
+              <LoadingSpinner small />
               Updating quotation...
             </div>
           )}
         </div>
       ) : (
-        /* =================================================
+        /* ==============================
            TABLE VIEW
-        ================================================= */
-
+        ============================== */
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center py-16">
@@ -1545,310 +1242,324 @@ export default function Quotations() {
                 <LoadingSpinner />
 
                 <p className="text-sm text-gray-500">
-                  Loading
-                  quotations...
+                  Loading quotations...
                 </p>
               </div>
             </div>
-          ) : filteredQuotations.length ===
-            0 ? (
+          ) : filteredQuotations.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
               <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
-                <FiFileText
-                  size={24}
-                />
+                <FiFileText size={24} />
               </div>
 
               <h3 className="mt-4 text-sm font-semibold text-gray-800">
-                No quotations
-                found
+                No quotations found
               </h3>
 
               <p className="mt-1 text-sm text-gray-500 max-w-sm">
-                Create a quotation
-                from an enquiry to
-                start managing your
-                travel proposals.
+                Create a quotation from an enquiry to start
+                managing your travel proposals.
               </p>
 
               <button
                 type="button"
-                onClick={() =>
-                  openCreate()
-                }
+                onClick={() => openCreate()}
                 className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-brand-blue hover:bg-brand-blue-dark text-white text-sm font-medium rounded-lg transition"
               >
-                <FiPlus
-                  size={15}
-                />
-
-                Create
-                Quotation
+                <FiPlus size={15} />
+                Create Quotation
               </button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200 bg-gray-50/60">
-                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+            <div
+              className="overflow-x-auto overflow-y-auto"
+              style={{
+                maxHeight: "calc(100vh - 280px)",
+              }}
+            >
+              <table className="w-full text-sm min-w-[1100px]">
+                <thead className="sticky top-0 z-20">
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide bg-gray-50/95 backdrop-blur-sm">
                       Quotation
                     </th>
 
-                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide bg-gray-50/95 backdrop-blur-sm">
                       Customer
                     </th>
 
-                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide bg-gray-50/95 backdrop-blur-sm">
                       Destination
                     </th>
 
-                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide bg-gray-50/95 backdrop-blur-sm">
                       Travel
                     </th>
 
-                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide bg-gray-50/95 backdrop-blur-sm">
                       Travellers
                     </th>
 
-                    <th className="text-right px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                    <th className="text-right px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide bg-gray-50/95 backdrop-blur-sm">
                       Amount
                     </th>
 
-                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide bg-gray-50/95 backdrop-blur-sm">
                       Status
                     </th>
 
-                    <th className="text-right px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                    <th className="text-right px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide bg-gray-50/95 backdrop-blur-sm">
                       Actions
                     </th>
                   </tr>
                 </thead>
 
                 <tbody className="divide-y divide-gray-100">
-                  {filteredQuotations.map(
-                    (
-                      quotation
-                    ) => {
-                      const isActionLoading =
-                        actionLoading?.endsWith(
-                          quotation._id
-                        );
-
-                      const isAccepted =
-                        String(
-                          quotation.status ||
-                            ""
-                        )
-                          .trim()
-                          .toLowerCase() ===
-                        "accepted";
-
-                      return (
-                        <tr
-                          key={
-                            quotation._id
-                          }
-                          onClick={() =>
-                            handleView(
-                              quotation
-                            )
-                          }
-                          className="hover:bg-brand-blue-50/40 transition-colors cursor-pointer"
-                        >
-                          {/* QUOTATION */}
-
-                          <td className="px-5 py-3.5">
-                            <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 rounded-lg bg-brand-blue-50 text-brand-blue flex items-center justify-center shrink-0">
-                                <FiFileText
-                                  size={
-                                    17
-                                  }
-                                />
-                              </div>
-
-                              <div className="min-w-0">
-                                <p className="font-semibold text-gray-800 truncate max-w-[220px]">
-                                  {quotation.title ||
-                                    "Untitled Quotation"}
-                                </p>
-
-                                <p className="text-xs text-gray-500 mt-0.5">
-                                  {quotation.quotationNumber ||
-                                    `ID ${String(
-                                      quotation._id
-                                    ).slice(
-                                      -6
-                                    )}`}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-
-                          {/* CUSTOMER */}
-
-                          <td className="px-5 py-3.5">
-                            <p className="text-xs font-medium text-gray-700">
-                              {getName(
-                                quotation.customer ||
-                                  quotation
-                                    .enquiry
-                                    ?.customer,
-                                "—"
-                              )}
-                            </p>
-
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              {getName(
-                                quotation.enquiry,
-                                "—"
-                              )}
-                            </p>
-                          </td>
-
-                          {/* DESTINATION */}
-
-                          <td className="px-5 py-3.5">
-                            <p className="text-xs font-medium text-gray-700">
-                              {quotation.destination ||
-                                "—"}
-                            </p>
-                          </td>
-
-                          {/* TRAVEL */}
-
-                          <td className="px-5 py-3.5">
-                            <div className="flex items-center gap-1.5 text-xs text-gray-600">
-                              <FiCalendar
-                                size={
-                                  12
-                                }
-                                className="text-gray-400"
-                              />
-
-                              {formatDate(
-                                quotation.travelDate
-                              )}
-                            </div>
-
-                            {quotation.returnDate && (
-                              <p className="text-xs text-gray-500 mt-0.5">
-                                to{" "}
-                                {formatDate(
-                                  quotation.returnDate
-                                )}
-                              </p>
-                            )}
-                          </td>
-
-                          {/* TRAVELLERS */}
-
-                          <td className="px-5 py-3.5">
-                            <div className="flex items-center gap-1.5 text-xs text-gray-600">
-                              <FiUsers
-                                size={
-                                  13
-                                }
-                                className="text-gray-400"
-                              />
-
-                              {Number(
-                                quotation.adults ||
-                                  0
-                              ) +
-                                Number(
-                                  quotation.children ||
-                                    0
-                                ) +
-                                Number(
-                                  quotation.infants ||
-                                    0
-                                )}
-                            </div>
-                          </td>
-
-                          {/* AMOUNT */}
-
-                          <td className="px-5 py-3.5 text-right">
-                            <p className="text-xs font-bold text-gray-800">
-                              {formatCurrency(
-                                quotation.totalAmount,
-                                quotation.currency ||
-                                  "INR"
-                              )}
-                            </p>
-                          </td>
-
-                          {/* STATUS */}
-
-                          <td className="px-5 py-3.5">
-                            <StatusBadge
-                              status={
-                                quotation.status
-                              }
-                            />
-                          </td>
-
-                          {/* ACTIONS */}
-
-                          <td className="px-5 py-3.5">
-                            <div
-                              className="flex items-center justify-end gap-1.5 min-w-max"
-                              onClick={(
-                                event
-                              ) =>
-                                event.stopPropagation()
-                              }
-                            >
-                              {isAccepted && (
-                                <button
-                                  type="button"
-                                  title="Convert to Booking"
-                                  onClick={() =>
-                                    handleConvertToBooking(
-                                      quotation
-                                    )
-                                  }
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-semibold text-white bg-brand-blue hover:bg-brand-blue-dark transition shadow-sm"
-                                >
-                                  <FiBriefcase
-                                    size={
-                                      11
-                                    }
-                                  />
-
-                                  Convert
-                                </button>
-                              )}
-
-                              {isAdmin && (
-                                <button
-                                  type="button"
-                                  title="Delete"
-                                  onClick={() =>
-                                    setConfirmDelete(
-                                      quotation
-                                    )
-                                  }
-                                  disabled={
-                                    isActionLoading
-                                  }
-                                  className="w-8 h-8 rounded-lg flex items-center justify-center text-red-500 bg-red-50 hover:bg-red-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
-                                >
-                                  <FiTrash2
-                                    size={
-                                      14
-                                    }
-                                  />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
+                  {filteredQuotations.map((quotation) => {
+                    const isActionLoading =
+                      actionLoading?.endsWith(
+                        quotation._id
                       );
-                    }
-                  )}
+
+                    const isAccepted =
+                      String(quotation.status || "")
+                        .trim()
+                        .toLowerCase() === "accepted";
+
+                    return (
+                      <tr
+                        key={quotation._id}
+                        onClick={() => handleView(quotation)}
+                        className="hover:bg-brand-blue-50/40 transition-colors cursor-pointer"
+                      >
+                        {/* QUOTATION */}
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-lg bg-brand-blue-50 text-brand-blue flex items-center justify-center shrink-0">
+                              <FiFileText size={17} />
+                            </div>
+
+                            <div className="min-w-0">
+                              <p className="font-semibold text-gray-800 truncate max-w-[220px]">
+                                {quotation.title ||
+                                  "Untitled Quotation"}
+                              </p>
+
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                {quotation.quotationNumber ||
+                                  `ID ${String(
+                                    quotation._id
+                                  ).slice(-6)}`}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* CUSTOMER */}
+                        <td className="px-5 py-3.5">
+                          <p className="text-xs font-medium text-gray-700">
+                            {getName(
+                              quotation.customer ||
+                                quotation.enquiry?.customer,
+                              "—"
+                            )}
+                          </p>
+
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {getName(quotation.enquiry, "—")}
+                          </p>
+                        </td>
+
+                        {/* DESTINATION */}
+                        <td className="px-5 py-3.5">
+                          <p className="text-xs font-medium text-gray-700">
+                            {quotation.destination || "—"}
+                          </p>
+                        </td>
+
+                        {/* TRAVEL */}
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                            <FiCalendar
+                              size={12}
+                              className="text-gray-400"
+                            />
+
+                            {formatDate(quotation.travelDate)}
+                          </div>
+
+                          {quotation.returnDate && (
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              to {formatDate(quotation.returnDate)}
+                            </p>
+                          )}
+                        </td>
+
+                        {/* TRAVELLERS */}
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                            <FiUsers
+                              size={13}
+                              className="text-gray-400"
+                            />
+
+                            {Number(quotation.adults || 0) +
+                              Number(
+                                quotation.children || 0
+                              ) +
+                              Number(
+                                quotation.infants || 0
+                              )}
+                          </div>
+                        </td>
+
+                        {/* AMOUNT */}
+                        <td className="px-5 py-3.5 text-right">
+                          <p className="text-xs font-bold text-gray-800">
+                            {formatCurrency(
+                              quotation.totalAmount,
+                              quotation.currency || "INR"
+                            )}
+                          </p>
+                        </td>
+
+                        {/* STATUS — INLINE DROPDOWN */}
+                        <td
+                          className="px-5 py-3.5"
+                          onClick={(event) =>
+                            event.stopPropagation()
+                          }
+                        >
+                          <div className="relative inline-flex items-center gap-1.5">
+                            <div className="relative">
+                              <select
+                                value={
+                                  quotation.status || "Draft"
+                                }
+                                onChange={(e) =>
+                                  handleStatusChange(
+                                    quotation,
+                                    e.target.value
+                                  )
+                                }
+                                disabled={
+                                  statusUpdating ===
+                                  quotation._id
+                                }
+                                className={`appearance-none cursor-pointer rounded-full border text-[11px] font-semibold pl-2.5 pr-7 py-1 outline-none transition focus:ring-2 focus:ring-brand-blue/20 disabled:opacity-60 disabled:cursor-wait ${
+                                  STATUS_STYLES[
+                                    quotation.status
+                                  ] || STATUS_STYLES.Draft
+                                }`}
+                              >
+                                {STATUS_OPTIONS.map(
+                                  (option) => (
+                                    <option
+                                      key={option}
+                                      value={option}
+                                      className="bg-white text-gray-800"
+                                    >
+                                      {option}
+                                    </option>
+                                  )
+                                )}
+                              </select>
+
+                              <svg
+                                className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-current opacity-70"
+                                viewBox="0 0 20 20"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                              >
+                                <path
+                                  d="M6 8l4 4 4-4"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </div>
+
+                            {statusUpdating ===
+                              quotation._id && (
+                              <LoadingSpinner small />
+                            )}
+                          </div>
+                        </td>
+
+                        {/* ACTIONS */}
+                        <td
+                          className="px-5 py-3.5 text-right"
+                          onClick={(event) =>
+                            event.stopPropagation()
+                          }
+                        >
+                          <div
+                            className="relative inline-flex items-center justify-end gap-2"
+                            data-row-menu
+                          >
+                            {isAccepted && (
+                              <button
+                                type="button"
+                                title="Convert to Booking"
+                                onClick={() =>
+                                  handleConvertToBooking(
+                                    quotation
+                                  )
+                                }
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-semibold text-white bg-brand-blue hover:bg-brand-blue-dark transition shadow-sm"
+                              >
+                                <FiBriefcase size={11} />
+                                Convert
+                              </button>
+                            )}
+
+                            {isAdmin && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setOpenMenuId((prev) =>
+                                      prev === quotation._id
+                                        ? null
+                                        : quotation._id
+                                    )
+                                  }
+                                  disabled={isActionLoading}
+                                  className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition disabled:opacity-40"
+                                  title="More actions"
+                                >
+                                  <FiMoreVertical size={16} />
+                                </button>
+
+                                {openMenuId ===
+                                  quotation._id && (
+                                  <div className="absolute right-0 top-full mt-1 w-36 bg-white border border-gray-200 rounded-lg shadow-lg z-30 overflow-hidden">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setOpenMenuId(null);
+                                        setConfirmDelete(
+                                          quotation
+                                        );
+                                      }}
+                                      disabled={
+                                        isActionLoading
+                                      }
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition text-left disabled:opacity-40"
+                                    >
+                                      <FiTrash2 size={13} />
+                                      Delete
+                                    </button>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1856,123 +1567,76 @@ export default function Quotations() {
         </div>
       )}
 
-      {/* ===================================================
-          PAGINATION
-      =================================================== */}
-
-      {viewMode ===
-        "table" &&
+      {/* PAGINATION */}
+      {viewMode === "table" &&
         !loading &&
-        pagination.total >
-          0 && (
+        pagination.total > 0 && (
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             <p className="text-xs text-gray-500">
               Showing{" "}
               <span className="font-medium text-gray-700">
-                {
-                  filteredQuotations.length
-                }
+                {filteredQuotations.length}
               </span>{" "}
               of{" "}
               <span className="font-medium text-gray-700">
-                {
-                  pagination.total
-                }
+                {pagination.total}
               </span>{" "}
-              {pagination.total ===
-              1
+              {pagination.total === 1
                 ? "quotation"
                 : "quotations"}
             </p>
 
-            {pagination.pages >
-              1 && (
+            {pagination.pages > 1 && (
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={
-                    handlePreviousPage
-                  }
-                  disabled={
-                    page === 1 ||
-                    loading
-                  }
+                  onClick={handlePreviousPage}
+                  disabled={page === 1 || loading}
                   className="w-8 h-8 inline-flex items-center justify-center text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  <FiChevronLeft
-                    size={
-                      16
-                    }
-                  />
+                  <FiChevronLeft size={16} />
                 </button>
 
                 <span className="px-3 h-8 inline-flex items-center text-sm font-medium text-gray-700">
-                  {page} /{" "}
-                  {
-                    pagination.pages
-                  }
+                  {page} / {pagination.pages}
                 </span>
 
                 <button
                   type="button"
-                  onClick={
-                    handleNextPage
-                  }
+                  onClick={handleNextPage}
                   disabled={
-                    page ===
-                      pagination.pages ||
-                    loading
+                    page === pagination.pages || loading
                   }
                   className="w-8 h-8 inline-flex items-center justify-center text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  <FiChevronRight
-                    size={
-                      16
-                    }
-                  />
+                  <FiChevronRight size={16} />
                 </button>
               </div>
             )}
           </div>
         )}
 
-      {/* ===================================================
-          QUOTATION FORM
-      =================================================== */}
-
+      {/* QUOTATION FORM */}
       <QuotationForm
         open={formOpen}
-        editingQuotation={
-          editingQuotation
-        }
+        editingQuotation={editingQuotation}
         form={form}
         setForm={setForm}
         enquiries={enquiries}
         saving={saving}
         error={
           formError ||
-          (enquiriesLoading
-            ? "Loading enquiries..."
-            : "")
+          (enquiriesLoading ? "Loading enquiries..." : "")
         }
-        onClose={
-          closeForm
-        }
-        onSubmit={
-          handleSubmit
-        }
-        onItineraryUpdated={(
-          updatedItinerary
-        ) => {
+        onClose={closeForm}
+        onSubmit={handleSubmit}
+        onItineraryUpdated={(updatedItinerary) => {
           console.log(
             "Itinerary updated:",
             updatedItinerary
           );
 
-          if (
-            viewMode ===
-            "pipeline"
-          ) {
+          if (viewMode === "pipeline") {
             fetchPipelineQuotations();
           } else {
             fetchQuotations();
@@ -1980,58 +1644,30 @@ export default function Quotations() {
         }}
       />
 
-      {/* ===================================================
-          QUOTATION VIEW
-      =================================================== */}
-
+      {/* QUOTATION VIEW */}
       <QuotationView
-        quotation={
-          viewQuotation
-        }
-        onClose={() =>
-          setViewQuotation(
-            null
-          )
-        }
-        onEdit={(
-          quotation
-        ) => {
-          setViewQuotation(
-            null
-          );
-
-          openEdit(
-            quotation
-          );
+        quotation={viewQuotation}
+        onClose={() => setViewQuotation(null)}
+        onEdit={(quotation) => {
+          setViewQuotation(null);
+          openEdit(quotation);
         }}
       />
 
-      {/* ===================================================
-          DELETE CONFIRMATION
-      =================================================== */}
-
+      {/* DELETE CONFIRMATION */}
       {confirmDelete && (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm"
-          onMouseDown={(
-            event
-          ) => {
-            if (
-              event.target ===
-              event.currentTarget
-            ) {
-              setConfirmDelete(
-                null
-              );
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setConfirmDelete(null);
             }
           }}
         >
           <div className="w-full max-w-[400px] bg-white rounded-2xl shadow-2xl overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100">
               <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center mb-3">
-                <FiTrash2
-                  size={18}
-                />
+                <FiTrash2 size={18} />
               </div>
 
               <h3 className="text-sm font-semibold text-gray-900">
@@ -2039,26 +1675,18 @@ export default function Quotations() {
               </h3>
 
               <p className="text-xs text-gray-500 mt-1.5 leading-5">
-                This will
-                permanently
-                delete{" "}
+                This will permanently delete{" "}
                 <span className="font-semibold text-gray-700">
-                  {confirmDelete.title ||
-                    "this quotation"}
+                  {confirmDelete.title || "this quotation"}
                 </span>
-                . This action
-                cannot be undone.
+                . This action cannot be undone.
               </p>
             </div>
 
             <div className="px-5 py-3.5 bg-gray-50/60 flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() =>
-                  setConfirmDelete(
-                    null
-                  )
-                }
+                onClick={() => setConfirmDelete(null)}
                 className="px-4 py-2 rounded-lg text-xs font-semibold text-gray-600 hover:bg-gray-200 transition"
               >
                 Cancel
@@ -2066,9 +1694,7 @@ export default function Quotations() {
 
               <button
                 type="button"
-                onClick={
-                  handleDelete
-                }
+                onClick={handleDelete}
                 disabled={
                   actionLoading ===
                   `delete-${confirmDelete._id}`
@@ -2078,18 +1704,12 @@ export default function Quotations() {
                 {actionLoading ===
                 `delete-${confirmDelete._id}` ? (
                   <>
-                    <LoadingSpinner
-                      small
-                    />
-
+                    <LoadingSpinner small />
                     Deleting...
                   </>
                 ) : (
                   <>
-                    <FiTrash2
-                      size={13}
-                    />
-
+                    <FiTrash2 size={13} />
                     Delete
                   </>
                 )}
@@ -2101,4 +1721,3 @@ export default function Quotations() {
     </div>
   );
 }
-

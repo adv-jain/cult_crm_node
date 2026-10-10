@@ -1,6 +1,8 @@
+
 import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import api from "../api";
 
 import {
   FiHome,
@@ -122,7 +124,14 @@ function SectionHeader({
   );
 }
 
-function NavItem({ to, icon: Icon, onClose, children, disabled = false }) {
+function NavItem({
+  to,
+  icon: Icon,
+  onClose,
+  children,
+  disabled = false,
+  count,
+}) {
   const linkClasses = ({ isActive }) =>
     `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
       disabled
@@ -155,7 +164,19 @@ function NavItem({ to, icon: Icon, onClose, children, disabled = false }) {
             className={isActive ? "text-brand-blue" : "text-gray-400"}
           />
 
-          <span>{children}</span>
+          <span className="flex-1">{children}</span>
+
+          {Number.isFinite(count) && count > 0 && (
+            <span
+              className={`min-w-6 h-6 px-1.5 rounded-full flex items-center justify-center text-[11px] font-bold ${
+                isActive
+                  ? "bg-brand-blue text-white"
+                  : "bg-amber-100 text-amber-700"
+              }`}
+            >
+              {count > 99 ? "99+" : count}
+            </span>
+          )}
         </>
       )}
     </NavLink>
@@ -178,6 +199,8 @@ function Sidebar({ isOpen, onClose }) {
   const { user } = useAuth();
   const location = useLocation();
 
+  const [dueBookingCount, setDueBookingCount] = useState(0);
+
   const [openSections, setOpenSections] = useState(() => {
     const saved = safeParse(
       localStorage.getItem(STORAGE_KEY),
@@ -194,6 +217,60 @@ function Sidebar({ isOpen, onClose }) {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(openSections));
   }, [openSections]);
+
+  // =====================================================
+  // BOOKINGS WITH OUTSTANDING PAYMENT ONLY
+  // =====================================================
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchDueBookings = async () => {
+      try {
+        const response = await api.get("/bookings", {
+          params: { limit: 1000 },
+        });
+
+        const data = response.data;
+
+        const bookings = Array.isArray(data)
+          ? data
+          : data?.bookings ||
+            data?.data?.bookings ||
+            data?.data ||
+            [];
+
+        const dueCount = bookings.filter((booking) => {
+          const status = String(
+            booking.status || booking.bookingStatus || ""
+          ).toLowerCase();
+
+          // Do not count cancelled or refunded bookings.
+          if (["cancelled", "canceled", "refunded"].includes(status)) {
+            return false;
+          }
+
+          const totalAmount = Number(booking.totalAmount || 0);
+          const amountPaid = Number(booking.amountPaid || 0);
+
+          // Count only bookings that still have an outstanding balance.
+          return totalAmount - amountPaid > 0;
+        }).length;
+
+        if (!cancelled) {
+          setDueBookingCount(dueCount);
+        }
+      } catch (error) {
+        console.error("Unable to fetch due bookings:", error);
+      }
+    };
+
+    fetchDueBookings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [location.pathname]);
 
   useEffect(() => {
     onClose?.();
@@ -299,7 +376,12 @@ function Sidebar({ isOpen, onClose }) {
                   <NavItem to="/quotations" icon={FiFileText} onClose={onClose}>
                     Quotations
                   </NavItem>
-                  <NavItem to="/bookings" icon={FiBriefcase} onClose={onClose}>
+                  <NavItem
+                    to="/bookings"
+                    icon={FiBriefcase}
+                    onClose={onClose}
+                    count={dueBookingCount}
+                  >
                     Bookings
                   </NavItem>
                 </SubMenu>

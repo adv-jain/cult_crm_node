@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FiActivity,
@@ -125,7 +126,14 @@ function SalesReport() {
   const [error, setError] = useState("");
 
   /* ===================================================
-     FETCH
+     PAGINATION STATE
+  =================================================== */
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  /* ===================================================
+     FETCH SALES REPORT
   =================================================== */
 
   const fetchSalesReport = useCallback(
@@ -174,7 +182,7 @@ function SalesReport() {
   }, [fetchSalesReport]);
 
   /* ===================================================
-     NORMALIZE
+     NORMALIZE REPORT
   =================================================== */
 
   const reportData = useMemo(
@@ -210,10 +218,6 @@ function SalesReport() {
 
   /* ===================================================
      ACCEPTED QUOTATION COUNT
-     
-     Backend value is preferred.
-     If backend does not provide it,
-     calculate from quotation records.
   =================================================== */
 
   const acceptedQuotationCount = useMemo(() => {
@@ -233,11 +237,8 @@ function SalesReport() {
   const summary = useMemo(() => {
     const source = reportData.summary || {};
 
-    const quotationCountFromData =
-      quotationData.length;
-
-    const bookingCountFromData =
-      bookingData.length;
+    const quotationCountFromData = quotationData.length;
+    const bookingCountFromData = bookingData.length;
 
     return {
       leads: Number(
@@ -272,13 +273,6 @@ function SalesReport() {
           0
       ),
 
-      /*
-       * IMPORTANT:
-       *
-       * First use backend acceptedQuotations.
-       * If backend doesn't send it, use acceptedQuotationCount
-       * calculated from actual quotation records.
-       */
       acceptedQuotations: Number(
         source.acceptedQuotations ??
           source.accepted ??
@@ -318,9 +312,7 @@ function SalesReport() {
     const query = search.trim().toLowerCase();
 
     return quotationData.filter((quotation) => {
-      const status = String(
-        quotation.status || ""
-      );
+      const status = String(quotation.status || "");
 
       const matchesStatus =
         statusFilter === "All" ||
@@ -367,11 +359,43 @@ function SalesReport() {
         .toLowerCase()
         .includes(query);
     });
-  }, [
-    quotationData,
-    search,
-    statusFilter,
-  ]);
+  }, [quotationData, search, statusFilter]);
+
+  /* ===================================================
+     RESET PAGE WHEN FILTERS CHANGE
+  =================================================== */
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, statusFilter, startDate, endDate]);
+
+  /* ===================================================
+     PAGINATION
+  =================================================== */
+
+  const totalPages = Math.ceil(
+    filteredQuotations.length / itemsPerPage
+  );
+
+  const paginatedQuotations = useMemo(() => {
+    const startIndex =
+      (currentPage - 1) * itemsPerPage;
+
+    return filteredQuotations.slice(
+      startIndex,
+      startIndex + itemsPerPage
+    );
+  }, [filteredQuotations, currentPage]);
+
+  const startItem =
+    filteredQuotations.length === 0
+      ? 0
+      : (currentPage - 1) * itemsPerPage + 1;
+
+  const endItem = Math.min(
+    currentPage * itemsPerPage,
+    filteredQuotations.length
+  );
 
   /* ===================================================
      STATUS BREAKDOWN
@@ -385,69 +409,51 @@ function SalesReport() {
     }
 
     if (reportData.quotationStatuses) {
-      return getArray(
-        reportData.quotationStatuses
-      );
+      return getArray(reportData.quotationStatuses);
     }
 
     const map = {};
 
     quotationData.forEach((quotation) => {
-      const status =
-        quotation.status || "Unknown";
-
-      map[status] =
-        (map[status] || 0) + 1;
+      const status = quotation.status || "Unknown";
+      map[status] = (map[status] || 0) + 1;
     });
 
-    return Object.entries(map).map(
-      ([status, count]) => ({
-        status,
-        count,
-      })
-    );
+    return Object.entries(map).map(([status, count]) => ({
+      status,
+      count,
+    }));
   }, [reportData, quotationData]);
 
   const bookingStatuses = useMemo(() => {
     if (reportData.bookingStatusBreakdown) {
-      return getArray(
-        reportData.bookingStatusBreakdown
-      );
+      return getArray(reportData.bookingStatusBreakdown);
     }
 
     if (reportData.bookingStatuses) {
-      return getArray(
-        reportData.bookingStatuses
-      );
+      return getArray(reportData.bookingStatuses);
     }
 
     const map = {};
 
     bookingData.forEach((booking) => {
-      const status =
-        booking.status || "Unknown";
-
-      map[status] =
-        (map[status] || 0) + 1;
+      const status = booking.status || "Unknown";
+      map[status] = (map[status] || 0) + 1;
     });
 
-    return Object.entries(map).map(
-      ([status, count]) => ({
-        status,
-        count,
-      })
-    );
+    return Object.entries(map).map(([status, count]) => ({
+      status,
+      count,
+    }));
   }, [reportData, bookingData]);
 
   /* ===================================================
      EXPORT CSV
+     Exports ALL FILTERED quotations, not just this page.
   =================================================== */
 
   const exportCSV = useCallback(() => {
-    if (
-      !filteredQuotations ||
-      filteredQuotations.length === 0
-    ) {
+    if (filteredQuotations.length === 0) {
       return;
     }
 
@@ -461,79 +467,61 @@ function SalesReport() {
       "Created Date",
     ];
 
-    /* -----------------------------------------------
-       CSV ESCAPE HELPER
-    ------------------------------------------------ */
-
     const escapeCSV = (value) => {
-      const stringValue = String(
-        value ?? ""
-      );
+      const stringValue = String(value ?? "");
 
       return `"${stringValue
         .replace(/"/g, '""')
         .replace(/\r?\n|\r/g, " ")}"`;
     };
 
-    /* -----------------------------------------------
-       BUILD ROWS
-    ------------------------------------------------ */
+    const rows = filteredQuotations.map((quotation) => {
+      const quotationNumber =
+        quotation.quotationNumber ||
+        quotation.quoteNumber ||
+        quotation.code ||
+        "";
 
-    const rows = filteredQuotations.map(
-      (quotation) => {
-        const quotationNumber =
-          quotation.quotationNumber ||
-          quotation.quoteNumber ||
-          quotation.code ||
-          "";
+      const title =
+        quotation.title ||
+        quotation.name ||
+        "";
 
-        const title =
-          quotation.title ||
-          quotation.name ||
-          "";
+      const customer =
+        quotation.customer?.name ||
+        quotation.customer?.fullName ||
+        quotation.customerName ||
+        "";
 
-        const customer =
-          quotation.customer?.name ||
-          quotation.customer?.fullName ||
-          quotation.customerName ||
-          "";
+      const destination =
+        quotation.destination ||
+        quotation.trip?.destination ||
+        "";
 
-        const destination =
-          quotation.destination ||
-          quotation.trip?.destination ||
-          "";
+      const status = quotation.status || "";
 
-        const status =
-          quotation.status ||
-          "";
+      const quotationValue = Number(
+        quotation.totalAmount ??
+          quotation.grandTotal ??
+          quotation.amount ??
+          0
+      );
 
-        const quotationValue = Number(
-          quotation.totalAmount ??
-            quotation.grandTotal ??
-            quotation.amount ??
-            0
-        );
+      const createdDate = formatDate(
+        quotation.createdAt ||
+          quotation.quotationDate
+      );
 
-        const createdDate = formatDate(
-          quotation.createdAt ||
-            quotation.quotationDate
-        );
-
-        return [
-          quotationNumber,
-          title,
-          customer,
-          destination,
-          status,
-          quotationValue,
-          createdDate,
-        ];
-      }
-    );
-
-    /* -----------------------------------------------
-       CREATE CSV CONTENT
-    ------------------------------------------------ */
+      return [
+        quotationNumber,
+        title,
+        customer,
+        destination,
+        status,
+        quotationValue,
+        createdDate,
+      ];
+    });
 
     const csvContent = [
       headers.map(escapeCSV).join(","),
@@ -542,28 +530,14 @@ function SalesReport() {
       ),
     ].join("\r\n");
 
-    /* -----------------------------------------------
-       UTF-8 BOM FOR EXCEL
-    ------------------------------------------------ */
-
     const BOM = "\uFEFF";
 
-    const blob = new Blob(
-      [BOM + csvContent],
-      {
-        type: "text/csv;charset=utf-8;",
-      }
-    );
+    const blob = new Blob([BOM + csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
 
-    /* -----------------------------------------------
-       CREATE DOWNLOAD
-    ------------------------------------------------ */
-
-    const url =
-      URL.createObjectURL(blob);
-
-    const link =
-      document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
 
     link.href = url;
 
@@ -571,20 +545,12 @@ function SalesReport() {
       .toISOString()
       .slice(0, 10);
 
-    link.download =
-      `sales-report-${today}.csv`;
-
+    link.download = `sales-report-${today}.csv`;
     link.style.display = "none";
 
     document.body.appendChild(link);
-
     link.click();
-
     document.body.removeChild(link);
-
-    /* -----------------------------------------------
-       DELAY REVOKE
-    ------------------------------------------------ */
 
     setTimeout(() => {
       URL.revokeObjectURL(url);
@@ -598,20 +564,15 @@ function SalesReport() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-5 max-w-[1600px] mx-auto">
 
-      {/* =================================================
-          HEADER
-      ================================================= */}
+      {/* HEADER AND FILTERS */}
 
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-
-        {/* LEFT FILTERS */}
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto flex-wrap">
 
           {/* START DATE */}
 
           <div className="flex items-center gap-2 h-9 rounded-lg border border-gray-200 bg-white px-3">
-
             <FiFilter
               className="text-gray-400 flex-shrink-0"
               size={14}
@@ -620,18 +581,14 @@ function SalesReport() {
             <input
               type="date"
               value={startDate}
-              onChange={(e) =>
-                setStartDate(e.target.value)
-              }
+              onChange={(e) => setStartDate(e.target.value)}
               className="bg-transparent text-sm text-gray-700 outline-none"
             />
-
           </div>
 
           {/* END DATE */}
 
           <div className="flex items-center gap-2 h-9 rounded-lg border border-gray-200 bg-white px-3">
-
             <FiFilter
               className="text-gray-400 flex-shrink-0"
               size={14}
@@ -640,56 +597,30 @@ function SalesReport() {
             <input
               type="date"
               value={endDate}
-              onChange={(e) =>
-                setEndDate(e.target.value)
-              }
+              onChange={(e) => setEndDate(e.target.value)}
               className="bg-transparent text-sm text-gray-700 outline-none"
             />
-
           </div>
 
           {/* STATUS */}
 
           <select
             value={statusFilter}
-            onChange={(e) =>
-              setStatusFilter(e.target.value)
-            }
+            onChange={(e) => setStatusFilter(e.target.value)}
             className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/10"
           >
-            <option value="All">
-              All Statuses
-            </option>
-
-            <option value="Draft">
-              Draft
-            </option>
-
-            <option value="Prepared">
-              Prepared
-            </option>
-
-            <option value="Sent">
-              Sent
-            </option>
-
-            <option value="Viewed">
-              Viewed
-            </option>
-
-            <option value="Negotiation">
-              Negotiation
-            </option>
-
-            <option value="Accepted">
-              Accepted
-            </option>
+            <option value="All">All Statuses</option>
+            <option value="Draft">Draft</option>
+            <option value="Prepared">Prepared</option>
+            <option value="Sent">Sent</option>
+            <option value="Viewed">Viewed</option>
+            <option value="Negotiation">Negotiation</option>
+            <option value="Accepted">Accepted</option>
           </select>
 
           {/* SEARCH */}
 
           <div className="relative w-full sm:w-64">
-
             <FiSearch
               className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
               size={15}
@@ -698,106 +629,72 @@ function SalesReport() {
             <input
               type="text"
               value={search}
-              onChange={(e) =>
-                setSearch(e.target.value)
-              }
+              onChange={(e) => setSearch(e.target.value)}
               placeholder="Search quotation..."
               className="w-full pl-9 pr-8 h-9 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/10"
             />
-
           </div>
 
           {/* REFRESH */}
 
           <button
             type="button"
-            onClick={() =>
-              fetchSalesReport(true)
-            }
+            onClick={() => fetchSalesReport(true)}
             disabled={refreshing}
             className="inline-flex items-center justify-center gap-1.5 px-3 h-9 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 whitespace-nowrap disabled:opacity-50"
           >
-
             <FiRefreshCw
               size={14}
-              className={
-                refreshing
-                  ? "animate-spin"
-                  : ""
-              }
+              className={refreshing ? "animate-spin" : ""}
             />
 
             <span className="hidden sm:inline">
               Refresh
             </span>
-
           </button>
-
         </div>
 
-        {/* EXPORT */}
+        {/* EXPORT CSV */}
 
         <button
           type="button"
           onClick={exportCSV}
-          disabled={
-            !filteredQuotations ||
-            filteredQuotations.length === 0
-          }
+          disabled={filteredQuotations.length === 0}
           className="inline-flex items-center justify-center gap-1.5 px-4 h-9 bg-brand-blue hover:bg-brand-blue-dark text-white text-sm font-medium rounded-lg transition shadow-brand whitespace-nowrap self-start lg:self-auto disabled:opacity-50 disabled:cursor-not-allowed"
         >
-
           <FiDownload size={15} />
-
           Export CSV
-
         </button>
-
       </div>
 
-      {/* =================================================
-          ERROR
-      ================================================= */}
+      {/* ERROR */}
 
       {error && (
         <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 text-sm px-4 py-3 rounded-lg">
-
           <FiAlertCircle
             className="flex-shrink-0 mt-0.5"
             size={18}
           />
 
-          <p className="flex-1">
-            {error}
-          </p>
-
+          <p className="flex-1">{error}</p>
         </div>
       )}
 
-      {/* =================================================
-          LOADING
-      ================================================= */}
+      {/* LOADING */}
 
       {loading ? (
-
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-
           {[1, 2, 3, 4].map((i) => (
             <div
               key={i}
               className="h-24 animate-pulse rounded-xl border border-gray-200 bg-white"
             />
           ))}
-
         </div>
-
       ) : (
-
         <>
 
-          {/* =================================================
-              SUMMARY
-          ================================================= */}
+          {/* SUMMARY CARDS */}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
 
@@ -833,20 +730,15 @@ function SalesReport() {
               iconClass="bg-emerald-50 text-emerald-600"
               valueClass="text-emerald-700"
             />
-
           </div>
 
-          {/* =================================================
-              FINANCIAL
-          ================================================= */}
+          {/* FINANCIAL SUMMARY */}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
 
             <SummaryCard
               title="Quotation Value"
-              value={formatCurrency(
-                summary.quotationValue
-              )}
+              value={formatCurrency(summary.quotationValue)}
               subtitle="Total quotation value"
               icon={<FiDollarSign size={16} />}
               iconClass="bg-cyan-50 text-cyan-600"
@@ -854,9 +746,7 @@ function SalesReport() {
 
             <SummaryCard
               title="Booking Revenue"
-              value={formatCurrency(
-                summary.bookingRevenue
-              )}
+              value={formatCurrency(summary.bookingRevenue)}
               subtitle="Revenue from bookings"
               icon={<FiTrendingUp size={16} />}
               iconClass="bg-emerald-50 text-emerald-600"
@@ -865,26 +755,19 @@ function SalesReport() {
 
             <SummaryCard
               title="Conversion Rate"
-              value={formatPercentage(
-                summary.conversionRate
-              )}
+              value={formatPercentage(summary.conversionRate)}
               subtitle="Lead to booking"
               icon={<FiActivity size={16} />}
               iconClass="bg-indigo-50 text-indigo-600"
             />
-
           </div>
 
-          {/* =================================================
-              SALES FUNNEL
-          ================================================= */}
+          {/* SALES FUNNEL */}
 
           <div className="rounded-xl border border-gray-200 bg-white p-5">
 
             <div className="mb-4 flex items-center justify-between">
-
               <div>
-
                 <h2 className="text-sm font-bold text-gray-800">
                   Sales Funnel
                 </h2>
@@ -892,18 +775,15 @@ function SalesReport() {
                 <p className="mt-0.5 text-xs text-gray-500">
                   Overview of your sales journey from lead to booking
                 </p>
-
               </div>
 
               <FiTrendingUp
                 className="text-gray-400"
                 size={18}
               />
-
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-
               <FunnelCard
                 label="Leads"
                 value={formatNumber(summary.leads)}
@@ -931,14 +811,10 @@ function SalesReport() {
                 hint="Successful conversions"
                 colorClass="border-emerald-100 bg-emerald-50 text-emerald-700"
               />
-
             </div>
-
           </div>
 
-          {/* =================================================
-              STATUS BREAKDOWN
-          ================================================= */}
+          {/* STATUS BREAKDOWN */}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
 
@@ -959,205 +835,224 @@ function SalesReport() {
               barClass="bg-emerald-500"
               emptyText="No booking status data"
             />
-
           </div>
 
-          {/* =================================================
-              QUOTATION TABLE
-          ================================================= */}
+          {/* QUOTATION TABLE */}
 
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
 
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 gap-3">
 
               <div>
-
                 <h2 className="text-sm font-bold text-gray-800">
                   Quotation Details
                 </h2>
 
                 <p className="mt-0.5 text-xs text-gray-500">
                   Showing{" "}
-                  {formatNumber(
-                    filteredQuotations.length
-                  )}{" "}
+                  {formatNumber(filteredQuotations.length)}{" "}
                   quotation
-                  {filteredQuotations.length === 1
-                    ? ""
-                    : "s"}
+                  {filteredQuotations.length === 1 ? "" : "s"}
                 </p>
-
               </div>
 
-              <div className="text-xs text-gray-500">
-
+              <div className="text-xs text-gray-500 whitespace-nowrap">
                 Accepted:{" "}
-
                 <span className="font-semibold text-emerald-600">
-                  {formatNumber(
-                    summary.acceptedQuotations
-                  )}
+                  {formatNumber(summary.acceptedQuotations)}
                 </span>
-
               </div>
-
             </div>
 
             {filteredQuotations.length === 0 ? (
-
-              <EmptyState
-                title="No quotations found"
-              />
-
+              <EmptyState title="No quotations found" />
             ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[1000px]">
 
-              <div className="overflow-x-auto">
-
-                <table className="w-full text-sm min-w-[1000px]">
-
-                  <thead>
-
-                    <tr className="border-b border-gray-200 bg-gray-50/60">
-
-                      {[
-                        "Quotation",
-                        "Customer",
-                        "Destination",
-                        "Status",
-                        "Value",
-                        "Date",
-                      ].map((h, i) => (
-
-                        <th
-                          key={i}
-                          className={`px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide ${
-                            h === "Value"
-                              ? "text-right"
-                              : "text-left"
-                          }`}
-                        >
-                          {h}
-                        </th>
-
-                      ))}
-
-                    </tr>
-
-                  </thead>
-
-                  <tbody className="divide-y divide-gray-100">
-
-                    {filteredQuotations.map(
-                      (quotation, index) => {
-
-                        const quotationNumber =
-                          quotation.quotationNumber ||
-                          quotation.quoteNumber ||
-                          quotation.code ||
-                          `QT-${index + 1}`;
-
-                        const customer =
-                          quotation.customer?.name ||
-                          quotation.customer?.fullName ||
-                          quotation.customerName ||
-                          "—";
-
-                        const destination =
-                          quotation.destination ||
-                          quotation.trip?.destination ||
-                          "—";
-
-                        const value = Number(
-                          quotation.totalAmount ??
-                            quotation.grandTotal ??
-                            quotation.amount ??
-                            0
-                        );
-
-                        return (
-
-                          <tr
-                            key={
-                              quotation._id ||
-                              quotation.id ||
-                              quotationNumber
-                            }
-                            className="hover:bg-brand-blue-50/40 transition-colors"
+                    <thead>
+                      <tr className="border-b border-gray-200 bg-gray-50/60">
+                        {[
+                          "Quotation",
+                          "Customer",
+                          "Destination",
+                          "Status",
+                          "Value",
+                          "Date",
+                        ].map((h, i) => (
+                          <th
+                            key={i}
+                            className={`px-5 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide ${
+                              h === "Value"
+                                ? "text-right"
+                                : "text-left"
+                            }`}
                           >
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
 
-                            <td className="px-5 py-4">
+                    <tbody className="divide-y divide-gray-100">
+                      {paginatedQuotations.map(
+                        (quotation, index) => {
+                          const quotationNumber =
+                            quotation.quotationNumber ||
+                            quotation.quoteNumber ||
+                            quotation.code ||
+                            `QT-${(currentPage - 1) * itemsPerPage + index + 1}`;
 
-                              <p className="font-semibold text-gray-800 truncate max-w-[180px]">
-                                {quotationNumber}
-                              </p>
+                          const customer =
+                            quotation.customer?.name ||
+                            quotation.customer?.fullName ||
+                            quotation.customerName ||
+                            "—";
 
-                              {quotation.title && (
+                          const destination =
+                            quotation.destination ||
+                            quotation.trip?.destination ||
+                            "—";
 
-                                <p className="text-xs text-gray-500 mt-0.5 truncate max-w-[180px]">
-                                  {quotation.title}
+                          const value = Number(
+                            quotation.totalAmount ??
+                              quotation.grandTotal ??
+                              quotation.amount ??
+                              0
+                          );
+
+                          return (
+                            <tr
+                              key={
+                                quotation._id ||
+                                quotation.id ||
+                                quotationNumber
+                              }
+                              className="hover:bg-brand-blue-50/40 transition-colors"
+                            >
+                              <td className="px-5 py-4">
+                                <p className="font-semibold text-gray-800 truncate max-w-[180px]">
+                                  {quotationNumber}
                                 </p>
 
-                              )}
+                                {quotation.title && (
+                                  <p className="text-xs text-gray-500 mt-0.5 truncate max-w-[180px]">
+                                    {quotation.title}
+                                  </p>
+                                )}
+                              </td>
 
-                            </td>
+                              <td className="px-5 py-4 text-gray-700 text-xs truncate max-w-[160px]">
+                                {customer}
+                              </td>
 
-                            <td className="px-5 py-4 text-gray-700 text-xs truncate max-w-[160px]">
-                              {customer}
-                            </td>
+                              <td className="px-5 py-4 text-gray-600 text-xs truncate max-w-[160px]">
+                                {destination}
+                              </td>
 
-                            <td className="px-5 py-4 text-gray-600 text-xs truncate max-w-[160px]">
-                              {destination}
-                            </td>
+                              <td className="px-5 py-4">
+                                <span
+                                  className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getStatusClasses(
+                                    quotation.status
+                                  )}`}
+                                >
+                                  {quotation.status || "Unknown"}
+                                </span>
+                              </td>
 
-                            <td className="px-5 py-4">
+                              <td className="px-5 py-4 text-right">
+                                <span className="font-semibold text-gray-800 whitespace-nowrap">
+                                  {formatCurrency(value)}
+                                </span>
+                              </td>
 
-                              <span
-                                className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getStatusClasses(
-                                  quotation.status
-                                )}`}
-                              >
-                                {quotation.status ||
-                                  "Unknown"}
-                              </span>
+                              <td className="px-5 py-4 text-gray-500 text-xs whitespace-nowrap">
+                                {formatDate(
+                                  quotation.createdAt ||
+                                    quotation.quotationDate
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        }
+                      )}
+                    </tbody>
+                  </table>
+                </div>
 
-                            </td>
+                {/* PAGINATION */}
 
-                            <td className="px-5 py-4 text-right">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-gray-200">
 
-                              <span className="font-semibold text-gray-800 whitespace-nowrap">
-                                {formatCurrency(value)}
-                              </span>
+                  <p className="text-sm text-gray-500 text-center sm:text-left">
+                    Showing{" "}
+                    <span className="font-semibold text-gray-800">
+                      {formatNumber(startItem)}-
+                      {formatNumber(endItem)}
+                    </span>{" "}
+                    of{" "}
+                    <span className="font-semibold text-gray-800">
+                      {formatNumber(filteredQuotations.length)}
+                    </span>{" "}
+                    quotations
+                  </p>
 
-                            </td>
+                  <div className="flex flex-wrap items-center justify-center gap-1.5">
 
-                            <td className="px-5 py-4 text-gray-500 text-xs whitespace-nowrap">
-
-                              {formatDate(
-                                quotation.createdAt ||
-                                  quotation.quotationDate
-                              )}
-
-                            </td>
-
-                          </tr>
-
-                        );
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCurrentPage((prev) =>
+                          Math.max(prev - 1, 1)
+                        )
                       }
-                    )}
+                      disabled={currentPage === 1}
+                      className="px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Previous
+                    </button>
 
-                  </tbody>
+                    {Array.from(
+                      { length: totalPages },
+                      (_, index) => index + 1
+                    ).map((page) => (
+                      <button
+                        key={page}
+                        type="button"
+                        onClick={() => setCurrentPage(page)}
+                        aria-current={
+                          currentPage === page ? "page" : undefined
+                        }
+                        className={`min-w-9 px-3 py-2 text-sm border rounded-lg transition ${
+                          currentPage === page
+                            ? "bg-brand-blue text-white border-brand-blue"
+                            : "border-gray-200 text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
 
-                </table>
-
-              </div>
-
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCurrentPage((prev) =>
+                          Math.min(prev + 1, totalPages)
+                        )
+                      }
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              </>
             )}
-
           </div>
 
-          {/* =================================================
-              QUICK METRICS
-          ================================================= */}
+          {/* QUICK METRICS */}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
 
@@ -1176,28 +1071,20 @@ function SalesReport() {
 
             <QuickMetricCard
               title="Accepted Quotations"
-              value={formatNumber(
-                summary.acceptedQuotations
-              )}
+              value={formatNumber(summary.acceptedQuotations)}
               icon={<FiCheckCircle size={16} />}
               iconClass="bg-emerald-50 text-emerald-600"
             />
 
             <QuickMetricCard
               title="Lead → Booking"
-              value={formatPercentage(
-                summary.conversionRate
-              )}
+              value={formatPercentage(summary.conversionRate)}
               icon={<FiTrendingUp size={16} />}
               iconClass="bg-purple-50 text-purple-600"
             />
-
           </div>
-
         </>
-
       )}
-
     </div>
   );
 }
@@ -1216,11 +1103,8 @@ function SummaryCard({
 }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4">
-
       <div className="flex items-start justify-between">
-
         <div className="min-w-0">
-
           <p className="text-xs font-medium text-gray-500">
             {title}
           </p>
@@ -1236,7 +1120,6 @@ function SummaryCard({
               {subtitle}
             </p>
           )}
-
         </div>
 
         <div
@@ -1244,9 +1127,7 @@ function SummaryCard({
         >
           {icon}
         </div>
-
       </div>
-
     </div>
   );
 }
@@ -1258,10 +1139,7 @@ function FunnelCard({
   colorClass,
 }) {
   return (
-    <div
-      className={`rounded-xl border p-4 ${colorClass}`}
-    >
-
+    <div className={`rounded-xl border p-4 ${colorClass}`}>
       <p className="text-[10px] font-bold uppercase tracking-wider">
         {label}
       </p>
@@ -1273,7 +1151,6 @@ function FunnelCard({
       <p className="mt-0.5 text-[11px] opacity-80">
         {hint}
       </p>
-
     </div>
   );
 }
@@ -1288,9 +1165,7 @@ function StatusBreakdown({
 }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5">
-
       <div className="mb-4">
-
         <h2 className="text-sm font-bold text-gray-800">
           {title}
         </h2>
@@ -1298,19 +1173,13 @@ function StatusBreakdown({
         <p className="mt-0.5 text-xs text-gray-500">
           {hint}
         </p>
-
       </div>
 
       {items.length === 0 ? (
-
         <EmptyState title={emptyText} />
-
       ) : (
-
         <div className="space-y-2.5">
-
           {items.map((item, index) => {
-
             const status =
               item.status ||
               item._id ||
@@ -1325,19 +1194,14 @@ function StatusBreakdown({
             );
 
             const percentage =
-              total > 0
-                ? (count / total) * 100
-                : 0;
+              total > 0 ? (count / total) * 100 : 0;
 
             return (
-
               <div
                 key={`${status}-${index}`}
                 className="rounded-lg border border-gray-100 p-3"
               >
-
                 <div className="flex items-center justify-between gap-4">
-
                   <span
                     className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getStatusClasses(
                       status
@@ -1349,36 +1213,25 @@ function StatusBreakdown({
                   <span className="text-sm font-bold text-gray-800">
                     {formatNumber(count)}
                   </span>
-
                 </div>
 
                 <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-gray-100">
-
                   <div
                     className={`h-full rounded-full transition-all ${barClass}`}
                     style={{
-                      width: `${Math.min(
-                        percentage,
-                        100
-                      )}%`,
+                      width: `${Math.min(percentage, 100)}%`,
                     }}
                   />
-
                 </div>
 
                 <p className="mt-1 text-right text-[10px] text-gray-400">
                   {percentage.toFixed(1)}%
                 </p>
-
               </div>
-
             );
           })}
-
         </div>
-
       )}
-
     </div>
   );
 }
@@ -1391,7 +1244,6 @@ function QuickMetricCard({
 }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4 flex items-center gap-3">
-
       <div
         className={`flex h-9 w-9 items-center justify-center rounded-lg flex-shrink-0 ${iconClass}`}
       >
@@ -1399,7 +1251,6 @@ function QuickMetricCard({
       </div>
 
       <div className="min-w-0">
-
         <p className="text-xs font-medium text-gray-500">
           {title}
         </p>
@@ -1407,9 +1258,7 @@ function QuickMetricCard({
         <p className="mt-0.5 text-lg font-bold text-gray-900">
           {value}
         </p>
-
       </div>
-
     </div>
   );
 }
@@ -1419,11 +1268,8 @@ function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
-
       <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
-
         <FiBarChart2 size={20} />
-
       </div>
 
       <p className="mt-3 text-sm font-semibold text-gray-700">
@@ -1433,9 +1279,9 @@ function EmptyState({
       <p className="mt-0.5 text-xs text-gray-500">
         Try changing the date range or search filters.
       </p>
-
     </div>
   );
 }
 
 export default SalesReport;
+

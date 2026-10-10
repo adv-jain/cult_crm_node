@@ -563,7 +563,7 @@ function Invoice() {
           const align = headerAlignMap[index] || "flex-start";
 
           th.style.setProperty("vertical-align", "middle", "important");
-          th.style.setProperty("padding-top", "10px", "important");
+          th.style.setProperty("padding-top", "0px", "important");
           th.style.setProperty("padding-bottom", "10px", "important");
           th.style.setProperty("background-color", "#1f4f8f", "important");
           th.style.setProperty("color", "#ffffff", "important");
@@ -576,6 +576,7 @@ function Invoice() {
             innerDiv.style.setProperty("justify-content", align, "important");
             innerDiv.style.setProperty("min-height", "16px", "important");
             innerDiv.style.setProperty("line-height", "1.2", "important");
+            
           }
         });
       };
@@ -583,9 +584,12 @@ function Invoice() {
       forceHeaders(clone);
 
       /* Body cells — vertical center */
-      clone.querySelectorAll("tbody td").forEach((td) => {
-        td.style.setProperty("vertical-align", "middle", "important");
-      });
+      /* Body cells — vertical center */
+clone.querySelectorAll("tbody td").forEach((td) => {
+  td.style.setProperty("vertical-align", "middle", "important");
+  td.style.setProperty("padding-top", "0px", "important");
+  td.style.setProperty("padding-bottom", "8px", "important");
+});
 
       /* Force table layout */
       clone.querySelectorAll("table").forEach((table) => {
@@ -625,10 +629,7 @@ function Invoice() {
       /* Re-apply header force AFTER generic loop */
       forceHeaders(clone);
 
-      /* Re-apply vertical center to body cells */
-      clone.querySelectorAll("tbody td").forEach((td) => {
-        td.style.setProperty("vertical-align", "middle", "important");
-      });
+      
 
       wrapper.appendChild(clone);
       document.body.appendChild(wrapper);
@@ -1730,166 +1731,85 @@ function InvoiceViewModal({ invoice, onClose, onDownload, onIssue, onSend, onCan
             </p>
 
             <div className="mt-1.5 w-full min-w-0 overflow-visible rounded-md border border-gray-200">
-              <table
-                className="w-full table-fixed border-collapse"
-                style={{ width: "100%", tableLayout: "fixed" }}
-              >
-                <colgroup>
-                  <col className="w-[18%]" />
-                  <col className="w-[38%]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[17%]" />
-                  <col className="w-[17%]" />
-                </colgroup>
+             
+<table
+  className="w-full table-fixed border-collapse"
+  style={{ width: "100%", tableLayout: "fixed" }}
+>
+  <colgroup>
+    <col style={{ width: "18%" }} />
+    <col style={{ width: "38%" }} />
+    <col style={{ width: "10%" }} />
+    <col style={{ width: "17%" }} />
+    <col style={{ width: "17%" }} />
+  </colgroup>
 
-                <thead>
-                  <tr className="bg-[#1f4f8f]">
-                    <th
-                      className="px-2.5 text-left text-[8px] font-bold uppercase tracking-[0.5px] text-white"
-                      style={{
-                        verticalAlign: "middle",
-                        paddingTop: "10px",
-                        paddingBottom: "10px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "flex-start",
-                          minHeight: "16px",
-                          lineHeight: "1.2",
-                        }}
-                      >
-                        Services
-                      </div>
-                    </th>
+  <thead>
+    <tr className="bg-[#1f4f8f]">
+      {[
+        { label: "Services", align: "left" },
+        { label: "Description", align: "left" },
+        { label: "Qty", align: "center" },
+        { label: "Rate", align: "right" },
+        { label: "Amount", align: "right" },
+      ].map(({ label, align }) => (
+        <th
+          key={label}
+          className={`px-2.5 text-${align} text-[8px] font-bold uppercase tracking-[0.5px] text-white`}
+          style={{
+            verticalAlign: "middle",
+            paddingTop: "10px",
+            paddingBottom: "10px",
+            lineHeight: "12px",
+          }}
+        >
+          {label}
+        </th>
+      ))}
+    </tr>
+  </thead>
 
-                    <th
-                      className="px-2.5 text-left text-[8px] font-bold uppercase tracking-[0.5px] text-white"
-                      style={{
-                        verticalAlign: "middle",
-                        paddingTop: "10px",
-                        paddingBottom: "10px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "flex-start",
-                          minHeight: "16px",
-                          lineHeight: "1.2",
-                        }}
-                      >
-                        Description
-                      </div>
-                    </th>
+  <tbody>
+    {(invoice.items || []).map((item, index) => {
+      const quantity = Number(item.quantity || 1);
+      const rate = Number(item.unitPrice || 0);
+      const amount = Number(item.amount ?? quantity * rate);
 
-                    <th
-                      className="px-2.5 text-center text-[8px] font-bold uppercase tracking-[0.5px] text-white"
-                      style={{
-                        verticalAlign: "middle",
-                        paddingTop: "10px",
-                        paddingBottom: "10px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          minHeight: "16px",
-                          lineHeight: "1.2",
-                        }}
-                      >
-                        Qty
-                      </div>
-                    </th>
+      return (
+        <tr
+          key={index}
+          className={`invoice-card break-inside-avoid ${
+            index % 2 === 0 ? "bg-gray-50" : "bg-white"
+          }`}
+        >
+          <td className="border-b border-gray-100 px-2.5 py-2.5 align-middle text-[9px] font-semibold leading-[13px] text-gray-800 break-words">
+            {safeText(
+              item.service || item.category || "Travel Service"
+            )}
+          </td>
 
-                    <th
-                      className="px-2.5 text-right text-[8px] font-bold uppercase tracking-[0.5px] text-white"
-                      style={{
-                        verticalAlign: "middle",
-                        paddingTop: "10px",
-                        paddingBottom: "10px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "flex-end",
-                          minHeight: "16px",
-                          lineHeight: "1.2",
-                        }}
-                      >
-                        Rate
-                      </div>
-                    </th>
+          <td className="border-b border-gray-100 px-2.5 py-2.5 align-middle text-[9px] leading-[13px] text-gray-700 break-words">
+            {safeText(item.description)}
+          </td>
 
-                    <th
-                      className="px-2.5 text-right text-[8px] font-bold uppercase tracking-[0.5px] text-white"
-                      style={{
-                        verticalAlign: "middle",
-                        paddingTop: "10px",
-                        paddingBottom: "10px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "flex-end",
-                          minHeight: "16px",
-                          lineHeight: "1.2",
-                        }}
-                      >
-                        Amount
-                      </div>
-                    </th>
-                  </tr>
-                </thead>
+          <td className="border-b border-gray-100 px-2.5 py-2.5 text-center align-middle text-[9px] font-medium leading-[13px] text-gray-700">
+            {quantity}
+          </td>
 
-                <tbody>
-                  {(invoice.items || []).map((item, index) => {
-                    const quantity = Number(item.quantity || 1);
-                    const rate = Number(item.unitPrice || 0);
-                    const amount = Number(item.amount ?? quantity * rate);
+          <td className="border-b border-gray-100 px-2.5 py-2.5 text-right align-middle text-[9px] leading-[13px] text-gray-700 whitespace-nowrap">
+            {formatAmount(rate)}
+          </td>
 
-                    return (
-                      <tr
-                        key={index}
-                        className={`invoice-card break-inside-avoid ${
-                          index % 2 === 0 ? "bg-gray-50" : "bg-white"
-                        }`}
-                      >
-                        <td className="border-b border-gray-100 px-2.5 py-2.5 align-middle text-[9px] font-semibold leading-[13px] text-gray-800 break-words">
-                          {safeText(
-                            item.service || item.category || "Travel Service"
-                          )}
-                        </td>
+          <td className="border-b border-gray-100 px-2.5 py-2.5 text-right align-middle text-[9px] font-bold leading-[13px] text-gray-900 whitespace-nowrap">
+            {formatAmount(amount)}
+          </td>
+        </tr>
+      );
+    })}
+  </tbody>
+</table>
 
-                        <td className="max-w-0 border-b border-gray-100 px-2.5 py-2.5 align-middle text-[9px] leading-[13px] text-gray-700 break-words">
-                          {safeText(item.description)}
-                        </td>
 
-                        <td className="border-b border-gray-100 px-2.5 py-2.5 text-center align-middle text-[9px] font-medium text-gray-700">
-                          {quantity}
-                        </td>
-
-                        <td className="border-b border-gray-100 px-2.5 py-2.5 text-right align-middle text-[9px] text-gray-700 whitespace-nowrap">
-                          {formatAmount(rate)}
-                        </td>
-
-                        <td className="border-b border-gray-100 px-2.5 py-2.5 text-right align-middle text-[9px] font-bold text-gray-900 whitespace-nowrap">
-                          {formatAmount(amount)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
             </div>
           </section>
 

@@ -149,13 +149,23 @@ function ActivityForm({
         notes: form.notes,
       };
 
+      let saved;
+
       if (editingActivity) {
-        await api.put(`/activities/${editingActivity._id}`, payload);
+        const res = await api.put(
+          `/activities/${editingActivity._id}`,
+          payload
+        );
+        saved =
+          res?.data?.data ||
+          res?.data ||
+          { ...payload, _id: editingActivity._id };
       } else {
-        await api.post("/activities", payload);
+        const res = await api.post("/activities", payload);
+        saved = res?.data?.data || res?.data || payload;
       }
 
-      await onSaved();
+      await onSaved(saved);
     } catch (error) {
       console.error(
         "Save activity error:",
@@ -189,7 +199,7 @@ function ActivityForm({
   // ==========================================
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] bg-gray-900/40 backdrop-blur-[2px] flex items-center justify-center p-4 overflow-y-auto"
+      className="fixed inset-0 z-[10001] bg-gray-900/40 backdrop-blur-[2px] flex items-center justify-center p-4 overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget && !saving) {
           onClose();

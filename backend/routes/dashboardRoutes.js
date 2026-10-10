@@ -10,6 +10,7 @@ const {
   getDashboardPaymentStatus,
   getDashboardDestinations,
   getDashboardTravelTypes,
+  getPaymentDueTracker,
   getDashboardRecent
 } = require("../controllers/dashboardController");
 
@@ -88,6 +89,14 @@ router.get(
   protect,
   authorize("admin", "manager", "sales", "operations", "accounts"),
   getDashboardPaymentStatus
+);
+
+
+router.get(
+  "/payment-due-tracker",
+  protect,
+  authorize("admin", "manager", "sales", "operations", "accounts"),
+  getPaymentDueTracker
 );
 
 

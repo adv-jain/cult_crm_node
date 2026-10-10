@@ -30,6 +30,7 @@ import {
   FiArrowRight,
   FiBriefcase,
   FiChevronRight,
+  FiAlertCircle,
 } from "react-icons/fi";
 
 import { TbCurrencyRupee } from "react-icons/tb";
@@ -134,6 +135,12 @@ function Dashboard() {
   const [recentActivities, setRecentActivities] = useState([]);
   const [upcomingTasks, setUpcomingTasks] = useState([]);
 
+const [paymentDueTracker, setPaymentDueTracker] = useState({
+  summary: {},
+  bookings: [],
+});
+
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -164,6 +171,7 @@ function Dashboard() {
         destinationsRes,
         travelTypesRes,
         recentRes,
+        paymentDueRes,
       ] = await Promise.all([
         api.get("/dashboard/summary"),
         api.get("/dashboard/pipeline"),
@@ -174,6 +182,7 @@ function Dashboard() {
         api.get("/dashboard/destinations"),
         api.get("/dashboard/travel-types"),
         api.get("/dashboard/recent"),
+        api.get("/dashboard/payment-due-tracker"),
       ]);
 
       setSummary(
@@ -215,6 +224,16 @@ function Dashboard() {
       setUpcomingTasks(
         recentRes.data.upcomingTasks || []
       );
+  console.log(
+  "Payment Due Tracker API Response:",
+  JSON.stringify(paymentDueRes.data, null, 2)
+);  
+setPaymentDueTracker({
+  summary: paymentDueRes.data?.summary || {},
+  bookings: paymentDueRes.data?.bookings || [],
+});
+
+
     } catch (error) {
       console.error(
         "Dashboard error:",
@@ -697,6 +716,268 @@ function Dashboard() {
           </div>
         ))}
       </div>
+
+      {/* =================================================
+          PAYMENT DUE TRACKER
+      ================================================= */}
+
+      <section className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h2 className="text-base font-bold text-gray-900">
+              Payment Due Tracker
+            </h2>
+            <p className="text-xs text-gray-500 mt-1">
+              Track pending payments and upcoming due dates
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => navigate("/bookings")}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-brand-blue hover:text-brand-blue-dark"
+          >
+            View Bookings
+            <FiChevronRight size={13} />
+          </button>
+        </div>
+
+        {(() => {
+        
+const trackerSummary = paymentDueTracker.summary || {};
+
+const totalPending =
+  trackerSummary.totalPendingAmount ??
+  trackerSummary.totalPending ??
+  trackerSummary.paymentDue ??
+  0;
+
+const overdueAmount = trackerSummary.overdueAmount ?? 0;
+
+const dueToday =
+  trackerSummary.dueTodayAmount ??
+  trackerSummary.dueToday ??
+  0;
+
+const upcomingDues =
+  trackerSummary.upcomingDueAmount ??
+  trackerSummary.upcomingDues ??
+  0;
+
+
+      
+const cards = [
+  {
+    label: "Total Pending",
+    value: formatCurrency(totalPending),
+    icon: <FiCreditCard size={18} />,
+    style: "bg-blue-50 text-blue-600",
+  },
+  {
+    label: "Overdue Amount",
+    value: formatCurrency(overdueAmount),
+    icon: <FiAlertCircle size={18} />,
+    style: "bg-red-50 text-red-600",
+  },
+  {
+    label: "Due Today",
+    value: formatCurrency(dueToday),
+    icon: <FiCalendar size={18} />,
+    style: "bg-orange-50 text-orange-600",
+  },
+  {
+    label: "Upcoming Dues",
+    value: formatCurrency(upcomingDues),
+    icon: <FiClock size={18} />,
+    style: "bg-amber-50 text-amber-600",
+  },
+];
+
+          const rows = paymentDueTracker.bookings || [];
+
+          const getDueStyle = (dueStatus) => {
+            const value = String(dueStatus || "").toLowerCase();
+
+            if (value === "overdue") {
+              return "bg-red-50 text-red-700 border-red-100";
+            }
+
+            if (value === "due today") {
+              return "bg-orange-50 text-orange-700 border-orange-100";
+            }
+
+            if (value === "upcoming") {
+              return "bg-amber-50 text-amber-700 border-amber-100";
+            }
+
+            return "bg-gray-50 text-gray-600 border-gray-200";
+          };
+
+          return (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 p-4">
+                {cards.map((card) => (
+                  <div
+                    key={card.label}
+                    className="rounded-xl border border-gray-100 p-4"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-10 h-10 rounded-lg flex items-center justify-center ${card.style}`}
+                      >
+                        {card.icon}
+                      </div>
+
+                      <div className="min-w-0">
+                        <p className="text-xs text-gray-500">
+                          {card.label}
+                        </p>
+                        <p className="text-lg font-bold text-gray-900 mt-1">
+                          {card.value}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="px-5 pb-4">
+                <div className="overflow-x-auto border border-gray-100 rounded-xl">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200">
+                        <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wide text-gray-500 font-semibold">
+                          Booking
+                        </th>
+                        <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wide text-gray-500 font-semibold">
+                          Customer
+                        </th>
+                        <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wide text-gray-500 font-semibold">
+                          Destination
+                        </th>
+                        <th className="text-right px-4 py-3 text-[10px] uppercase tracking-wide text-gray-500 font-semibold">
+                          Total
+                        </th>
+                        <th className="text-right px-4 py-3 text-[10px] uppercase tracking-wide text-gray-500 font-semibold">
+                          Paid
+                        </th>
+                        <th className="text-right px-4 py-3 text-[10px] uppercase tracking-wide text-gray-500 font-semibold">
+                          Balance
+                        </th>
+                        <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wide text-gray-500 font-semibold">
+                          Due Date
+                        </th>
+                        <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wide text-gray-500 font-semibold">
+                          Status
+                        </th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {rows.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={8}
+                            className="px-4 py-10 text-center text-sm text-gray-400"
+                          >
+                            No pending payments found.
+                          </td>
+                        </tr>
+                      ) : (
+                        rows.map((booking, index) => {
+                          const dueStatus =
+                            booking.dueStatus ||
+                            booking.paymentDueStatus ||
+                            booking.status ||
+                            "No Due Date";
+
+                          return (
+                            <tr
+                              key={booking._id || index}
+                              className="border-b border-gray-100 last:border-0 hover:bg-gray-50/70"
+                            >
+                              <td className="px-4 py-3">
+                                <p className="text-xs font-semibold text-gray-800">
+                                  {booking.bookingNumber ||
+                                    booking.bookingCode ||
+                                    booking._id ||
+                                    "-"}
+                                </p>
+                              </td>
+
+                              <td className="px-4 py-3">
+                                <p className="text-xs text-gray-700">
+                                  {booking.customer?.name ||
+                                    booking.customer?.fullName ||
+                                    booking.customerName ||
+                                    "-"}
+                                </p>
+                              </td>
+
+                              <td className="px-4 py-3">
+                                <p className="text-xs text-gray-700">
+                                  {booking.trip?.destination ||
+                                    booking.trip?.title ||
+                                    booking.destination ||
+                                    "-"}
+                                </p>
+                              </td>
+
+                              <td className="px-4 py-3 text-right text-xs text-gray-700 whitespace-nowrap">
+                                {formatCurrency(
+                                  booking.totalAmount
+                                )}
+                              </td>
+
+                              <td className="px-4 py-3 text-right text-xs text-emerald-700 whitespace-nowrap">
+                                {formatCurrency(
+                                  booking.paidAmount ??
+                                    booking.amountPaid
+                                )}
+                              </td>
+
+                              <td className="px-4 py-3 text-right text-xs font-semibold text-gray-900 whitespace-nowrap">
+                                {formatCurrency(
+                                  booking.remainingDue ??
+                                    booking.amountDue
+                                )}
+                              </td>
+
+                              <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
+                                {formatDate(
+                                  booking.nextPaymentDueDate ||
+                                    booking.dueDate
+                                )}
+                              </td>
+
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span
+                                  className={`inline-flex px-2.5 py-1 rounded-full border text-[10px] font-semibold ${getDueStyle(
+                                    dueStatus
+                                  )}`}
+                                >
+                                  {dueStatus}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <p className="text-[11px] text-gray-400 mt-3">
+                  Payment totals depend on completed payment records.
+                  Due-date status is calculated by the backend.
+                </p>
+              </div>
+            </>
+          );
+        })()}
+      </section>
+
+
 
       {/* =================================================
           REVENUE + QUOTATION PIPELINE

@@ -7,17 +7,30 @@ const leadSchema = new mongoose.Schema(
     // ==============================
 
     firstName: {
-      type: String,
-      required: true,
-      trim: true,
-    },
+  type: String,
+  required: true,
+  trim: true,
+  set: (value) =>
+    typeof value === "string"
+      ? value
+          .trim()
+          .toLowerCase()
+          .replace(/\b[a-z]/g, (letter) => letter.toUpperCase())
+      : value,
+},
 
-    lastName: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-
+lastName: {
+  type: String,
+  trim: true,
+  default: "",
+  set: (value) =>
+    typeof value === "string"
+      ? value
+          .trim()
+          .toLowerCase()
+          .replace(/\b[a-z]/g, (letter) => letter.toUpperCase())
+      : value,
+},
     email: {
       type: String,
       trim: true,

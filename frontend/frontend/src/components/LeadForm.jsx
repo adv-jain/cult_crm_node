@@ -74,17 +74,24 @@ function LeadForm({
   // =====================================================
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+  const { name, value } = e.target;
 
-    setForm((current) => ({
-      ...current,
-      [name]: value,
-    }));
+  const updatedValue =
+    name === "firstName" || name === "lastName"
+      ? value
+          .toLowerCase()
+          .replace(/\b[a-z]/g, (letter) => letter.toUpperCase())
+      : value;
 
-    if (error) {
-      setError("");
-    }
-  };
+  setForm((current) => ({
+    ...current,
+    [name]: updatedValue,
+  }));
+
+  if (error) {
+    setError("");
+  }
+};
 
   // =====================================================
   // SUBMIT

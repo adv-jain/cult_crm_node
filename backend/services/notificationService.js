@@ -63,6 +63,58 @@ const createNotification = async ({
 };
 
 // ======================================================
+// PAYMENT REMINDER: CREATE WITHOUT DUPLICATES
+// ======================================================
+
+const createPaymentReminderNotification = async ({
+  recipient,
+  type,
+  title,
+  message,
+  booking,
+  reminderKey,
+}) => {
+  try {
+    if (!recipient || !booking?._id || !reminderKey) {
+      return null;
+    }
+
+    // Check whether this reminder already exists.
+    const existingNotification = await Notification.findOne({
+      recipient,
+      type,
+      relatedBooking: booking._id,
+      "metadata.reminderKey": reminderKey,
+    }).select("_id");
+
+    if (existingNotification) {
+      return existingNotification;
+    }
+
+    return await createNotification({
+      recipient,
+      type,
+      title,
+      message,
+      relatedBooking: booking._id,
+      relatedCustomer: booking.customer || null,
+      metadata: {
+        reminderKey,
+        reminderDate: new Date(),
+      },
+    });
+  } catch (error) {
+    console.error(
+      "Payment reminder error:",
+      error.message
+    );
+
+    return null;
+  }
+};
+
+
+// ======================================================
 // LEAD ASSIGNED
 // ======================================================
 
@@ -144,4 +196,5 @@ module.exports = {
   createTaskAssignedNotification,
   createTripAssignedNotification,
   createCustomerCreatedNotification,
+  createPaymentReminderNotification,
 };

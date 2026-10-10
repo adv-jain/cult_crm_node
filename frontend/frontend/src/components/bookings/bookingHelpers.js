@@ -48,6 +48,7 @@ export const INITIAL_BOOKING_FORM = {
   operationsOwner: "",
   specialRequests: "",
   internalNotes: "",
+  nextPaymentDueDate: "",
 };
 
 /* =========================================================

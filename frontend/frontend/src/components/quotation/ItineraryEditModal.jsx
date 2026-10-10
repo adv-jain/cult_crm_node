@@ -22,8 +22,10 @@ import {
 import api from "../../api";
 import HotelForm from "../HotelForm";
 import TransportForm from "../TransportForm";
+import ActivityForm from "../ActivityForm";
 import HotelView from "../HotelView";
 import TransportView from "../TransportView";
+import ViewActivity from "../ViewActivity";
 
 /* =========================================================
    EMPTY DAY
@@ -66,19 +68,15 @@ const emptyDay = (dayNumber) => ({
 
 /* =========================================================
    NORMALIZE DAY
-   Backend: transport = ARRAY of { transport, type, from, to, ... }
-   Frontend form: transport = OBJECT
 ========================================================= */
 
 function normalizeDay(day, index) {
   const activities = Array.isArray(day?.activities) ? day.activities : [];
 
-  /* Hotel — backend populated object ya null */
   const hotelRaw = day?.hotel?.hotel;
   const hotelObj =
     hotelRaw && typeof hotelRaw === "object" ? hotelRaw : null;
 
-  /* Transport — backend ARRAY bhejta hai */
   const trRaw = Array.isArray(day?.transport)
     ? day.transport[0] || {}
     : day?.transport || {};
@@ -95,10 +93,24 @@ function normalizeDay(day, index) {
     description: day?.description || "",
     city: day?.city || "",
     location: day?.location || "",
-    activities: activities.map((activity) => {
-      if (typeof activity === "string") return activity;
-      return activity?.name || "";
-    }),
+    activities: activities
+      .map((activity) => {
+        if (typeof activity === "string") {
+          return activity ? { _id: null, name: activity } : null;
+        }
+        if (activity && typeof activity === "object") {
+          return {
+            _id: activity?._id || null,
+            name:
+              activity?.name ||
+              activity?.title ||
+              activity?.activityName ||
+              "",
+          };
+        }
+        return null;
+      })
+      .filter(Boolean),
     hotel: {
       hotel: hotelObj?._id || day?.hotel?.hotel || null,
       name: day?.hotel?.name || hotelObj?.name || "",
@@ -230,41 +242,6 @@ function Textarea({ className = "", ...props }) {
       {...props}
       className={`w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-800 outline-none placeholder:text-gray-400 resize-none transition focus:border-brand-blue focus:bg-white focus:ring-2 focus:ring-brand-blue/10 ${className}`}
     />
-  );
-}
-
-/* =========================================================
-   MODE TOGGLE (activities)
-========================================================= */
-
-function ModeToggle({ mode, onChange, disabled = false }) {
-  return (
-    <div className="inline-flex items-center rounded-lg border border-gray-200 bg-gray-50 p-0.5">
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => onChange("existing")}
-        className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition ${
-          mode === "existing"
-            ? "bg-white text-brand-blue shadow-sm"
-            : "text-gray-500 hover:text-gray-700"
-        } disabled:opacity-50`}
-      >
-        Select Existing
-      </button>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => onChange("custom")}
-        className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition ${
-          mode === "custom"
-            ? "bg-white text-brand-blue shadow-sm"
-            : "text-gray-500 hover:text-gray-700"
-        } disabled:opacity-50`}
-      >
-        Custom
-      </button>
-    </div>
   );
 }
 
@@ -459,21 +436,37 @@ export default function ItineraryEditModal({
   const [activities, setActivities] = useState([]);
   const [loadingOptions, setLoadingOptions] = useState(false);
 
-  const [activityModes, setActivityModes] = useState({});
+  /* Activity CRM dropdown data */
+  const [leads, setLeads] = useState([]);
+  const [contacts, setContacts] = useState([]);
+  const [companies, setCompanies] = useState([]);
+  const [trips, setTrips] = useState([]);
 
+  /* Hotel modals */
   const [showAddHotelForm, setShowAddHotelForm] = useState(false);
-  const [showAddTransportForm, setShowAddTransportForm] = useState(false);
-
   const [showEditHotelForm, setShowEditHotelForm] = useState(false);
-  const [showEditTransportForm, setShowEditTransportForm] = useState(false);
   const [editingHotel, setEditingHotel] = useState(null);
-  const [editingTransport, setEditingTransport] = useState(null);
-
   const [previewHotel, setPreviewHotel] = useState(null);
-  const [previewTransport, setPreviewTransport] = useState(null);
-  const [previewDayIndex, setPreviewDayIndex] = useState(null);
 
-  /* FETCH OPTIONS */
+  /* Transport modals */
+  const [showAddTransportForm, setShowAddTransportForm] = useState(false);
+  const [showEditTransportForm, setShowEditTransportForm] = useState(false);
+  const [editingTransport, setEditingTransport] = useState(null);
+  const [previewTransport, setPreviewTransport] = useState(null);
+
+  /* Activity modals */
+  const [showAddActivityForm, setShowAddActivityForm] = useState(false);
+  const [showEditActivityForm, setShowEditActivityForm] = useState(false);
+  const [editingActivity, setEditingActivity] = useState(null);
+  const [previewActivity, setPreviewActivity] = useState(null);
+
+  /* Preview tracking (shared day index) */
+  const [previewDayIndex, setPreviewDayIndex] = useState(null);
+  const [previewActivityIndex, setPreviewActivityIndex] = useState(null);
+
+  /* =========================================================
+     FETCH OPTIONS
+  ========================================================= */
   useEffect(() => {
     if (!open) return;
 
@@ -499,10 +492,22 @@ export default function ItineraryEditModal({
         }
       };
 
-      const [hotelsRes, transportsRes, activitiesRes] = await Promise.all([
+      const [
+        hotelsRes,
+        transportsRes,
+        activitiesRes,
+        leadsRes,
+        contactsRes,
+        companiesRes,
+        tripsRes,
+      ] = await Promise.all([
         safeGet("/hotels"),
         safeGet("/transports"),
         safeGet("/activities"),
+        safeGet("/leads"),
+        safeGet("/contacts"),
+        safeGet("/companies"),
+        safeGet("/trips"),
       ]);
 
       if (cancelled) return;
@@ -510,6 +515,10 @@ export default function ItineraryEditModal({
       setHotels(hotelsRes);
       setTransports(transportsRes);
       setActivities(activitiesRes);
+      setLeads(leadsRes);
+      setContacts(contactsRes);
+      setCompanies(companiesRes);
+      setTrips(tripsRes);
       setLoadingOptions(false);
     };
 
@@ -520,7 +529,9 @@ export default function ItineraryEditModal({
     };
   }, [open]);
 
-  /* LOAD ITINERARY */
+  /* =========================================================
+     LOAD ITINERARY
+  ========================================================= */
   useEffect(() => {
     if (!open || !itinerary) {
       setForm(null);
@@ -558,22 +569,6 @@ export default function ItineraryEditModal({
       },
       notes: itinerary.notes || "",
     });
-
-    const initialModes = {};
-    (itinerary.days || []).forEach((day, dayIndex) => {
-      const dayActivities = Array.isArray(day?.activities)
-        ? day.activities
-        : [];
-      const map = {};
-      dayActivities.forEach((activity, activityIndex) => {
-        map[activityIndex] =
-          typeof activity === "object" && activity?._id
-            ? "existing"
-            : "custom";
-      });
-      initialModes[dayIndex] = map;
-    });
-    setActivityModes(initialModes);
   }, [open, itinerary]);
 
   if (!open || !form) return null;
@@ -624,15 +619,6 @@ export default function ItineraryEditModal({
         .filter((_, index) => index !== dayIndex)
         .map((day, index) => ({ ...day, dayNumber: index + 1 })),
     }));
-    setActivityModes((prev) => {
-      const next = {};
-      Object.keys(prev).forEach((key) => {
-        const idx = Number(key);
-        if (idx === dayIndex) return;
-        next[idx > dayIndex ? idx - 1 : idx] = prev[key];
-      });
-      return next;
-    });
   };
 
   const updateArrayItem = (field, index, value) => {
@@ -655,38 +641,7 @@ export default function ItineraryEditModal({
     }));
   };
 
-  const addActivity = (dayIndex) => {
-    setForm((prev) => ({
-      ...prev,
-      days: prev.days.map((day, index) =>
-        index === dayIndex
-          ? { ...day, activities: [...day.activities, ""] }
-          : day
-      ),
-    }));
-    setActivityModes((prev) => {
-      const dayMap = { ...(prev[dayIndex] || {}) };
-      const nextIndex = (form.days[dayIndex]?.activities || []).length;
-      dayMap[nextIndex] = "custom";
-      return { ...prev, [dayIndex]: dayMap };
-    });
-  };
-
-  const updateActivity = (dayIndex, activityIndex, value) => {
-    setForm((prev) => ({
-      ...prev,
-      days: prev.days.map((day, index) =>
-        index === dayIndex
-          ? {
-              ...day,
-              activities: day.activities.map((activity, currentIndex) =>
-                currentIndex === activityIndex ? value : activity
-              ),
-            }
-          : day
-      ),
-    }));
-  };
+  /* ---------------- ACTIVITY HELPERS ---------------- */
 
   const removeActivity = (dayIndex, activityIndex) => {
     setForm((prev) => ({
@@ -695,32 +650,12 @@ export default function ItineraryEditModal({
         index === dayIndex
           ? {
               ...day,
-              activities: day.activities.filter(
-                (_, currentIndex) => currentIndex !== activityIndex
+              activities: (day.activities || []).filter(
+                (_, i) => i !== activityIndex
               ),
             }
           : day
       ),
-    }));
-    setActivityModes((prev) => {
-      const dayMap = { ...(prev[dayIndex] || {}) };
-      const next = {};
-      Object.keys(dayMap).forEach((key) => {
-        const idx = Number(key);
-        if (idx === activityIndex) return;
-        next[idx > activityIndex ? idx - 1 : idx] = dayMap[key];
-      });
-      return { ...prev, [dayIndex]: next };
-    });
-  };
-
-  const setActivityMode = (dayIndex, activityIndex, mode) => {
-    setActivityModes((prev) => ({
-      ...prev,
-      [dayIndex]: {
-        ...(prev[dayIndex] || {}),
-        [activityIndex]: mode,
-      },
     }));
   };
 
@@ -918,6 +853,117 @@ export default function ItineraryEditModal({
   };
 
   /* =======================================================
+     ACTIVITY HANDLERS
+  ======================================================= */
+
+  const handleNewActivitySaved = (newActivity) => {
+    if (!newActivity) return;
+
+    setActivities((prev) => {
+      const exists = prev.some(
+        (a) => String(a._id) === String(newActivity._id)
+      );
+      return exists ? prev : [newActivity, ...prev];
+    });
+
+    setForm((prev) => ({
+      ...prev,
+      days: prev.days.map((day) => {
+        const dayActs = Array.isArray(day.activities) ? day.activities : [];
+        return {
+          ...day,
+          activities: [
+            ...dayActs,
+            {
+              _id: newActivity._id,
+              name:
+                newActivity.name ||
+                newActivity.title ||
+                newActivity.activityName ||
+                "",
+            },
+          ],
+        };
+      }),
+    }));
+
+    setShowAddActivityForm(false);
+  };
+
+  const handleUpdatedActivitySaved = (updatedActivity) => {
+    if (!updatedActivity) return;
+
+    setActivities((prev) =>
+      prev.map((a) =>
+        String(a._id) === String(updatedActivity._id) ? updatedActivity : a
+      )
+    );
+
+    setForm((prev) => ({
+      ...prev,
+      days: prev.days.map((day) => ({
+        ...day,
+        activities: (day.activities || []).map((act) =>
+          typeof act === "object" &&
+          String(act._id) === String(updatedActivity._id)
+            ? {
+                ...act,
+                name:
+                  updatedActivity.name ||
+                  updatedActivity.title ||
+                  act.name ||
+                  "",
+              }
+            : act
+        ),
+      })),
+    }));
+
+    setPreviewActivity(updatedActivity);
+    setShowEditActivityForm(false);
+    setEditingActivity(null);
+  };
+
+  const handleActivityPreviewConfirm = (activity) => {
+    if (!activity || previewDayIndex === null) return;
+
+    const newActivity = {
+      _id: activity._id,
+      name:
+        activity.name ||
+        activity.title ||
+        activity.activityName ||
+        "",
+    };
+
+    setForm((prev) => ({
+      ...prev,
+      days: prev.days.map((d, idx) => {
+        if (idx !== previewDayIndex) return d;
+        const acts = Array.isArray(d.activities) ? [...d.activities] : [];
+
+        const isDuplicate = acts.some(
+          (a) =>
+            typeof a === "object" &&
+            String(a._id) === String(activity._id)
+        );
+        if (isDuplicate) return d;
+
+        if (previewActivityIndex !== null) {
+          acts[previewActivityIndex] = newActivity;
+        } else {
+          acts.push(newActivity);
+        }
+        return { ...d, activities: acts };
+      }),
+    }));
+
+    setPreviewActivity(null);
+    setPreviewDayIndex(null);
+    setPreviewActivityIndex(null);
+  };
+
+  /* =======================================================
      SUBMIT
   ======================================================= */
 
@@ -926,7 +972,6 @@ export default function ItineraryEditModal({
     if (saving) return;
 
     const cleanedDays = form.days.map((day, index) => {
-      /* Hotel — object */
       const hotelPayload = {
         hotel: day.hotel?.hotel || null,
         name: day.hotel?.name?.trim() || "",
@@ -937,7 +982,6 @@ export default function ItineraryEditModal({
         checkOut: day.hotel?.checkOut || "",
       };
 
-      /* Transport — backend ARRAY expect karta hai */
       const hasTransport =
         day.transport?.transport || day.transport?.type?.trim();
 
@@ -955,6 +999,25 @@ export default function ItineraryEditModal({
           ]
         : [];
 
+      const activityPayload = Array.isArray(day.activities)
+        ? day.activities
+            .map((act) => {
+              if (typeof act === "string") {
+                return act.trim() ? { name: act.trim() } : null;
+              }
+              if (act && typeof act === "object") {
+                const name = act.name || act.title || "";
+                if (!name) return null;
+                return {
+                  ...(act._id ? { _id: act._id } : {}),
+                  name,
+                };
+              }
+              return null;
+            })
+            .filter(Boolean)
+        : [];
+
       return {
         dayNumber: index + 1,
         date: day.date || null,
@@ -962,16 +1025,7 @@ export default function ItineraryEditModal({
         description: day.description?.trim() || "",
         city: day.city?.trim() || "",
         location: day.location?.trim() || "",
-        activities: Array.isArray(day.activities)
-          ? day.activities
-              .map((activity) =>
-                typeof activity === "string"
-                  ? activity.trim()
-                  : activity?.name || ""
-              )
-              .filter(Boolean)
-              .map((name) => ({ name }))
-          : [],
+        activities: activityPayload,
         hotel: hotelPayload,
         transport: transportPayload,
         meals: [],
@@ -1023,7 +1077,6 @@ export default function ItineraryEditModal({
       }}
     >
       <div className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-
         {/* HEADER */}
         <div className="relative shrink-0 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-r from-brand-blue to-brand-blue-light" />
@@ -1060,7 +1113,6 @@ export default function ItineraryEditModal({
         {/* BODY */}
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 space-y-4">
-
             {/* ERROR */}
             {error && (
               <div className="flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs text-red-700">
@@ -1126,7 +1178,8 @@ export default function ItineraryEditModal({
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-brand-blue bg-brand-blue-50 hover:bg-brand-blue-100 rounded-lg transition"
                 >
                   <FiPlus size={12} />
-                  Add Day                </button>
+                  Add Day
+                </button>
               }
             >
               <div className="space-y-3">
@@ -1165,7 +1218,6 @@ export default function ItineraryEditModal({
 
                     {/* DAY BODY */}
                     <div className="p-4 space-y-4">
-
                       {/* BASIC INFO */}
                       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
                         <Field label="Date">
@@ -1230,121 +1282,124 @@ export default function ItineraryEditModal({
                         </Field>
                       </div>
 
-                      {/* ACTIVITIES */}
+                      {/* ============ ACTIVITIES ============ */}
                       <div className="border-t border-gray-200 pt-4">
-                        <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
                           <div className="flex items-center gap-1.5">
                             <FiActivity size={12} className="text-brand-blue" />
                             <span className="text-[11px] font-bold uppercase tracking-wide text-gray-600">
                               Activities
                             </span>
                           </div>
-
                           <button
                             type="button"
-                            onClick={() => addActivity(dayIndex)}
-                            className="text-[11px] font-semibold text-brand-blue hover:text-brand-blue-dark"
+                            onClick={() => setShowAddActivityForm(true)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-semibold text-brand-blue bg-brand-blue-50 hover:bg-brand-blue-100 border border-brand-blue/20 transition"
                           >
-                            + Add Activity
+                            <FiPlus size={11} />
+                            Add New
                           </button>
                         </div>
 
+                        {/* Selected activities list */}
                         <div className="space-y-2">
-                          {day.activities.length === 0 && (
+                          {(day.activities || []).length === 0 && (
                             <p className="text-[11px] text-gray-400">
                               No activities added.
                             </p>
                           )}
 
-                          {day.activities.map((activity, activityIndex) => {
-                            const mode =
-                              activityModes?.[dayIndex]?.[activityIndex] ||
-                              "custom";
-                            const selectedActivityId =
-                              typeof activity === "object"
-                                ? activity?._id
-                                : null;
+                          {(day.activities || []).map(
+                            (activity, activityIndex) => {
+                              const activityId =
+                                typeof activity === "object"
+                                  ? activity._id
+                                  : null;
+                              const activityName =
+                                typeof activity === "string"
+                                  ? activity
+                                  : activity?.name || "Unnamed activity";
 
-                            return (
-                              <div
-                                key={activityIndex}
-                                className="rounded-lg border border-gray-200 bg-white p-2.5 space-y-2"
-                              >
-                                <div className="flex items-center justify-between gap-2">
-                                  <ModeToggle
-                                    mode={mode}
-                                    onChange={(m) =>
-                                      setActivityMode(
-                                        dayIndex,
-                                        activityIndex,
-                                        m
-                                      )
-                                    }
+                              return (
+                                <div
+                                  key={activityIndex}
+                                  className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2"
+                                >
+                                  <FiActivity
+                                    size={12}
+                                    className="text-brand-blue shrink-0"
                                   />
+                                  <span className="flex-1 truncate text-xs text-gray-800">
+                                    {activityName}
+                                  </span>
+
+                                  {activityId && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const full = activities.find(
+                                          (a) =>
+                                            String(a._id) ===
+                                            String(activityId)
+                                        );
+                                        if (full) {
+                                          setEditingActivity(full);
+                                          setShowEditActivityForm(true);
+                                        }
+                                      }}
+                                      className="w-7 h-7 shrink-0 rounded-lg border border-gray-200 text-gray-400 hover:text-brand-blue hover:bg-brand-blue-50 transition"
+                                      title="Edit activity"
+                                    >
+                                      <FiFileText
+                                        size={12}
+                                        className="mx-auto"
+                                      />
+                                    </button>
+                                  )}
+
                                   <button
                                     type="button"
                                     onClick={() =>
                                       removeActivity(dayIndex, activityIndex)
                                     }
                                     className="w-7 h-7 shrink-0 rounded-lg border border-gray-200 text-gray-400 hover:text-red-600 hover:bg-red-50 transition"
+                                    title="Remove activity"
                                   >
-                                    <FiTrash2
-                                      size={12}
-                                      className="mx-auto"
-                                    />
+                                    <FiTrash2 size={12} className="mx-auto" />
                                   </button>
                                 </div>
+                              );
+                            }
+                          )}
+                        </div>
 
-                                {mode === "existing" ? (
-                                  <SearchableDropdown
-                                    items={activities}
-                                    value={selectedActivityId}
-                                    loading={loadingOptions}
-                                    placeholder="Search activities..."
-                                    emptyText="No activities available"
-                                    getLabel={(item) =>
-                                      item?.name ||
-                                      item?.title ||
-                                      "Unnamed activity"
-                                    }
-                                    onChange={(item) => {
-                                      updateActivity(
-                                        dayIndex,
-                                        activityIndex,
-                                        {
-                                          _id: item?._id || item?.id,
-                                          name:
-                                            item?.name ||
-                                            item?.title ||
-                                            "",
-                                        }
-                                      );
-                                    }}
-                                  />
-                                ) : (
-                                  <Input
-                                    value={
-                                      typeof activity === "string"
-                                        ? activity
-                                        : activity?.name || ""
-                                    }
-                                    onChange={(e) =>
-                                      updateActivity(
-                                        dayIndex,
-                                        activityIndex,
-                                        e.target.value
-                                      )
-                                    }
-                                    placeholder="Solang Valley sightseeing"
-                                  />
-                                )}
-                              </div>
-                            );
-                          })}
+                        {/* Dropdown to pick existing activity */}
+                        <div className="mt-2">
+                          <Field label="Add From Existing">
+                            <SearchableDropdown
+                              items={activities}
+                              value={null}
+                              loading={loadingOptions}
+                              placeholder="Search activities..."
+                              emptyText="No activities available"
+                              getLabel={(item) =>
+                                item?.name ||
+                                item?.title ||
+                                item?.activityName ||
+                                "Unnamed activity"
+                              }
+                              onChange={(item) => {
+                                if (!item) return;
+                                setPreviewActivity(item);
+                                setPreviewDayIndex(dayIndex);
+                                setPreviewActivityIndex(null);
+                              }}
+                            />
+                          </Field>
                         </div>
                       </div>
 
-                      {/* HOTEL */}
+                      {/* ============ HOTEL ============ */}
                       <div className="border-t border-gray-200 pt-4">
                         <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
                           <div className="flex items-center gap-1.5">
@@ -1405,7 +1460,7 @@ export default function ItineraryEditModal({
                         </Field>
                       </div>
 
-                      {/* TRANSPORT */}
+                      {/* ============ TRANSPORT ============ */}
                       <div className="border-t border-gray-200 pt-4">
                         <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
                           <div className="flex items-center gap-1.5">
@@ -1468,7 +1523,7 @@ export default function ItineraryEditModal({
                         </Field>
                       </div>
 
-                      {/* MEALS */}
+                      {/* ============ MEALS ============ */}
                       <div className="border-t border-gray-200 pt-4">
                         <div className="flex items-center gap-1.5 mb-2">
                           <FiCoffee size={12} className="text-brand-gold" />
@@ -1511,7 +1566,7 @@ export default function ItineraryEditModal({
                         </div>
                       </div>
 
-                      {/* FREE TIME + NOTES */}
+                      {/* ============ FREE TIME + NOTES ============ */}
                       <div className="grid grid-cols-1 gap-3 border-t border-gray-200 pt-4 md:grid-cols-2">
                         <Field label="Free Time">
                           <Textarea
@@ -1668,7 +1723,6 @@ export default function ItineraryEditModal({
                 placeholder="General itinerary notes..."
               />
             </SectionCard>
-
           </div>
 
           {/* FOOTER */}
@@ -1704,7 +1758,7 @@ export default function ItineraryEditModal({
         </form>
       </div>
 
-      {/* ADD NEW HOTEL MODAL */}
+      {/* ============ ADD NEW HOTEL ============ */}
       {showAddHotelForm && (
         <HotelForm
           hotel={null}
@@ -1713,7 +1767,7 @@ export default function ItineraryEditModal({
         />
       )}
 
-      {/* ADD NEW TRANSPORT MODAL */}
+      {/* ============ ADD NEW TRANSPORT ============ */}
       {showAddTransportForm && (
         <TransportForm
           transport={null}
@@ -1722,7 +1776,20 @@ export default function ItineraryEditModal({
         />
       )}
 
-      {/* EDIT HOTEL MODAL */}
+      {/* ============ ADD NEW ACTIVITY ============ */}
+      {showAddActivityForm && (
+        <ActivityForm
+          editingActivity={null}
+          leads={leads}
+          contacts={contacts}
+          companies={companies}
+          trips={trips}
+          onClose={() => setShowAddActivityForm(false)}
+          onSaved={handleNewActivitySaved}
+        />
+      )}
+
+      {/* ============ EDIT HOTEL ============ */}
       {showEditHotelForm && editingHotel && (
         <HotelForm
           hotel={editingHotel}
@@ -1734,7 +1801,7 @@ export default function ItineraryEditModal({
         />
       )}
 
-      {/* EDIT TRANSPORT MODAL */}
+      {/* ============ EDIT TRANSPORT ============ */}
       {showEditTransportForm && editingTransport && (
         <TransportForm
           transport={editingTransport}
@@ -1746,7 +1813,23 @@ export default function ItineraryEditModal({
         />
       )}
 
-      {/* HOTEL PREVIEW MODAL */}
+      {/* ============ EDIT ACTIVITY ============ */}
+      {showEditActivityForm && editingActivity && (
+        <ActivityForm
+          editingActivity={editingActivity}
+          leads={leads}
+          contacts={contacts}
+          companies={companies}
+          trips={trips}
+          onClose={() => {
+            setShowEditActivityForm(false);
+            setEditingActivity(null);
+          }}
+          onSaved={handleUpdatedActivitySaved}
+        />
+      )}
+
+      {/* ============ PREVIEW HOTEL ============ */}
       {previewHotel && (
         <HotelView
           hotel={previewHotel}
@@ -1764,7 +1847,7 @@ export default function ItineraryEditModal({
         />
       )}
 
-      {/* TRANSPORT PREVIEW MODAL */}
+      {/* ============ PREVIEW TRANSPORT ============ */}
       {previewTransport && (
         <TransportView
           transport={previewTransport}
@@ -1779,6 +1862,25 @@ export default function ItineraryEditModal({
             setShowEditTransportForm(true);
           }}
           selectLabel="Use This Transport"
+        />
+      )}
+
+      {/* ============ PREVIEW ACTIVITY ============ */}
+      {previewActivity && (
+        <ViewActivity
+          activity={previewActivity}
+          onClose={() => {
+            setPreviewActivity(null);
+            setPreviewDayIndex(null);
+            setPreviewActivityIndex(null);
+          }}
+          onSelect={handleActivityPreviewConfirm}
+          onEdit={(activity) => {
+            setPreviewActivity(null);
+            setEditingActivity(activity);
+            setShowEditActivityForm(true);
+          }}
+          selectLabel="Use This Activity"
         />
       )}
     </div>,

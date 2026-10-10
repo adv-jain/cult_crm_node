@@ -18,6 +18,7 @@ import {
   FiHeadphones,
   FiEdit2,
   FiTrash2,
+  FiCheck,
 } from "react-icons/fi";
 
 function ViewActivity({
@@ -26,6 +27,8 @@ function ViewActivity({
   onClose,
   onEdit,
   onDelete,
+  onSelect,
+  selectLabel = "Use This Activity",
 }) {
   if (!activity) return null;
 
@@ -159,7 +162,7 @@ function ViewActivity({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] bg-gray-900/40 backdrop-blur-[2px] flex items-center justify-center p-4 overflow-y-auto"
+      className="fixed inset-0 z-[10001] bg-gray-900/40 backdrop-blur-[2px] flex items-center justify-center p-4 overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
@@ -310,7 +313,7 @@ function ViewActivity({
           </div>
         </div>
 
-        {/* FOOTER — Delete left, Edit right */}
+        {/* FOOTER — Delete left, Edit + Use right */}
         <div className="flex items-center justify-between gap-2 px-5 py-3.5 border-t border-gray-100 bg-gray-50/60 flex-shrink-0">
           {/* LEFT — Delete */}
           <div>
@@ -326,7 +329,7 @@ function ViewActivity({
             )}
           </div>
 
-          {/* RIGHT — Edit */}
+          {/* RIGHT — Edit + Use This Activity */}
           <div className="flex items-center gap-2">
             {onEdit && (
               <button
@@ -336,6 +339,17 @@ function ViewActivity({
               >
                 <FiEdit2 size={14} />
                 Edit
+              </button>
+            )}
+
+            {onSelect && (
+              <button
+                type="button"
+                onClick={() => onSelect(activity)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-brand-blue hover:bg-brand-blue-dark rounded-lg transition shadow-brand"
+              >
+                <FiCheck size={14} />
+                {selectLabel}
               </button>
             )}
           </div>
